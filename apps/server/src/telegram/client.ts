@@ -79,8 +79,10 @@ export class TelegramClient {
       | { ok: boolean; result?: T; description?: string; parameters?: { retry_after?: number } }
       | null;
     if (!response.ok || !body?.ok) {
+      // Telegram answers 404 (and 401) when the token in the URL is not a bot it knows.
+      const hint = response.status === 401 || response.status === 404 ? ". Token sai: kiểm tra TELEGRAM_BOT_TOKEN trong .env (dạng 123456789:AA..., không có chữ bot ở đầu, không có dấu nháy)" : "";
       throw new TelegramError(
-        `Telegram ${method} ${response.status}: ${body?.description ?? "phản hồi không hợp lệ"}`,
+        `Telegram ${method} ${response.status}: ${body?.description ?? "phản hồi không hợp lệ"}${hint}`,
         response.status,
         body?.parameters?.retry_after ?? null,
       );

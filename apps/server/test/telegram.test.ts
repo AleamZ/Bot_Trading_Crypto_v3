@@ -69,6 +69,13 @@ describe("TelegramClient", () => {
     expect(error).toMatchObject({ status: 429, retryAfterSec: 3 });
     expect(error.message).not.toContain("SECRET");
 
+    const notFound = new TelegramClient("bot123:SECRET-TOKEN", {
+      fetch: (async () => Response.json({ ok: false, error_code: 404, description: "Not Found" }, { status: 404 })) as unknown as typeof fetch,
+    });
+    const e404 = (await notFound.sendMessage("42", "hi").catch((e) => e)) as TelegramError;
+    expect(e404.message).toContain("TELEGRAM_BOT_TOKEN");
+    expect(e404.message).not.toContain("SECRET");
+
     const down = new TelegramClient("123:SECRET-TOKEN", { fetch: (async () => Promise.reject(new TypeError("fetch failed"))) as unknown as typeof fetch });
     const e2 = (await down.getMe().catch((e) => e)) as TelegramError;
     expect(e2).toMatchObject({ status: 0, message: "Telegram getMe: fetch failed" });
