@@ -55,7 +55,8 @@ for _ in $(seq 1 30); do
   sleep 2
 done
 if [ "$ready" != 1 ]; then
-  echo "Bot không trả lời http://127.0.0.1:$PORT/health/ready. Xem: pm2 logs $APP_NAME --lines 100" >&2
+  echo "Bot không trả lời http://127.0.0.1:$PORT/health/ready. 40 dòng log lỗi gần nhất:" >&2
+  pm2 logs "$APP_NAME" --err --lines 40 --nostream >&2 || true
   exit 1
 fi
 
