@@ -105,7 +105,16 @@ const executor = new Executor({
   logger: createLogger("info", "smoke"),
   events: { emit: (event) => ok("event", `${event.type}${"detail" in event ? `: ${event.detail}` : ""}`) },
 });
-const outcome = await executor.enter({ symbol, direction, signals: [signal], atr: mark * 0.005, settings: merged.settings });
+let outcome: Awaited<ReturnType<Executor["enter"]>>;
+try {
+  outcome = await executor.enter({ symbol, direction, signals: [signal], atr: mark * 0.005, settings: merged.settings });
+} catch (error) {
+  // Never leave a test position behind, whatever went wrong.
+  console.log("  ✗ entry threw:", error);
+  const closed = await flatten(api, symbol, `smoke${Date.now().toString(36)}`);
+  console.log(closed.flat ? "  ✓ closed" : `  ✗ NOT FLAT: ${closed.detail}`);
+  process.exit(1);
+}
 if (!outcome.ok) {
   console.log("  ✗ entry", outcome.stage, outcome.reason, outcome.detail);
   process.exit(1);

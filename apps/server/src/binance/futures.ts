@@ -1,4 +1,4 @@
-import type { Candle } from "@bot-v3/core";
+import { dec, type Candle } from "@bot-v3/core";
 import { BinanceError, ERROR_CODES, isBinanceError } from "./errors.js";
 import { toExchangeSymbol, type RawExchangeSymbol } from "./exchangeInfo.js";
 import type { BinanceRest } from "./rest.js";
@@ -138,8 +138,8 @@ export class BinanceFutures implements FuturesApi, MarketApi {
     await this.rest.request("POST", "/fapi/v1/leverage", { symbol, leverage }, { signed: true, idempotent: true });
   }
 
-  placeMarketOrder(request: MarketOrderRequest): Promise<OrderResult> {
-    return this.rest.request<OrderResult>(
+  async placeMarketOrder(request: MarketOrderRequest): Promise<OrderResult> {
+    const raw = await this.rest.request<RawOrder>(
       "POST",
       "/fapi/v1/order",
       {
@@ -153,11 +153,12 @@ export class BinanceFutures implements FuturesApi, MarketApi {
       },
       { signed: true, idempotent: false },
     );
+    return toOrderResult(raw);
   }
 
   async getOrder(symbol: string, clientOrderId: string): Promise<OrderResult | null> {
     try {
-      return await this.rest.get<OrderResult>("/fapi/v1/order", { symbol, origClientOrderId: clientOrderId }, true);
+      return toOrderResult(await this.rest.get<RawOrder>("/fapi/v1/order", { symbol, origClientOrderId: clientOrderId }, true));
     } catch (error) {
       if (isNotFound(error)) return null;
       throw error;
@@ -221,6 +222,32 @@ function isNotFound(error: unknown): boolean {
   if (!(error instanceof BinanceError) || error.kind !== "REJECTED") return false;
   if (error.code === ERROR_CODES.NO_SUCH_ORDER || error.code === ERROR_CODES.UNKNOWN_ORDER_SENT) return true;
   return /does not exist|not exist|not found|unknown order/i.test(error.message);
+}
+
+type RawOrder = Partial<Record<keyof OrderResult | "cumQuote", unknown>>;
+
+/**
+ * Order responses vary: the DEMO answer to a MARKET order with newOrderRespType=RESULT has no
+ * avgPrice (and no cumQuote). Missing numbers become "0" so callers fall back to the position.
+ */
+export function toOrderResult(raw: RawOrder): OrderResult {
+  const executedQty = String(raw.executedQty ?? "0");
+  let avgPrice = raw.avgPrice === undefined || raw.avgPrice === null ? "0" : String(raw.avgPrice);
+  if (!(Number(avgPrice) > 0) && Number(raw.cumQuote) > 0 && Number(executedQty) > 0) {
+    avgPrice = dec(String(raw.cumQuote)).div(executedQty).toString();
+  }
+  return {
+    symbol: String(raw.symbol ?? ""),
+    orderId: Number(raw.orderId ?? 0),
+    clientOrderId: String(raw.clientOrderId ?? ""),
+    side: raw.side === "SELL" ? "SELL" : "BUY",
+    type: String(raw.type ?? ""),
+    status: String(raw.status ?? ""),
+    origQty: String(raw.origQty ?? "0"),
+    executedQty,
+    avgPrice,
+    updateTime: Number(raw.updateTime ?? 0),
+  };
 }
 
 function toAlgoOrder(raw: Partial<AlgoOrder>): AlgoOrder {

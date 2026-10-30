@@ -1,5 +1,6 @@
 import type { SymbolFilters } from "@bot-v3/core";
 import { BinanceError } from "../src/binance/errors.js";
+import { toOrderResult } from "../src/binance/futures.js";
 import type {
   AlgoOrder,
   AlgoOrderRequest,
@@ -49,6 +50,8 @@ export class FakeBinance implements FuturesApi {
   takerFee = 0.0005;
   /** Added to BUY fills and subtracted from SELL fills. */
   slippage = 0;
+  /** Answer MARKET orders without avgPrice, like Binance DEMO does (seen live on 2026-10-30). */
+  omitAvgPrice = false;
   clock = 1_800_000_000_000;
   readonly marks = new Map<string, number>();
   readonly symbols = new Map<string, ExchangeSymbol>([["BTCUSDT", { symbol: "BTCUSDT", status: "TRADING", contractType: "PERPETUAL", filters: BTC_FILTERS }]]);
@@ -244,6 +247,10 @@ export class FakeBinance implements FuturesApi {
     };
     this.orders.set(request.clientOrderId, result);
     if (after) throw after;
+    if (this.omitAvgPrice) {
+      const { avgPrice: _omitted, ...withoutPrice } = result;
+      return toOrderResult(withoutPrice);
+    }
     return { ...result };
   }
 

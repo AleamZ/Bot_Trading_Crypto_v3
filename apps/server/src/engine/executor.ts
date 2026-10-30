@@ -183,10 +183,18 @@ export class Executor {
         const amount = await positionAmount(api, symbol).catch(() => "0");
         if (dec(amount).isZero()) return failTrade("ORDER", "ORDER_UNKNOWN", `Không xác nhận được lệnh vào (${errorText(error)}), sàn không có vị thế`);
         // The position exists although the order lookup failed: protect it, never leave it bare.
-        return this.protectOrFlatten(trade, null, request);
+        return this.protectSafely(trade, null, request);
       }
     }
-    return this.protectOrFlatten(trade, order, request);
+    return this.protectSafely(trade, order, request);
+  }
+
+  /** From here on a position may exist: any unexpected error closes it instead of leaving it bare. */
+  private protectSafely(trade: Trade, order: OrderResult | null, request: EntryRequest): Promise<EntryOutcome> {
+    return this.protectOrFlatten(trade, order, request).catch((error: unknown) => {
+      this.logger.error("Unexpected error after the entry", { tradeId: trade.id, symbol: trade.symbol, error: errorText(error) });
+      return this.abort(trade, "UNEXPECTED_ERROR", `Lỗi bất ngờ sau khi vào lệnh: ${errorText(error)}`);
+    });
   }
 
   /** After the entry filled: final SL/TP from the real fill, place both, verify, or flatten. */
@@ -284,7 +292,7 @@ export class Executor {
       trade.status = "CLOSED";
       trade.closedAt = this.now();
       trade.exitReason = "EMERGENCY";
-      if (result.closeOrder) trade.exitPrice = result.closeOrder.avgPrice;
+      if (result.closeOrder && Number(result.closeOrder.avgPrice) > 0) trade.exitPrice = result.closeOrder.avgPrice;
       // The loss counts towards the daily limit like any other exit.
       const fills = await api.getUserTrades(trade.symbol, (trade.openedAt ?? trade.createdAt) - 1000).catch(() => null);
       if (fills) {

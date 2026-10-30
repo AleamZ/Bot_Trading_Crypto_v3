@@ -211,3 +211,31 @@ describe("Executor: never keeps a position without SL and TP", () => {
     expect((await h.store.get("t1"))?.status).toBe("OPEN");
   });
 });
+
+describe("Executor: answers it did not expect", () => {
+  it("uses the position's entry price when the order answer has no avgPrice (Binance DEMO)", async () => {
+    const h = harness();
+    h.api.omitAvgPrice = true;
+    const outcome = await h.executor.enter(h.request("LONG"));
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.trade).toMatchObject({ status: "OPEN", entryPrice: "68000", quantity: "0.0057", stopLoss: "67190.5", takeProfit: "69619.0" });
+    expect(h.api.openAlgos()).toHaveLength(2);
+  });
+
+  it("closes the position when anything throws after the entry filled", async () => {
+    const h = harness();
+    const getSymbol = h.api.getSymbol.bind(h.api);
+    let calls = 0;
+    h.api.getSymbol = async (symbol: string) => {
+      if (++calls === 2) throw new TypeError("something unexpected");
+      return getSymbol(symbol);
+    };
+    const outcome = await h.executor.enter(h.request("LONG"));
+    expect(outcome).toMatchObject({ ok: false, stage: "PROTECTION", reason: "UNEXPECTED_ERROR" });
+    expect(h.api.positionAmt()).toBe(0);
+    expect(h.api.openAlgos()).toEqual([]);
+    expect(h.store.all()[0]).toMatchObject({ status: "CLOSED", exitReason: "EMERGENCY" });
+    expect(h.events.at(-1)).toMatchObject({ type: "PROTECTION_FAILED", flattened: true, detail: expect.stringContaining("something unexpected") });
+  });
+});

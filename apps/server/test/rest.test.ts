@@ -133,3 +133,13 @@ describe("classifyResponse", () => {
     expect(classifyResponse(418, { code: -1003, msg: "banned" }, "120")).toMatchObject({ kind: "RATE_LIMIT", retryAfterMs: 120_000 });
   });
 });
+
+describe("toOrderResult", () => {
+  it("fills in what the DEMO MARKET answer leaves out", async () => {
+    const { toOrderResult } = await import("../src/binance/futures.js");
+    const demo = { orderId: 1, symbol: "LINKUSDT", status: "FILLED", clientOrderId: "v3e-x", origQty: "8.21", executedQty: "8.21", cumQty: "8.21", side: "BUY", type: "MARKET", updateTime: 5 };
+    expect(toOrderResult(demo)).toMatchObject({ avgPrice: "0", executedQty: "8.21", side: "BUY", status: "FILLED" });
+    expect(toOrderResult({ ...demo, cumQuote: "90.64661" }).avgPrice).toBe("11.041");
+    expect(toOrderResult({ ...demo, avgPrice: "11.04" }).avgPrice).toBe("11.04");
+  });
+});

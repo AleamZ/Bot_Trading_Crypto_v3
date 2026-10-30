@@ -20,7 +20,7 @@ Mỗi symbol có một khoá (`KeyedLock`), nên executor và watchdog không ba
 4. **Đặt lệnh trên sàn:**
    - margin type (lỗi `-4046` "không cần đổi" thì bỏ qua) và đòn bẩy;
    - **MARKET** với `newClientOrderId = v3e-<id>`, `newOrderRespType=RESULT`.
-5. Từ **giá khớp và khối lượng khớp thật**, tính SL/TP cuối (`finalizeAfterFill`, chế độ `EXACT_1R`).
+5. Từ **giá khớp và khối lượng khớp thật**, tính SL/TP cuối (`finalizeAfterFill`, chế độ `EXACT_1R`). Binance DEMO trả kết quả lệnh MARKET **không có `avgPrice`**; khi đó giá vào lấy từ vị thế (`entryPrice`).
 6. **Đặt SL trước, rồi TP**:
    - qua `POST /fapi/v1/algoOrder`, `algoType=CONDITIONAL`, `STOP_MARKET` / `TAKE_PROFIT_MARKET`;
    - bằng `quantity` + `reduceOnly=true` (không dùng `closePosition`), `workingType=MARK_PRICE`;
@@ -36,6 +36,7 @@ Mỗi symbol có một khoá (`KeyedLock`), nên executor và watchdog không ba
 | Đặt SL/TP lỗi | Thử lại `protectionRetries` lần (mặc định 2). Nếu không rõ kết quả thì tra theo client id trước khi thử lại, để không tạo lệnh trùng |
 | `-2021` (giá đã vượt qua mức SL/TP) | Không thử lại; đóng vị thế ngay |
 | Vẫn không đặt được SL hoặc TP | Huỷ lệnh algo của bot, đóng vị thế bằng MARKET reduce-only (thử 3 lần), kiểm tra vị thế về 0. Gửi `PROTECTION_FAILED`; lệnh thành `CLOSED` với lý do `EMERGENCY` |
+| Lỗi bất ngờ bất kỳ sau khi lệnh vào đã gửi (dữ liệu lạ từ sàn, lỗi code) | Coi như không đặt được SL/TP: đóng vị thế, gửi `PROTECTION_FAILED` với lý do `UNEXPECTED_ERROR` |
 | Đóng khẩn cũng lỗi | Gửi `PROTECTION_FAILED` (flattened = false); lệnh giữ trạng thái mở để watchdog tiếp tục bảo vệ hoặc đóng |
 
 REST client:
@@ -84,3 +85,15 @@ npm run smoke:demo -w @bot-v3/server -- --trade --symbol ETHUSDT --risk 1 --yes-
 ```
 
 Đặt **một lệnh thật trên DEMO** qua executor (SL cách khoảng 1%), in ra SL/TP trên sàn, rồi đóng lệnh. Không chạy lệnh này trên symbol mà bot khác đang đánh cùng tài khoản.
+
+## Đã thử thật trên DEMO (2026-10-30)
+
+`smoke:demo --trade --symbol LINKUSDT --risk 1`:
+
+- **Lần 1:** DEMO trả kết quả lệnh MARKET không có `avgPrice`. Executor khi đó lỗi trước khi đặt SL/TP, nên vị thế 8.21 LINK nằm trần khoảng một phút rồi mới được đóng tay.
+- **Đã sửa hai chỗ:**
+  - chuẩn hoá kết quả lệnh (`toOrderResult`);
+  - mọi lỗi sau khi vào lệnh đều dẫn tới đóng vị thế.
+
+  Có test cho cả hai.
+- **Lần 2:** khớp 8.24 @ 11.041. Sàn có STOP_MARKET 8.24 @ 10.931 (lỗ 0.9969$ ≈ 1R) và TAKE_PROFIT_MARKET 8.24 @ 11.261 (= 11.041 + 2 × 0.110). Sau đó đóng sạch, không còn lệnh sót.

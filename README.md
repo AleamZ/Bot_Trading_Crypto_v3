@@ -17,7 +17,7 @@ Luật giao dịch chi tiết: [docs/STRATEGIES.md](docs/STRATEGIES.md). Thiết
 | 3b | `apps/server`: Binance client, executor (MARKET + SL/TP, đóng khẩn), watchdog, user stream, smoke test DEMO ([EXECUTION.md](docs/EXECUTION.md)) | xong |
 | 3c | SQLite, quét nến 2/3 · 3/3, Telegram, API + đăng nhập + SSE ([SERVER.md](docs/SERVER.md)) | xong |
 | 3d | Giao diện web pixel (Vite + React): bảng điều khiển, lệnh, nhật ký, cài đặt sinh từ schema, Telegram ([UI_DESIGN.md](docs/UI_DESIGN.md)) | xong |
-| 3e | Backtest ([BACKTEST.md](docs/BACKTEST.md)), pm2 + `deploy.sh`, hướng dẫn VPS ([DEPLOY.md](docs/DEPLOY.md)) | xong; lệnh thử thật trên DEMO chờ bạn đồng ý |
+| 3e | Backtest ([BACKTEST.md](docs/BACKTEST.md)), pm2 + `deploy.sh`, hướng dẫn VPS ([DEPLOY.md](docs/DEPLOY.md)) | xong; đã thử một lệnh thật trên DEMO (LINKUSDT) |
 
 ## Cấu trúc
 
