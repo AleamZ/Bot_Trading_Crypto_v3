@@ -179,6 +179,15 @@ describe("TelegramService commands", () => {
     await h.service.stop(10);
   });
 
+  it("lists other chats that write to the bot, without answering them", async () => {
+    const h = serviceHarness();
+    h.tg.updates.push(h.message("/status", 555));
+    h.service.start();
+    await vi.waitFor(() => expect(h.service.candidates().map((c) => c.chatId)).toEqual(["555"]));
+    expect(h.tg.sent()).toEqual([]);
+    await h.service.stop(10);
+  });
+
   it("backs off when another process polls the same token", async () => {
     const h = serviceHarness();
     let conflicts = 0;

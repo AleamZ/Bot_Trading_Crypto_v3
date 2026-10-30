@@ -243,7 +243,7 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
     const telegram = runtime.telegram;
     if (!telegram) return { configured: false, hint: "Thêm TELEGRAM_BOT_TOKEN vào .env rồi khởi động lại bot" };
     const status = telegram.status();
-    return { ...status, candidates: status.chatIdSet ? [] : telegram.candidates() };
+    return { ...status, candidates: telegram.candidates() };
   });
 
   app.post("/api/telegram/test", async () => {

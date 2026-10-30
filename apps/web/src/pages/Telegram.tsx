@@ -68,6 +68,12 @@ export function TelegramPage({ live, go }: { live: Live; go: (route: Route) => v
               </div>
               {t.lastError && <Notice tone="heart" title="Lỗi gần nhất">{t.lastError}</Notice>}
               {!t.chatIdSet && <Candidates candidates={t.candidates ?? []} />}
+              {t.chatIdSet && (t.candidates?.length ?? 0) > 0 && (
+                <Candidates
+                  candidates={t.candidates ?? []}
+                  title="Các chat này đã nhắn bot nhưng không phải TELEGRAM_CHAT_ID nên bot không trả lời. Nếu trong đó có chat của bạn, chép id vào .env rồi khởi động lại bot"
+                />
+              )}
               <div className="row">
                 <Button tone="sky" disabled={sending || !t.chatIdSet} onClick={sendTest} icon={<PaperPlaneTiltIcon size={14} weight="bold" />}>
                   {sending ? "Đang gửi…" : "Gửi tin thử"}
@@ -112,7 +118,7 @@ function Steps() {
   );
 }
 
-function Candidates({ candidates }: { candidates: { chatId: string; name: string; type: string; lastSeenAt: number }[] }) {
+function Candidates({ candidates, title }: { candidates: { chatId: string; name: string; type: string; lastSeenAt: number }[]; title?: string }) {
   const toast = useToast();
   if (candidates.length === 0) {
     return (
@@ -122,7 +128,7 @@ function Candidates({ candidates }: { candidates: { chatId: string; name: string
     );
   }
   return (
-    <Notice tone="coin" title="Chat đã nhắn cho bot: chép id của bạn vào TELEGRAM_CHAT_ID trong .env, rồi khởi động lại bot">
+    <Notice tone="coin" title={title ?? "Chat đã nhắn cho bot: chép id của bạn vào TELEGRAM_CHAT_ID trong .env, rồi khởi động lại bot"}>
       <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
         {candidates.map((c) => (
           <div key={c.chatId} className="row">

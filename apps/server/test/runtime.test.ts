@@ -17,6 +17,11 @@ describe("BotRuntime", () => {
     expect(h.runtime.log.list({ limit: 1 })[0]!.type).toBe("BOT_STOPPING");
   });
 
+  it("treats a chat id that is the bot's own id as not set, and says so", async () => {
+    const h = runtimeHarness({ telegram: true, env: { TELEGRAM_BOT_TOKEN: "9004723593:AAE-test", TELEGRAM_CHAT_ID: "9004723593" } });
+    expect(h.runtime.telegram!.status()).toMatchObject({ chatIdSet: false, lastError: expect.stringContaining("mã của chính bot") });
+  });
+
   it("reports Binance going down once and coming back once", async () => {
     const h = runtimeHarness();
     const original = h.exchange.getPositions.bind(h.exchange);

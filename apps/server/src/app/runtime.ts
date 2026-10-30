@@ -124,10 +124,16 @@ export class BotRuntime {
           })
         : null;
 
+    // The number before ":" in the token is the bot's own id, a common mix-up for the chat id.
+    const botId = this.env.TELEGRAM_BOT_TOKEN?.split(":")[0];
+    const chatIdIsBot = this.env.TELEGRAM_CHAT_ID !== undefined && this.env.TELEGRAM_CHAT_ID === botId;
     this.telegram = options.telegramClient
       ? new TelegramService({
           client: options.telegramClient,
-          chatId: this.env.TELEGRAM_CHAT_ID ?? null,
+          chatId: chatIdIsBot ? null : (this.env.TELEGRAM_CHAT_ID ?? null),
+          setupError: chatIdIsBot
+            ? "TELEGRAM_CHAT_ID đang là mã của chính bot (phần số đầu token), không phải chat của bạn. Nhắn /start cho bot để lấy chat id đúng"
+            : null,
           kv: this.kv,
           hub: this.hub,
           settings,

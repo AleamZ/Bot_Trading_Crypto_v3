@@ -34,6 +34,8 @@ export interface TelegramServiceDeps {
   client: TelegramClient;
   /** TELEGRAM_CHAT_ID; null until the user puts it in .env. */
   chatId: string | null;
+  /** A configuration problem to show until something is sent successfully. */
+  setupError?: string | null;
   kv: KeyValueStore;
   hub: EventHub;
   settings: () => Settings;
@@ -79,6 +81,8 @@ export class TelegramService {
     this.logger = deps.logger ?? silentLogger;
     this.now = deps.now ?? Date.now;
     this.sleep = deps.sleep ?? realSleep;
+    this.lastError = deps.setupError ?? null;
+    if (deps.setupError) this.logger.error("Telegram setup problem", { problem: deps.setupError });
   }
 
   start(): void {
@@ -219,7 +223,11 @@ export class TelegramService {
       );
       return;
     }
-    if (chatId !== this.deps.chatId) return; // not ours: stay silent
+    if (chatId !== this.deps.chatId) {
+      // Not the configured chat: no answer, but the UI lists it in case TELEGRAM_CHAT_ID is wrong.
+      this.rememberCandidate(message.chat, message.date * 1000);
+      return;
+    }
     if (message.date * 1000 < Math.max(this.startedAt, this.now()) - MAX_COMMAND_AGE_MS) return;
 
     const command = message.text.trim().split(/\s+/)[0]!.toLowerCase().replace(/@.*$/, "");
