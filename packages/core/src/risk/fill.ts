@@ -1,7 +1,7 @@
 import type { Direction } from "../types.js";
 import { ceilToStep, dec, floorToStep, formatToStep, type Dec, type DecValue } from "./decimal.js";
 import { lossPerUnit } from "./sizing.js";
-import { takeProfitPrice } from "./targets.js";
+import { netResultAt, takeProfitPrice } from "./targets.js";
 
 export type StopMode = "EXACT_1R" | "KEEP_STRUCTURE";
 
@@ -31,6 +31,9 @@ export type FillResult =
       /** Loss in USDT if the stop fills exactly at stopLoss, fees included. */
       riskUsd: string;
       riskR: number;
+      /** Net win in USDT if the take profit fills exactly at takeProfit, fees included. */
+      rewardUsd: string;
+      rewardR: number;
       /** The mode actually used (EXACT_1R may fall back to KEEP_STRUCTURE). */
       mode: StopMode;
       fellBack: boolean;
@@ -46,6 +49,7 @@ export type FillResult =
  * then rounds to the tick towards the entry, so the loss stays <= 1R. If that would widen the stop
  * by more than `maxSlWidenPct` beyond the structural one (quantity of only one or two steps), the
  * structural stop is kept and the real risk is reported instead.
+ * The take profit is fill ± rr × the final stop distance (see takeProfitPrice).
  */
 export function finalizeAfterFill(input: FillInput): FillResult {
   const long = input.direction === "LONG";
@@ -94,21 +98,16 @@ export function finalizeAfterFill(input: FillInput): FillResult {
   }
 
   const loss: Dec = qty.mul(lossPerUnit(fill, stop, fee));
-  const takeProfit = takeProfitPrice({
-    direction: input.direction,
-    entry: fill,
-    quantity: qty,
-    lossAtStop: loss,
-    rr,
-    feeRate: fee,
-    tickSize: input.tickSize,
-  });
+  const takeProfit = takeProfitPrice({ direction: input.direction, entry: fill, stopLoss: stop, rr, tickSize: input.tickSize });
+  const win = netResultAt(input.direction, fill, takeProfit, qty, fee);
   return {
     ok: true,
     stopLoss: formatToStep(stop, input.tickSize),
     takeProfit: formatToStep(takeProfit, input.tickSize),
     riskUsd: loss.toFixed(4),
     riskR: loss.div(risk).toNumber(),
+    rewardUsd: win.toFixed(4),
+    rewardR: win.div(risk).toNumber(),
     mode,
     fellBack,
   };

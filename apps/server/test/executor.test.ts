@@ -25,10 +25,11 @@ describe("Executor: happy path", () => {
     const loss = lossAtStop(t.quantity, t.entryPrice!, t.stopLoss!);
     expect(loss.lte(5)).toBe(true);
     expect(loss.gt(4.99)).toBe(true);
-    // TP nets 2 × the loss at SL after both fees.
+    // TP = 68,000 + 2 × (68,000 − 67,190.5); after fees the win is a little under 2R.
+    expect(t.takeProfit).toBe("69619.0");
     const win = netResultAt("LONG", t.entryPrice!, t.takeProfit!, t.quantity, 0.0005);
-    expect(win.gte(loss.mul(2))).toBe(true);
-    expect(win.minus(loss.mul(2)).lt(0.001)).toBe(true);
+    expect(t.rewardAtTpUsd).toBe(win.toFixed(4));
+    expect(t.rewardAtTpR).toBeCloseTo(1.7672, 4);
     expect(h.eventTypes()).toEqual(["ENTRY_FILLED"]);
   });
 

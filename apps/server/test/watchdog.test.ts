@@ -13,7 +13,7 @@ async function opened(patch: unknown = {}) {
 }
 
 describe("Watchdog: exits", () => {
-  it("closes out a take profit, cancels the stop and records +2R net of fees", async () => {
+  it("closes out a take profit, cancels the stop and records the net R the entry promised", async () => {
     const h = await opened();
     h.api.setMark("BTCUSDT", Number(h.trade.takeProfit) + 5);
     expect(h.api.positionAmt()).toBe(0);
@@ -22,8 +22,8 @@ describe("Watchdog: exits", () => {
     const t = (await h.store.get("t1"))!;
     expect(t).toMatchObject({ status: "CLOSED", exitReason: "TP" });
     expect(Number(t.exitPrice)).toBe(Number(h.trade.takeProfit));
-    expect(t.pnlR).toBeGreaterThan(1.99);
-    expect(t.pnlR).toBeLessThan(2.01);
+    // Price-based TP: RR 2 on price is about 1.77R once both taker fees are paid.
+    expect(t.pnlR).toBeCloseTo(h.trade.rewardAtTpR!, 3);
     expect(h.api.openAlgos()).toEqual([]);
     expect(h.api.algos.find((a) => a.orderType === "STOP_MARKET")?.algoStatus).toBe("CANCELED");
     expect(h.eventTypes()).toEqual(["TRADE_CLOSED"]);
@@ -138,6 +138,8 @@ describe("Watchdog: after a crash", () => {
     stopMode: null,
     riskAtStopUsd: null,
     riskAtStopR: null,
+    rewardAtTpUsd: null,
+    rewardAtTpR: null,
     slClientId: null,
     tpClientId: null,
     protectionVersion: 0,

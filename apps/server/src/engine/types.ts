@@ -30,6 +30,9 @@ export interface Trade {
   /** Loss at the final stop, fees included, in USDT and in R. */
   riskAtStopUsd: string | null;
   riskAtStopR: number | null;
+  /** Net win at the take profit, fees included, in USDT and in R (below RR when fees count). */
+  rewardAtTpUsd: string | null;
+  rewardAtTpR: number | null;
   slClientId: string | null;
   tpClientId: string | null;
   /** Bumped every time SL/TP are placed again, so client ids stay unique. */

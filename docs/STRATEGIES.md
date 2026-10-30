@@ -82,13 +82,11 @@ Gọi L và S là số phương pháp đang có tín hiệu LONG và SHORT:
    - SL làm tròn theo tick, về phía xa giá vào.
    - Thiếu `minQty` hoặc `minNotional` thì **từ chối, không tăng khối lượng**, và báo 1R tối thiểu cần có.
    - Vượt `maxQty` thì giảm về `maxQty` (rủi ro chỉ nhỏ đi).
-4. **TP** đặt sao cho chạm TP thì **lãi ròng = RR × số tiền mất khi chạm SL**, đã trừ phí hai chiều (RR mặc định 2):
-   - LONG: `TP = (RR·L + Q·F·(1+phí)) / (Q·(1−phí))`
-   - SHORT: `TP = (Q·F·(1−phí) − RR·L) / (Q·(1+phí))`
-   - L là số tiền mất khi chạm SL. TP làm tròn theo tick, về phía xa giá vào, nên lãi ròng luôn ≥ RR × L.
-   - Lý do: nếu đặt TP = giá vào ± RR × khoảng SL, phí sẽ ăn vào phần lãi và "R:R 2" thực tế chỉ còn khoảng 1.77R. Khi tắt phí, hai cách tính cho cùng kết quả.
+4. **TP** lấy đúng theo phân tích: `TP = giá vào ± RR × khoảng SL` (RR mặc định 2), làm tròn tới tick gần nhất.
+   - Phí không được cộng vào TP. Vì 1R đã gồm phí, chạm TP lãi ròng hơi thấp hơn RR × 1R (BTC ví dụ dưới: khoảng 1.8R).
+   - Bot ghi lại số lãi ròng dự kiến ở TP (`rewardAtTp`, `rewardR`) để báo trên Telegram và UI.
 5. **Sau khi khớp (`finalizeAfterFill`):**
-   - `EXACT_1R` (mặc định) giải SL sao cho lỗ đúng 1R với giá khớp và khối lượng khớp thật:
+   - `EXACT_1R` (mặc định) giải SL sao cho lỗ đúng 1R với giá khớp và khối lượng khớp thật, rồi tính TP từ SL mới đó:
      - LONG: `SL = (Q·F·(1+phí) − R) / (Q·(1−phí))`, làm tròn **lên** theo tick.
      - SHORT: `SL = (R + Q·F·(1−phí)) / (Q·(1+phí))`, làm tròn **xuống** theo tick.
      - Nếu cách này nới SL quá `maxSlWidenPct` (25%) so với SL cấu trúc thì giữ SL cấu trúc và báo R thực tế.
@@ -106,7 +104,7 @@ Gọi L và S là số phương pháp đang có tín hiệu LONG và SHORT:
 **Ví dụ** BTCUSDT LONG, 1R = 5$, giá vào 68,000, SL 67,200, step 0.001, tick 0.1:
 
 - qty = 0.005 BTC, notional 340$.
-- Giữ SL cấu trúc thì lỗ 4.338$ (0.87R), TP = 69,804.2 (lãi ròng 8.676$).
-- `EXACT_1R`: SL = 67,067.6, lỗ 4.9997$, TP = 70,069.0 (lãi ròng 9.9998$ = 2R).
+- Giữ SL cấu trúc thì lỗ 4.338$ (0.87R), TP = 68,000 + 2 × 800 = 69,600.0 (lãi ròng 7.656$ = 1.53R).
+- `EXACT_1R`: SL = 67,067.6, lỗ 4.9997$, TP = 68,000 + 2 × 932.4 = 69,864.8 (lãi ròng 8.9793$ ≈ 1.80R).
 
 Có test cho chính các con số này.

@@ -63,10 +63,12 @@ describe("sizePosition (1R)", () => {
       quantity: "0.005",
       entryPrice: "68000",
       stopLoss: "67200.0",
-      takeProfit: "69804.2",
+      takeProfit: "69600.0",
       notional: "340.00",
       riskAtStop: "4.3380",
       riskR: 0.8676,
+      rewardAtTp: "7.6560",
+      rewardR: 1.5312,
       clampedToMaxQty: false,
     });
   });
@@ -81,7 +83,7 @@ describe("sizePosition (1R)", () => {
       rr: 2,
       filters: { symbol: "XUSDT", tickSize: "0.01", stepSize: "0.01", minQty: "0.01", maxQty: null, minNotional: "5" },
     });
-    expect(r).toMatchObject({ ok: true, quantity: "1.95", stopLoss: "152.40", takeProfit: "144.75", notional: "292.50", riskAtStop: "4.9748" });
+    expect(r).toMatchObject({ ok: true, quantity: "1.95", stopLoss: "152.40", takeProfit: "145.20", notional: "292.50", riskAtStop: "4.9748" });
   });
 
   it("leaves fees out when the fee rate is 0", () => {
@@ -98,7 +100,7 @@ describe("sizePosition (1R)", () => {
       rr: 2,
       filters: { symbol: "DOGEUSDT", tickSize: "0.00001", stepSize: "1", minQty: "1", maxQty: null, minNotional: "5" },
     });
-    expect(r).toMatchObject({ ok: true, quantity: "1588", stopLoss: "0.14700", takeProfit: "0.15646" });
+    expect(r).toMatchObject({ ok: true, quantity: "1588", stopLoss: "0.14700", takeProfit: "0.15600" });
   });
 
   it("rounds the stop to the tick away from the entry", () => {
@@ -169,11 +171,11 @@ describe("sizePosition (1R)", () => {
       expect(qty.mod(step).isZero()).toBe(true);
       expect(dec(r.stopLoss).mod(tick).isZero()).toBe(true);
       expect(dec(r.takeProfit).mod(tick).isZero()).toBe(true);
-      // Hitting TP nets at least 2 × the loss at SL, fees included, and no more than one tick above.
-      const win = netResultAt(direction, entry, r.takeProfit, qty, feeRate);
-      const target = qty.mul(perUnit).mul(2);
-      expect(win.gte(target)).toBe(true);
-      if (dec(r.takeProfit).gt(tick)) expect(win.minus(target).lte(qty.mul(tick).mul(1 + feeRate))).toBe(true);
+      // TP = entry ± 2 × the stop distance, to the nearest tick (unless that leaves no room past the entry).
+      const distance = dec(entry).minus(r.stopLoss).abs().mul(2);
+      const target = direction === "LONG" ? dec(entry).plus(distance) : dec(entry).minus(distance);
+      if (target.gt(tick) && distance.gt(tick)) expect(dec(r.takeProfit).minus(target).abs().lte(dec(tick).div(2))).toBe(true);
+      expect(r.rewardAtTp).toBe(netResultAt(direction, entry, r.takeProfit, qty, feeRate).toFixed(4));
     }
     expect(sized).toBeGreaterThan(1500);
   });

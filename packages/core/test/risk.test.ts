@@ -36,7 +36,7 @@ describe("planTrade", () => {
     const plan = planTrade({ direction: "LONG", signals: longSignals, entryPrice: 100, atr: 1, risk, filters });
     expect(plan).toMatchObject({ ok: true, stopLoss: 98.5, stopPct: 1.5 });
     // 5 / (1.5 + 0.0005 × 198.5) = 3.126 → 3.1 with a 0.1 step.
-    expect(plan.ok && plan.sizing).toMatchObject({ ok: true, quantity: "3.1", stopLoss: "98.50", takeProfit: "103.31" });
+    expect(plan.ok && plan.sizing).toMatchObject({ ok: true, quantity: "3.1", stopLoss: "98.50", takeProfit: "103.00" });
   });
 
   it("follows the stop policy", () => {
@@ -63,7 +63,7 @@ describe("planTrade", () => {
       filters,
     });
     expect(plan).toMatchObject({ ok: true, stopLoss: 101.6 });
-    expect(plan.ok && plan.sizing).toMatchObject({ ok: true, stopLoss: "101.60", takeProfit: "96.50" });
+    expect(plan.ok && plan.sizing).toMatchObject({ ok: true, stopLoss: "101.60", takeProfit: "96.80" });
   });
 });
 

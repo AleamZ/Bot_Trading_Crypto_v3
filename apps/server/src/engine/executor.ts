@@ -145,6 +145,8 @@ export class Executor {
       stopMode: null,
       riskAtStopUsd: null,
       riskAtStopR: null,
+      rewardAtTpUsd: null,
+      rewardAtTpR: null,
       slClientId: null,
       tpClientId: null,
       protectionVersion: 0,
@@ -235,6 +237,8 @@ export class Executor {
     trade.stopMode = final.mode;
     trade.riskAtStopUsd = final.riskUsd;
     trade.riskAtStopR = final.riskR;
+    trade.rewardAtTpUsd = final.rewardUsd;
+    trade.rewardAtTpR = final.rewardR;
     trade.protectionVersion = 1;
     trade.slClientId = CLIENT_ID.stop(trade.id, 1);
     trade.tpClientId = CLIENT_ID.take(trade.id, 1);

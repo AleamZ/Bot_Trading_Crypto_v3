@@ -26,14 +26,15 @@ describe("finalizeAfterFill", () => {
     expect(r).toEqual({
       ok: true,
       stopLoss: "67067.6",
-      takeProfit: "70069.0",
+      // 68000 + 2 × (68000 − 67067.6): the price the analysis gives; fees make the net win ~1.8R.
+      takeProfit: "69864.8",
       riskUsd: "4.9997",
       riskR: expect.closeTo(0.99993, 5),
+      rewardUsd: "8.9793",
+      rewardR: expect.closeTo(1.79587, 5),
       mode: "EXACT_1R",
       fellBack: false,
     });
-    // TP nets 2R after both fees: 9.9998 ≥ 2 × 4.9997.
-    expect(netResultAt("LONG", 68000, "70069.0", "0.005", 0.0005).toFixed(4)).toBe("9.9998");
   });
 
   it("EXACT_1R works for SHORT and keeps the loss within one tick of 1R", () => {
@@ -57,13 +58,13 @@ describe("finalizeAfterFill", () => {
   it("falls back to the structural stop when 1R would widen it too much", () => {
     // 0.001 BTC with a 2500 stop: exact 1R would need about a 5000 stop (+100%).
     const r = finalizeAfterFill({ ...btc, filledQty: "0.001", structuralStop: 65500 });
-    expect(r).toMatchObject({ ok: true, stopLoss: "65500.0", takeProfit: "73204.2", mode: "KEEP_STRUCTURE", fellBack: true });
+    expect(r).toMatchObject({ ok: true, stopLoss: "65500.0", takeProfit: "73000.0", mode: "KEEP_STRUCTURE", fellBack: true });
     expect(r.ok && r.riskR).toBeCloseTo(0.51335, 5);
   });
 
   it("KEEP_STRUCTURE keeps the structural stop", () => {
     const r = finalizeAfterFill({ ...btc, mode: "KEEP_STRUCTURE" });
-    expect(r).toMatchObject({ ok: true, stopLoss: "67200.0", takeProfit: "69804.2", riskUsd: "4.3380", mode: "KEEP_STRUCTURE", fellBack: false });
+    expect(r).toMatchObject({ ok: true, stopLoss: "67200.0", takeProfit: "69600.0", riskUsd: "4.3380", rewardUsd: "7.6560", mode: "KEEP_STRUCTURE", fellBack: false });
   });
 
   it("refuses a fill that is already past the stop", () => {
@@ -106,7 +107,10 @@ describe("finalizeAfterFill", () => {
       expect(loss.lte(10)).toBe(true);
       expect(long ? Number(r.stopLoss) < fill : Number(r.stopLoss) > fill).toBe(true);
       expect(long ? Number(r.takeProfit) > fill : Number(r.takeProfit) < fill).toBe(true);
-      expect(netResultAt(input.direction, fill, r.takeProfit, qty, 0.0005).gte(loss.mul(2))).toBe(true);
+      // TP = fill ± 2 × the final stop distance, to the nearest tick.
+      const target = long ? dec(fill).plus(dec(fill).minus(r.stopLoss).abs().mul(2)) : dec(fill).minus(dec(r.stopLoss).minus(fill).mul(2));
+      if (target.gt("0.01")) expect(dec(r.takeProfit).minus(target).abs().lte("0.005")).toBe(true);
+      expect(r.rewardUsd).toBe(netResultAt(input.direction, fill, r.takeProfit, qty, 0.0005).toFixed(4));
     }
   });
 });

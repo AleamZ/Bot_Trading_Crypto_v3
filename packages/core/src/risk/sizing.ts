@@ -1,7 +1,7 @@
 import type { Direction } from "../types.js";
 import { ceilToStep, D, dec, floorToStep, formatToStep, type Dec, type DecValue } from "./decimal.js";
 import type { SymbolFilters } from "./filters.js";
-import { takeProfitPrice } from "./targets.js";
+import { netResultAt, takeProfitPrice } from "./targets.js";
 
 export type SizingRejectReason = "INVALID_INPUT" | "STOP_WRONG_SIDE" | "QTY_BELOW_MIN" | "NOTIONAL_BELOW_MIN";
 
@@ -29,6 +29,9 @@ export type SizingResult =
       /** Loss in USDT if the stop fills exactly at stopLoss, fees included. Always <= riskUsd. */
       riskAtStop: string;
       riskR: number;
+      /** Net win in USDT if the take profit fills exactly at takeProfit, fees included. */
+      rewardAtTp: string;
+      rewardR: number;
       clampedToMaxQty: boolean;
     }
   | {
@@ -101,15 +104,8 @@ export function sizePosition(input: SizingInput): SizingResult {
   }
 
   const riskAtStop = quantity.mul(perUnit);
-  const takeProfit = takeProfitPrice({
-    direction: input.direction,
-    entry,
-    quantity,
-    lossAtStop: riskAtStop,
-    rr,
-    feeRate,
-    tickSize: filters.tickSize,
-  });
+  const takeProfit = takeProfitPrice({ direction: input.direction, entry, stopLoss: stop, rr, tickSize: filters.tickSize });
+  const win = netResultAt(input.direction, entry, takeProfit, quantity, feeRate);
   return {
     ok: true,
     quantity: formatToStep(quantity, filters.stepSize),
@@ -119,6 +115,8 @@ export function sizePosition(input: SizingInput): SizingResult {
     notional: notional.toFixed(2),
     riskAtStop: riskAtStop.toFixed(4),
     riskR: riskAtStop.div(risk).toNumber(),
+    rewardAtTp: win.toFixed(4),
+    rewardR: win.div(risk).toNumber(),
     clampedToMaxQty,
   };
 }

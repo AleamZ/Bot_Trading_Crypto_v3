@@ -154,6 +154,8 @@ export class Watchdog {
     trade.stopMode = final.mode;
     trade.riskAtStopUsd = final.riskUsd;
     trade.riskAtStopR = final.riskR;
+    trade.rewardAtTpUsd = final.rewardUsd;
+    trade.rewardAtTpR = final.rewardR;
     trade.status = "OPEN";
     // Leftover algo orders from the interrupted attempt are replaced by a fresh pair.
     await flattenAlgosOnly(api, trade.symbol);
