@@ -151,6 +151,8 @@ describe("Executor: never keeps a position without SL and TP", () => {
     expect(h.api.positionAmt()).toBe(0);
     expect(h.api.openAlgos()).toEqual([]);
     expect(h.store.all()[0]).toMatchObject({ status: "CLOSED", exitReason: "EMERGENCY" });
+    // Same price in and out: the result is the two taker fees, and it counts in the daily R.
+    expect(h.store.all()[0]!.pnlR).toBeLessThan(0);
     expect(h.events.at(-1)).toMatchObject({ type: "PROTECTION_FAILED", flattened: true });
   });
 

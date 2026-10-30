@@ -11,7 +11,7 @@ import {
 import { errorText, isBinanceError } from "../binance/errors.js";
 import type { FuturesApi, LeverageBracket, OrderResult } from "../binance/types.js";
 import { silentLogger, type Logger } from "../lib/logger.js";
-import { entrySide, flatten, placeProtection, positionAmount } from "./protection.js";
+import { closedStats, entrySide, flatten, placeProtection, positionAmount } from "./protection.js";
 import { KeyedLock, newTradeId, sleep as realSleep } from "./support.js";
 import { CLIENT_ID, type EntryStage, type EventSink, type Trade, type TradeStore } from "./types.js";
 
@@ -285,6 +285,15 @@ export class Executor {
       trade.closedAt = this.now();
       trade.exitReason = "EMERGENCY";
       if (result.closeOrder) trade.exitPrice = result.closeOrder.avgPrice;
+      // The loss counts towards the daily limit like any other exit.
+      const fills = await api.getUserTrades(trade.symbol, (trade.openedAt ?? trade.createdAt) - 1000).catch(() => null);
+      if (fills) {
+        const stats = closedStats(trade.direction, fills);
+        trade.exitPrice = stats.exitPrice ?? trade.exitPrice;
+        trade.netPnl = stats.netPnl;
+        trade.fees = stats.fees;
+        trade.pnlR = Number(stats.netPnl) / trade.riskUsd;
+      }
     }
     // Not flat: the trade stays OPENING/OPEN so the watchdog keeps trying to protect or close it.
     await store.update(trade);

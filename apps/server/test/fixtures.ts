@@ -1,0 +1,40 @@
+import type { Trade } from "../src/engine/types.js";
+
+/** A filled, protected BTC LONG from the proposal example. */
+export function sampleTrade(overrides: Partial<Trade> = {}): Trade {
+  return {
+    id: "t1",
+    symbol: "BTCUSDT",
+    direction: "LONG",
+    status: "OPEN",
+    methods: ["trendPullback", "donchianBreakout", "smcSweep"],
+    createdAt: 1_000,
+    openedAt: 1_100,
+    closedAt: null,
+    plannedEntry: 68_000,
+    structuralStop: 67_200,
+    riskUsd: 5,
+    rr: 2,
+    leverage: 10,
+    entryClientId: "v3e-t1",
+    quantity: "0.005",
+    entryPrice: "68000",
+    stopLoss: "67067.6",
+    takeProfit: "69864.8",
+    stopMode: "EXACT_1R",
+    riskAtStopUsd: "4.9997",
+    riskAtStopR: 0.99993,
+    rewardAtTpUsd: "8.9793",
+    rewardAtTpR: 1.79587,
+    slClientId: "v3s-t1-1",
+    tpClientId: "v3t-t1-1",
+    protectionVersion: 1,
+    exitReason: null,
+    exitPrice: null,
+    netPnl: null,
+    fees: null,
+    pnlR: null,
+    note: null,
+    ...overrides,
+  };
+}

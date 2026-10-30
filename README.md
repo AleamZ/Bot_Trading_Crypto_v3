@@ -15,7 +15,7 @@ Luật giao dịch chi tiết: [docs/STRATEGIES.md](docs/STRATEGIES.md). Thiết
 |---|---|---|
 | 3a | `packages/core`: chỉ báo, 3 phương pháp, đồng thuận 2/3 và 3/3, tính khối lượng theo R, schema cài đặt | xong |
 | 3b | `apps/server`: Binance client, executor (MARKET + SL/TP, đóng khẩn), watchdog, user stream, smoke test DEMO ([EXECUTION.md](docs/EXECUTION.md)) | xong |
-| 3c | SQLite, API, SSE, Telegram | chưa |
+| 3c | SQLite, quét nến 2/3 · 3/3, Telegram, API + đăng nhập + SSE ([SERVER.md](docs/SERVER.md)) | xong |
 | 3d | Giao diện web | chưa |
 | 3e | Backtest, smoke test DEMO, hướng dẫn deploy | chưa |
 
@@ -23,7 +23,7 @@ Luật giao dịch chi tiết: [docs/STRATEGIES.md](docs/STRATEGIES.md). Thiết
 
 ```
 packages/core/   logic thuần (không I/O): indicators, strategies, consensus, risk, settings
-apps/server/     Binance client, executor, watchdog (3b); API + Telegram + DB (3c)
+apps/server/     Binance client, executor, watchdog (3b); quét nến, Telegram, API, SQLite (3c)
 apps/web/        (3d) giao diện
 docs/            luật giao dịch, thiết kế UI, deploy
 ```
@@ -36,9 +36,12 @@ npm test           # test mọi workspace
 npm run typecheck
 npm run build
 npm run smoke:demo -w @bot-v3/server   # kiểm tra kết nối DEMO, chỉ đọc
+npm run hash-password  # tạo ADMIN_PASSWORD_HASH và SESSION_SECRET cho .env
+npm run dev            # chạy bot từ mã nguồn (API ở http://127.0.0.1:8787)
+npm start              # chạy bản đã build (npm run build trước)
 ```
 
-Cần Node.js 22.
+Cần Node.js 22.13 trở lên (bot dùng `node:sqlite` có sẵn trong Node).
 
 ## Cấu hình
 

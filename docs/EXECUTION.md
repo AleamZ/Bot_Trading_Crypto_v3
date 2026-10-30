@@ -45,7 +45,7 @@ REST client:
 
 ## Watchdog (`Watchdog.reconcile`)
 
-Chạy định kỳ (mặc định 15 giây, cài ở mốc 3c) và ngay sau mỗi sự kiện từ user data stream. Mỗi lượt:
+Chạy lúc khởi động, mỗi 15 giây, và ngay sau mỗi sự kiện từ user data stream (xem [SERVER.md](SERVER.md)). Mỗi lượt:
 
 - **Vị thế mất SL hoặc TP** (bị huỷ tay, hết hạn): đặt lại với client id mới (`-<n+1>`) và gửi `PROTECTION_REPAIRED`. Không đặt lại được thì đóng vị thế.
 - **Khối lượng lệnh bảo vệ lệch với vị thế** (bị đóng bớt bằng tay): huỷ rồi đặt lại theo khối lượng mới.

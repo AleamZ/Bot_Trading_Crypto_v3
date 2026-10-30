@@ -52,9 +52,12 @@ export interface AppEnv extends RawEnv {
   binanceWsUrl: string;
   /** Both Binance keys are present. */
   hasBinanceKeys: boolean;
+  /** DB_PATH made absolute against the folder of the .env file (the repo root), or the cwd. */
+  dbPath: string;
+  envFile: string | null;
 }
 
-export function parseEnv(source: Record<string, string | undefined>): AppEnv {
+export function parseEnv(source: Record<string, string | undefined>, envFile: string | null = null): AppEnv {
   const result = envSchema.safeParse(source);
   if (!result.success) {
     const lines = result.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`);
@@ -67,6 +70,8 @@ export function parseEnv(source: Record<string, string | undefined>): AppEnv {
     binanceRestUrl: env.BINANCE_REST_URL ?? urls.rest,
     binanceWsUrl: env.BINANCE_WS_URL ?? urls.ws,
     hasBinanceKeys: Boolean(env.BINANCE_API_KEY && env.BINANCE_API_SECRET),
+    dbPath: env.DB_PATH === ":memory:" ? env.DB_PATH : path.resolve(envFile ? path.dirname(envFile) : process.cwd(), env.DB_PATH),
+    envFile,
   };
 }
 
@@ -93,5 +98,5 @@ export function loadEnv(): AppEnv {
       throw new Error(`Không đọc được ${file}: ${(error as Error).message}`);
     }
   }
-  return parseEnv(process.env);
+  return parseEnv(process.env, file ? path.resolve(file) : null);
 }
