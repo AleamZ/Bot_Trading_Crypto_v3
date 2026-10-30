@@ -14,7 +14,7 @@ Luật giao dịch chi tiết: [docs/STRATEGIES.md](docs/STRATEGIES.md). Thiết
 | Mốc | Nội dung | Trạng thái |
 |---|---|---|
 | 3a | `packages/core`: chỉ báo, 3 phương pháp, đồng thuận 2/3 và 3/3, tính khối lượng theo R, schema cài đặt | xong |
-| 3b | Binance client, đặt lệnh, watchdog SL/TP | chưa |
+| 3b | `apps/server`: Binance client, executor (MARKET + SL/TP, đóng khẩn), watchdog, user stream, smoke test DEMO ([EXECUTION.md](docs/EXECUTION.md)) | xong |
 | 3c | SQLite, API, SSE, Telegram | chưa |
 | 3d | Giao diện web | chưa |
 | 3e | Backtest, smoke test DEMO, hướng dẫn deploy | chưa |
@@ -23,7 +23,7 @@ Luật giao dịch chi tiết: [docs/STRATEGIES.md](docs/STRATEGIES.md). Thiết
 
 ```
 packages/core/   logic thuần (không I/O): indicators, strategies, consensus, risk, settings
-apps/server/     (3b-3c) engine + API + Telegram
+apps/server/     Binance client, executor, watchdog (3b); API + Telegram + DB (3c)
 apps/web/        (3d) giao diện
 docs/            luật giao dịch, thiết kế UI, deploy
 ```
@@ -35,6 +35,7 @@ npm install        # .npmrc bật legacy-peer-deps để tránh lỗi npm 10 v�
 npm test           # test mọi workspace
 npm run typecheck
 npm run build
+npm run smoke:demo -w @bot-v3/server   # kiểm tra kết nối DEMO, chỉ đọc
 ```
 
 Cần Node.js 22.
