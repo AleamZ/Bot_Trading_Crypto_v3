@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { isPasswordHash } from "./api/auth.js";
 import { buildServer } from "./api/server.js";
+import { findWebDir } from "./api/web.js";
 import { BotRuntime } from "./app/runtime.js";
 import { BinanceFutures } from "./binance/futures.js";
 import { BinanceRest } from "./binance/rest.js";
@@ -42,8 +43,11 @@ export async function run(): Promise<void> {
     sessionSecret = randomBytes(32).toString("base64url");
     logger.warn("No SESSION_SECRET in .env: logins last only until the bot restarts");
   }
+  const webDir = env.WEB_DIR ?? findWebDir();
+  logger.info(webDir ? "Serving the web UI" : "No built web UI found (npm run build); serving the API only", { webDir });
   const server = await buildServer({
     runtime,
+    webDir,
     auth: { username: env.ADMIN_USERNAME, passwordHash, sessionSecret, secureCookie: env.PUBLIC_URL?.startsWith("https://") ?? false },
     logger,
   });

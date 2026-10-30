@@ -1,6 +1,8 @@
 # Thiết kế giao diện: phong cách "pixel game UI"
 
-Nguồn: ảnh mẫu "Spritecraft — Light pixel-art game UI kit" bạn gửi ngày 2026-10-30. Màu dưới đây là màu mình ước lượng từ ảnh. Khi dựng UI ở mốc 3d sẽ chỉnh lại cho khớp.
+Nguồn: ảnh mẫu "Spritecraft — Light pixel-art game UI kit" bạn gửi ngày 2026-10-30. Màu dưới đây là màu mình ước lượng từ ảnh.
+
+Đã dựng ở `apps/web` (mốc 3d): token và thành phần nằm trong `src/styles.css` và `src/ui.tsx`, các trang trong `src/pages/`.
 
 ## Tinh thần
 
@@ -63,3 +65,16 @@ Có giao diện tối: nền `--ink`, panel `#2a2823`, chữ `#f3e7c9`, giữ ng
 - Chỉ dùng chuyển động ngắn kiểu "bậc": `steps()` khoảng 80-120ms cho hover và nhấn.
 - Ô thanh đo bật sáng lần lượt khi giá trị đổi.
 - Tôn trọng `prefers-reduced-motion`.
+
+## Trang đã có
+
+| Trang | Nội dung |
+|---|---|
+| Đăng nhập | Mascot, ô tên và mật khẩu; chưa có hash thì hướng dẫn `npm run hash-password` |
+| Bảng điều khiển | Cảnh báo (tự vào lệnh tắt và vì sao, Binance lỗi, cài đặt cần xem lại); ô số liệu; bảng symbol × A/B/C (bấm vào hàng để xem lý do và SL từng phương pháp); panel Bot (mascot theo trạng thái, thanh đo lỗ ngày / vị thế / lệnh ngày, giờ quét tới, Tạm dừng / Chạy lại, Quét ngay); vị thế đang mở (SL, TP kèm R, giá mark, lãi/lỗ chưa chốt, thanh SL → TP, nút Đóng lệnh bấm hai lần); tin gần đây |
+| Lệnh | Lọc theo trạng thái, tổng kết trang, bảng lệnh; bấm vào hàng để xem chi tiết (SL cấu trúc, lỗ/lãi dự kiến, phí, client id, ghi chú) |
+| Nhật ký | Mọi sự kiện, lọc cảnh báo/lỗi, tải thêm; sự kiện mới hiện ngay qua SSE |
+| Cài đặt | Tab Chung / Quản lý vốn / Phương pháp / Telegram sinh từ JSON Schema của server: tiêu đề, mô tả, đơn vị, khoảng hợp lệ, giá trị mặc định. Đánh dấu ô đã sửa, chặn lưu khi ô số sai, lỗi 422 hiện đúng ô. Chỉ gửi phần đã đổi |
+| Telegram | Trạng thái, lỗi gần nhất, chat id tìm được (nút chép), gửi tin thử, danh sách lệnh chat |
+
+Giao diện sáng/tối theo hệ thống, đổi được bằng nút trên thanh điều hướng (nhớ trong trình duyệt). Định tuyến bằng `#/...` nên server chỉ cần trả `index.html`.

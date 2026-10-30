@@ -1,4 +1,7 @@
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import type { AddressInfo } from "node:net";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import type { FastifyInstance } from "fastify";
 import { afterEach, describe, expect, it } from "vitest";
 import { hashPassword } from "../src/api/auth.js";
@@ -13,13 +16,14 @@ afterEach(async () => {
   await Promise.all(servers.splice(0).map((s) => s.close()));
 });
 
-async function apiHarness(options: RuntimeHarnessOptions & { hash?: string | null } = {}) {
+async function apiHarness(options: RuntimeHarnessOptions & { hash?: string | null; webDir?: string } = {}) {
   const h = runtimeHarness(options);
   const app = await buildServer({
     runtime: h.runtime,
     auth: { username: "admin", passwordHash: options.hash === undefined ? passwordHash : options.hash, sessionSecret: "test-secret", secureCookie: true },
     now: () => h.exchange.clock,
     heartbeatMs: 50,
+    webDir: options.webDir ?? null,
   });
   servers.push(app);
   const login = async () => {
@@ -221,5 +225,39 @@ describe("API event stream", () => {
   it("refuses the stream without a session", async () => {
     const h = await apiHarness();
     expect((await h.app.inject({ url: "/api/events/stream" })).statusCode).toBe(401);
+  });
+});
+
+describe("web UI files", () => {
+  const base = mkdtempSync(path.join(tmpdir(), "bot-v3-web-"));
+  const dir = path.join(base, "dist");
+  mkdirSync(path.join(dir, "assets"), { recursive: true });
+  writeFileSync(path.join(dir, "index.html"), "<!doctype html><title>Bot V3</title>");
+  writeFileSync(path.join(dir, "assets", "index-abc123.js"), "console.log(1)");
+  writeFileSync(path.join(base, "secret.txt"), "no");
+
+  it("serves index.html uncached with a CSP, and hashed assets for a year", async () => {
+    const h = await apiHarness({ webDir: dir });
+    const index = await h.app.inject({ url: "/" });
+    expect(index.statusCode).toBe(200);
+    expect(index.headers["content-type"]).toContain("text/html");
+    expect(index.headers["cache-control"]).toBe("no-cache");
+    expect(index.headers["content-security-policy"]).toContain("default-src 'self'");
+    const asset = await h.app.inject({ url: "/assets/index-abc123.js" });
+    expect(asset.headers["content-type"]).toContain("text/javascript");
+    expect(asset.headers["cache-control"]).toContain("immutable");
+    expect((await h.app.inject({ url: "/settings" })).body).toContain("<title>Bot V3</title>");
+  });
+
+  it("never leaves the folder and keeps API 404s as JSON", async () => {
+    const h = await apiHarness({ webDir: dir });
+    for (const url of ["/../secret.txt", "/%2e%2e/secret.txt", "/assets/..%2f..%2fsecret.txt"]) {
+      const res = await h.app.inject({ url });
+      expect(res.body).not.toBe("no");
+    }
+    expect((await h.app.inject({ url: "/assets/missing.js" })).statusCode).toBe(404);
+    const api = await h.app.inject({ url: "/api/nope", headers: { cookie: (await h.login()).cookie } });
+    expect(api.statusCode).toBe(404);
+    expect(api.json().error).toBe("NOT_FOUND");
   });
 });

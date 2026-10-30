@@ -42,6 +42,8 @@ const envSchema = z.object({
   ADMIN_PASSWORD_HASH: optionalText,
   SESSION_SECRET: optionalText,
   DB_PATH: z.preprocess(empty, z.string().default("./data/bot.db")),
+  /** Built web UI to serve; found next to the server when left empty. */
+  WEB_DIR: optionalText,
   LOG_LEVEL: z.preprocess(empty, z.enum(["debug", "info", "warn", "error"]).default("info")),
 });
 

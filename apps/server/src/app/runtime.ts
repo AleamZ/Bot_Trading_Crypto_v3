@@ -256,6 +256,23 @@ export class BotRuntime {
       scanning: this.scanner.scanning,
       lastScan: this.scanner.lastReport,
       warnings: settingsWarnings(this.settings.get()),
+      limits: this.limits(),
+    };
+  }
+
+  /** The settings the dashboard meters and labels need. */
+  private limits() {
+    const { general, risk } = this.settings.get();
+    return {
+      entryTf: general.entryTf,
+      trendTf: general.trendTf,
+      riskUsd: risk.riskUsd,
+      rr: risk.rr,
+      maxOpenPositions: risk.maxOpenPositions,
+      maxTradesPerDay: risk.maxTradesPerDay,
+      maxDailyLossR: risk.maxDailyLossR,
+      alertThreshold: general.alertThreshold,
+      autoEntryThreshold: general.autoEntryThreshold,
     };
   }
 
@@ -277,7 +294,12 @@ export class BotRuntime {
     if (!this.env.hasBinanceKeys) throw new BotError(409, "NO_KEYS", "Chưa có BINANCE_API_KEY / BINANCE_API_SECRET trong .env");
     const { exchange } = this.options;
     try {
-      const [positions, algos, orders] = await Promise.all([exchange.getPositions(), exchange.getOpenAlgoOrders(), exchange.getOpenOrders()]);
+      const [positions, algos, orders, availableBalance] = await Promise.all([
+        exchange.getPositions(),
+        exchange.getOpenAlgoOrders(),
+        exchange.getOpenOrders(),
+        exchange.getAvailableBalance(),
+      ]);
       const open = this.trades.listByStatusSync(["OPENING", "OPEN"]);
       return {
         positions: positions
@@ -285,6 +307,7 @@ export class BotRuntime {
           .map((p) => ({ ...p, tradeId: open.find((t) => t.symbol === p.symbol)?.id ?? null })),
         algoOrders: algos,
         openOrders: orders,
+        availableBalance,
       };
     } catch (error) {
       throw new BotError(424, "EXCHANGE_ERROR", errorText(error));

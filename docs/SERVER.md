@@ -10,6 +10,12 @@ npm run dev             # chạy từ mã nguồn
 npm run build && npm start
 ```
 
+Bản build chạy cả API lẫn giao diện ở cùng cổng (mặc định http://127.0.0.1:8787):
+
+- File trong `apps/web/dist` được phục vụ cho mọi đường dẫn không phải `/api` hay `/health`.
+- `index.html` không cache, có Content-Security-Policy chỉ cho phép tài nguyên cùng nguồn.
+- File trong `assets/` có hash trong tên nên được cache một năm. Deploy xong, trình duyệt thấy bản mới ngay, không cần `?v=`.
+
 Bot đọc `.env` gần nhất (thư mục gốc repo), hoặc file ở `ENV_FILE`. Mức độ chạy tuỳ `.env`:
 
 | `.env` | Bot làm gì |

@@ -6,6 +6,7 @@ import type { LogLevelName } from "../db/stores.js";
 import type { TradeStatus } from "../engine/types.js";
 import { silentLogger, type Logger } from "../lib/logger.js";
 import { TelegramError } from "../telegram/client.js";
+import { serveWeb } from "./web.js";
 import { clearedCookie, LoginLimiter, parseCookies, safeEqual, SessionSigner, sessionCookie, verifyPassword, type Session } from "./auth.js";
 
 export const SESSION_COOKIE = "bot3_session";
@@ -21,6 +22,8 @@ export interface ServerOptions {
     secureCookie: boolean;
     sessionTtlMs?: number;
   };
+  /** Built web UI (apps/web/dist) served at /, or null for the API only. */
+  webDir?: string | null;
   logger?: Logger;
   now?: () => number;
   heartbeatMs?: number;
@@ -102,7 +105,11 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
     logger.error("API error", { method: request.method, url: request.url, error });
     return reply.status(500).send({ error: "INTERNAL", message: "Lỗi máy chủ, xem log của bot" });
   });
-  app.setNotFoundHandler((request, reply) => reply.status(404).send({ error: "NOT_FOUND", message: `Không có ${request.method} ${request.url}` }));
+  const webDir = options.webDir ?? null;
+  app.setNotFoundHandler(async (request, reply) => {
+    if (webDir && (await serveWeb(webDir, request, reply))) return reply;
+    return reply.status(404).send({ error: "NOT_FOUND", message: `Không có ${request.method} ${request.url}` });
+  });
 
   app.addHook("onRequest", async (request, reply) => {
     request.session = signer?.verify(parseCookies(request.headers.cookie)[SESSION_COOKIE]) ?? null;
@@ -112,9 +119,11 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
     if (!request.session) return reply.status(401).send({ error: "UNAUTHORIZED", message: "Cần đăng nhập" });
   });
 
-  app.addHook("onSend", async (_request, reply, payload) => {
-    reply.header("cache-control", "no-store");
-    reply.header("x-content-type-options", "nosniff");
+  app.addHook("onSend", async (request, reply, payload) => {
+    if (request.url.startsWith("/api/") || request.url.startsWith("/health")) {
+      reply.header("cache-control", "no-store");
+      reply.header("x-content-type-options", "nosniff");
+    }
     return payload;
   });
 

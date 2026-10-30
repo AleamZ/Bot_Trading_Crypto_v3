@@ -136,7 +136,11 @@ export class Scanner {
   /** One pass over the watchlist; concurrent calls share the pass in progress. */
   scanNow(): Promise<ScanReport> {
     if (!this.running) {
-      this.running = this.pass().finally(() => (this.running = null));
+      this.running = this.pass().finally(() => {
+        this.running = null;
+        this.deps.hub.live("status", { scan: this.lastReport });
+      });
+      this.deps.hub.live("status", { scanning: true });
     }
     return this.running;
   }
@@ -182,7 +186,6 @@ export class Scanner {
 
     const report: ScanReport = { startedAt, finishedAt: this.now(), expectedClose, symbols };
     this.lastReport = report;
-    this.deps.hub.live("status", { scan: report });
     return report;
   }
 
