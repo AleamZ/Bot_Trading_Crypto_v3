@@ -81,7 +81,7 @@ sed -i 's|^PORT=.*|PORT=8787|; s|^PUBLIC_URL=.*|PUBLIC_URL=https://bot-trade.ale
 grep -cE '^BINANCE_API_(KEY|SECRET)=.+' .env
 ```
 
-Dòng cuối phải in `2` (đã có đủ hai khoá).
+Dòng cuối in `2` là đã có đủ hai khoá. In `0` nghĩa là v2 không để khoá trong `.env`: v2 lưu khoá đã mã hoá trong database, nhập qua giao diện v2. Khi đó, ở bước `nano` dưới, tự dán `BINANCE_API_KEY=` và `BINANCE_API_SECRET=` của tài khoản DEMO.
 
 **Mật khẩu web:**
 
