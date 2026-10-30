@@ -8,7 +8,7 @@ Bot v3 thay hẳn v2 trên VPS. **Những gì giữ nguyên:**
 | Cổng API `127.0.0.1:8787` (nginx chuyển `/api` vào đây) | v3 chạy đúng cổng này |
 | Thư mục giao diện `/var/www/bot-trade` (nginx phục vụ `/`) | chép giao diện v3 vào thay giao diện v2 (dựng lại được từ git bất cứ lúc nào) |
 | Khoá Binance DEMO trong `.env` của v2 | chép sang `.env` của v3 ngay trên VPS (khoá không rời máy) |
-| pm2 tự chạy lại khi khởi động VPS | `pm2 save` sau khi đổi app |
+| Mọi thứ tự chạy khi VPS khởi động lại: dịch vụ systemd (`pm2-root`, nginx, cloudflared...) và các app pm2 khác ngoài v2 | không đụng tới; chỉ thay app v2 bằng `bot-v3` trong danh sách pm2 rồi `pm2 save` |
 
 **Những gì thay đổi:**
 
@@ -21,23 +21,39 @@ Bot v3 thay hẳn v2 trên VPS. **Những gì giữ nguyên:**
 
 Mọi lệnh dưới đây bạn tự chạy sau khi SSH vào VPS (`ssh <user>@<máy-vps> -p <cổng>`, như khi deploy v2). Làm lần lượt từng bước.
 
+## 0. Ghi lại những gì tự chạy khi VPS khởi động (chỉ xem)
+
+```bash
+pm2 ls
+grep -o '"name":"[^"]*"' ~/.pm2/dump.pm2
+systemctl list-unit-files --state=enabled | grep -Ei 'pm2|nginx|cloudflared|router|smew'
+crontab -l 2>/dev/null | grep -i reboot
+node -v
+```
+
+- `pm2 ls` là các app đang chạy.
+- Dòng `"name"` là danh sách pm2 tự bật lại khi khởi động máy.
+- `systemctl` là các dịch vụ hệ thống tự bật.
+
+Chép kết quả ra đâu đó để so ở bước 6: sau khi xong, mọi thứ phải còn nguyên, chỉ có `smc-futures-api` đổi thành `bot-v3`.
+
 ## 1. Node 22
 
 ```bash
 node -v
 ```
 
-Bot v3 cần **Node 22.13 trở lên**. Nếu thấp hơn, cài Node 22 bằng nvm. Node cũ của hệ thống vẫn giữ để pm2 chạy như trước:
+Bot v3 cần **Node 22.13 trở lên**. Nếu thấp hơn, cài thêm Node 22 bằng nvm:
 
 ```bash
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
 source ~/.nvm/nvm.sh
 nvm install 22
-nvm alias default 22
-node -v
 ```
 
-`deploy.sh` tự dùng Node 22 của nvm và báo cho pm2 chạy bot bằng Node đó.
+**Không** chạy `nvm alias default 22`. Node hệ thống giữ nguyên, nên pm2 và các app khác vẫn chạy như cũ.
+
+`deploy.sh` tự bật Node 22 cho riêng nó. Nó ghi đường dẫn đầy đủ của Node 22 vào app `bot-v3`, nên khi VPS khởi động lại, pm2 vẫn chạy bot bằng đúng Node đó.
 
 ## 2. Lấy code v3
 
@@ -102,6 +118,8 @@ Chỉ đọc. Xem dòng `open positions` và `open algo orders`. Vị thế v2 �
 cd ~/Bot_trade/Bot_Trading_Crypto_v3
 pm2 stop smc-futures-api
 bash deploy.sh
+pm2 delete smc-futures-api
+pm2 save
 curl -s https://bot-trade.aleam.io.vn/api/health
 ```
 
@@ -111,20 +129,46 @@ curl -s https://bot-trade.aleam.io.vn/api/health
 2. khởi động `bot-v3` trên cổng 8787 và chờ `/health/ready`;
 3. thay giao diện trong `/var/www/bot-trade` bằng giao diện v3.
 
+`pm2 delete smc-futures-api` gỡ v2 khỏi pm2. `pm2 save` ghi lại danh sách tự bật khi khởi động: `bot-v3` cùng mọi app pm2 khác đang có.
+
 Mở https://bot-trade.aleam.io.vn và đăng nhập bằng mật khẩu ở bước 3.
 
 - Tệp giao diện có hash trong tên, nên không cần `?v=` như v2; `index.html` không bị cache.
 - nginx giữ nguyên: `/api` vẫn sang cổng 8787, kể cả luồng SSE `/api/events/stream`. Bot gửi `x-accel-buffering: no` và cứ 15 giây gửi một nhịp, nên nginx không gom dữ liệu và không cắt kết nối.
 - Nếu trang không lên, xem cấu hình nginx: `nginx -T 2>/dev/null | grep -n "location /api" -A8`. Phải thấy `proxy_pass http://127.0.0.1:8787;`.
 
-## 6. Telegram
+## 6. Kiểm tra tự khởi động
+
+```bash
+pm2 ls
+grep -o '"name":"[^"]*"' ~/.pm2/dump.pm2
+systemctl list-unit-files --state=enabled | grep -Ei 'pm2|nginx|cloudflared|router|smew'
+```
+
+So với bước 0: phải giống hệt, chỉ `smc-futures-api` thay bằng `bot-v3`.
+
+Nếu dòng `pm2-root.service` không còn `enabled` (hiếm khi xảy ra), bật lại trong **một phiên SSH mới**, để pm2 dùng Node hệ thống:
+
+```bash
+pm2 startup systemd -u root --hp /root
+pm2 save
+```
+
+Muốn chắc chắn hơn thì khởi động lại VPS: `reboot`. Đợi 1–2 phút, SSH lại, rồi chạy:
+
+```bash
+pm2 ls
+curl -s https://bot-trade.aleam.io.vn/api/health
+```
+
+## 7. Telegram
 
 1. Mở bot Telegram dành cho VPS, bấm **Start**. Bot trả lời chat id.
 2. Điền `TELEGRAM_CHAT_ID=` trong `.env` (`nano .env`).
 3. Chạy `pm2 restart bot-v3`.
 4. Telegram nhận "🤖 Bot v3 đã khởi động". Gửi `/status` để thử.
 
-## 7. Bật tự vào lệnh trên DEMO
+## 8. Bật tự vào lệnh trên DEMO
 
 Tài khoản phải ở **One-way mode**. Bước 4 đã in ra chế độ này.
 
@@ -141,13 +185,11 @@ Telegram báo "Tự vào lệnh: BẬT". Từ đây, mỗi lần 3/3:
 
 Không đặt được SL/TP thì bot đóng vị thế ngay (xem [EXECUTION.md](EXECUTION.md)).
 
-## 8. Dọn v2
+## 9. Xoá thư mục v2
 
-Khi v3 đã chạy ổn, xoá hẳn v2:
+Khi v3 đã chạy ổn (khoá Binance đã nằm trong `.env` của v3):
 
 ```bash
-pm2 delete smc-futures-api
-pm2 save
 rm -rf ~/Bot_trade/Bot_Trading_Crypto_v2
 ```
 
@@ -164,5 +206,9 @@ rm -rf ~/Bot_trade/Bot_Trading_Crypto_v2
 
 **Lưu ý:**
 
+- Để không mất cấu hình tự khởi động:
+  - không chạy `pm2 kill`, `pm2 delete all`, `pm2 unstartup`;
+  - không cài pm2 lần nữa bằng Node 22 (`npm i -g pm2`);
+  - mỗi lần thêm hay gỡ app pm2, chạy `pm2 save`.
 - Dừng bot (`pm2 stop bot-v3`) không đóng vị thế. SL/TP đã nằm trên Binance; khi bot chạy lại, watchdog đối chiếu và tiếp tục quản lý.
 - Mỗi database chỉ một bot chạy được. Không chạy bản thứ hai cùng tài khoản DEMO, kể cả trên máy bạn khi đã bật `TRADING_ENABLED`.
