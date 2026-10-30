@@ -8,7 +8,7 @@ import { METHODS, type AnalysisView, type Position, type Status, type Trade } fr
 import { Button, Chip, ConfirmButton, DirectionChip, LevelChip, Mascot, Meter, Notice, Panel, Stat, type Mood } from "../ui";
 import { useToast } from "../ui";
 
-export function Dashboard({ live, go }: { live: Live; go: (route: Route) => void }) {
+export function Dashboard({ live, go }: { live: Live; go: (route: Route, param?: string) => void }) {
   const { status } = live;
   const trades = useLoad(() => api.trades({ status: "OPENING,OPEN", limit: 50 }), [live.lastLogId], 15_000);
   const hasKeys = status?.hasBinanceKeys ?? false;
@@ -33,7 +33,7 @@ export function Dashboard({ live, go }: { live: Live; go: (route: Route) => void
           sub={status.lastScan ? `nến ${status.limits.entryTf} đóng ${clock(status.lastScan.expectedClose + 1)} · quét ${clock(status.lastScan.finishedAt)}` : "chưa quét"}
           flush
         >
-          <SignalBoard rows={live.analysis} />
+          <SignalBoard rows={live.analysis} go={go} />
         </Panel>
         <BotPanel status={status} />
         <Panel className="span2" title="Vị thế đang mở" sub={trades.data ? `${openCount} lệnh` : undefined} flush>
@@ -80,7 +80,7 @@ function Alerts({ status, go }: { status: Status; go: (route: Route) => void }) 
   );
 }
 
-function SignalBoard({ rows }: { rows: AnalysisView[] }) {
+function SignalBoard({ rows, go }: { rows: AnalysisView[]; go: (route: Route, param?: string) => void }) {
   const [open, setOpen] = useState<string | null>(null);
   if (rows.length === 0) return <div className="empty-state">Chưa có lượt quét nào. Bot quét ngay khi khởi động, rồi sau mỗi nến đóng.</div>;
   return (
@@ -140,6 +140,11 @@ function SignalBoard({ rows }: { rows: AnalysisView[] }) {
                             </div>
                           );
                         })}
+                        <div>
+                          <Button tone="sky" small onClick={() => go("analysis", a.symbol)}>
+                            Xem chart và điều kiện
+                          </Button>
+                        </div>
                         <div className="soft">
                           ATR {price(a.atr)} · nến {a.timeframe} đóng {dateTime(a.time + 1)}
                           {a.episode && ` · đợt ${a.episode.direction} ${a.episode.level} từ ${dateTime(a.episode.startedAt + 1)}`}

@@ -212,6 +212,9 @@ describe("active signal", () => {
     id: "smcSweep",
     evaluate: (i) => (i === triggerAt ? signal("smcSweep", "LONG", stopLoss, i, entry[i]!.close) : null),
     isInvalidated: (_s, j) => j === invalidAt,
+    explain: () => {
+      throw new Error("not used");
+    },
   });
 
   it("counts for ttl candles including the trigger candle", () => {

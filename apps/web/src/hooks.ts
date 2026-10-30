@@ -2,23 +2,24 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import type { AnalysisView, LogEntry, Status } from "./types";
 
-export type Route = "dashboard" | "trades" | "activity" | "settings" | "telegram";
-const ROUTES: Route[] = ["dashboard", "trades", "activity", "settings", "telegram"];
+export type Route = "dashboard" | "analysis" | "trades" | "activity" | "settings" | "telegram";
+const ROUTES: Route[] = ["dashboard", "analysis", "trades", "activity", "settings", "telegram"];
 
-function routeFromHash(): Route {
-  const name = window.location.hash.replace(/^#\/?/, "").split("?")[0] as Route;
-  return ROUTES.includes(name) ? name : "dashboard";
+/** "#/analysis/BTCUSDT" → { route: "analysis", param: "BTCUSDT" }. */
+function readHash(): { route: Route; param: string | null } {
+  const [name = "", param] = window.location.hash.replace(/^#\/?/, "").split("?")[0]!.split("/");
+  return { route: ROUTES.includes(name as Route) ? (name as Route) : "dashboard", param: param ? decodeURIComponent(param) : null };
 }
 
 /** Routing by #hash, so the server only ever serves index.html. */
-export function useHashRoute(): [Route, (route: Route) => void] {
-  const [route, setRoute] = useState<Route>(routeFromHash);
+export function useHashRoute(): [Route, (route: Route, param?: string) => void, string | null] {
+  const [state, setState] = useState(readHash);
   useEffect(() => {
-    const onChange = () => setRoute(routeFromHash());
+    const onChange = () => setState(readHash());
     window.addEventListener("hashchange", onChange);
     return () => window.removeEventListener("hashchange", onChange);
   }, []);
-  return [route, (next) => (window.location.hash = `/${next}`)];
+  return [state.route, (next, param) => (window.location.hash = `/${next}${param ? `/${encodeURIComponent(param)}` : ""}`), state.param];
 }
 
 export type ThemeChoice = "auto" | "light" | "dark";

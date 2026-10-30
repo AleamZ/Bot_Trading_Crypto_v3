@@ -205,3 +205,91 @@ export interface TelegramInfo {
   lastError?: string | null;
   candidates?: { chatId: string; name: string; type: string; lastSeenAt: number }[];
 }
+
+export interface Candle {
+  openTime: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  closeTime: number;
+}
+
+export interface Check {
+  label: string;
+  pass: boolean | null;
+  detail: string | null;
+}
+
+export interface SideExplanation {
+  direction: Direction;
+  checks: Check[];
+  passed: number;
+  ready: boolean;
+}
+
+export interface StrategyExplanation {
+  method: MethodId;
+  sides: [SideExplanation, SideExplanation];
+}
+
+export type Tone = "sky" | "coin" | "stone" | "ink" | "quest" | "heart";
+
+export interface ChartLine {
+  id: string;
+  label: string;
+  group: "A" | "B" | "C";
+  tone: Tone;
+  style: "solid" | "dashed" | "dotted";
+  points: { time: number; value: number }[];
+}
+
+export interface ChartOverlays {
+  lines: ChartLine[];
+  swings: { time: number; kind: "high" | "low"; price: number }[];
+  fvgs: { from: number; to: number; top: number; bottom: number; direction: Direction; filled: boolean }[];
+  signals: (SignalView & { method: MethodId; index: number; openTime: number })[];
+  episodes: { time: number; level: "READY" | "ENTER"; direction: Direction }[];
+}
+
+export interface EntryPreview {
+  direction: Direction;
+  agreeing: number;
+  entryPrice: number;
+  notes: string[];
+  ok: boolean;
+  reason: string | null;
+  detail: string | null;
+  stopLoss: number;
+  stopPct: number;
+  atrMultiple: number | null;
+  sizing: {
+    quantity: string;
+    stopLoss: string;
+    takeProfit: string;
+    notional: string;
+    riskAtStop: string;
+    riskR: number;
+    rewardAtTp: string;
+    rewardR: number;
+  } | null;
+  margin: { ok: boolean; leverage: number; maxLeverage: number; margin: number; liquidationPrice: number } | null;
+}
+
+export interface ChartResponse {
+  symbol: string;
+  timeframe: string;
+  trendTimeframe: string;
+  inWatchlist: boolean;
+  candles: Candle[];
+  overlays: ChartOverlays;
+  analysis: AnalysisView;
+  explanation: Record<MethodId, StrategyExplanation | null>;
+  preview: EntryPreview | null;
+  guard: { ok: boolean; reason: string | null; message: string | null };
+  thresholds: { alert: number; entry: number };
+  trades: Trade[];
+  lastScanAt: number | null;
+  nextScanAt: number | null;
+}

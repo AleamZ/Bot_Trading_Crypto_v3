@@ -1,5 +1,4 @@
 import {
-  checkMargin,
   dec,
   feeRateOf,
   finalizeAfterFill,
@@ -11,6 +10,7 @@ import {
 import { errorText, isBinanceError } from "../binance/errors.js";
 import type { FuturesApi, LeverageBracket, OrderResult } from "../binance/types.js";
 import { silentLogger, type Logger } from "../lib/logger.js";
+import { chooseLeverage } from "./leverage.js";
 import { closedStats, entrySide, flatten, placeProtection, positionAmount } from "./protection.js";
 import { KeyedLock, newTradeId, sleep as realSleep } from "./support.js";
 import { CLIENT_ID, type EntryStage, type EventSink, type Trade, type TradeStore } from "./types.js";
@@ -104,21 +104,16 @@ export class Executor {
       const hint = sizing.minRiskUsd ? ` Cần 1R ≥ ${sizing.minRiskUsd}$.` : "";
       return fail("PLAN", sizing.reason, `${sizing.detail}.${hint}`);
     }
-    const maxLeverage = brackets[0]?.initialLeverage ?? risk.leverage;
-    const leverage = Math.max(1, Math.min(risk.leverage, maxLeverage));
-    const notional = Number(sizing.notional);
-    const bracket = brackets.find((b) => notional >= b.notionalFloor && notional < b.notionalCap) ?? brackets[0];
-    const margin = checkMargin({
+    const margin = chooseLeverage({
       direction,
       entryPrice: mark,
       stopLoss: Number(sizing.stopLoss),
-      notional,
-      leverage,
+      notional: Number(sizing.notional),
       availableBalance: balance,
-      maxMarginUsagePct: risk.maxMarginUsagePct,
-      maintenanceMarginRate: bracket?.maintMarginRatio ?? 0.005,
-      liqBufferMultiple: risk.liqBufferMultiple,
+      brackets,
+      risk,
     });
+    const leverage = margin.leverage;
     if (!margin.ok) return fail("PLAN", margin.reason, margin.detail);
 
     // 3. Record the attempt before any order, so a crash leaves a trace the watchdog can adopt.

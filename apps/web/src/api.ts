@@ -1,4 +1,4 @@
-import type { JsonObject, LogEntry, Me, PositionsResponse, ScanReport, SettingsResponse, Status, TelegramInfo, Trade } from "./types";
+import type { ChartResponse, JsonObject, LogEntry, Me, PositionsResponse, ScanReport, SettingsResponse, Status, TelegramInfo, Trade } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -48,6 +48,7 @@ export const api = {
   logout: () => request<Me>("POST", "/api/auth/logout"),
   status: () => request<Status>("GET", "/api/status"),
   scan: () => request<ScanReport>("POST", "/api/scan"),
+  chart: (symbol: string, limit = 300) => request<ChartResponse>("GET", `/api/chart${query({ symbol, limit })}`),
   pause: () => request<{ paused: boolean }>("POST", "/api/bot/pause"),
   resume: () => request<{ paused: boolean }>("POST", "/api/bot/resume"),
   settings: () => request<SettingsResponse>("GET", "/api/settings"),

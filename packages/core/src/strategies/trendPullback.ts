@@ -3,7 +3,7 @@ import { rsi } from "../indicators/oscillators.js";
 import { alignHigherTimeframe } from "../indicators/structure.js";
 import type { TrendPullbackParams } from "../settings/schema.js";
 import type { Direction, MethodSignal } from "../types.js";
-import { isFiniteAll, type MarketData, type PreparedStrategy, type SharedSeries } from "./types.js";
+import { fmt, isFiniteAll, side, type Check, type MarketData, type PreparedStrategy, type SharedSeries, type SideExplanation, type StrategyExplanation } from "./types.js";
 
 /**
  * A. Trend + pullback to the EMA.
@@ -96,5 +96,81 @@ export function prepareTrendPullback(market: MarketData, p: TrendPullbackParams,
     return signal.direction === "LONG" ? entry[j]!.close < mid : entry[j]!.close > mid;
   }
 
-  return { id: "trendPullback", evaluate, isInvalidated };
+  /** The same conditions as evaluate(), each one reported instead of returning at the first miss. */
+  function explainSide(direction: Direction, i: number): SideExplanation {
+    const long = direction === "LONG";
+    const above = long ? "trên" : "dưới";
+    const checks: Check[] = [];
+    const add = (label: string, pass: boolean | null, detail: string | null = null) => checks.push({ label, pass, detail });
+
+    const t = trendIndex[i] ?? -1;
+    const before = t - p.slopeLookback;
+    const tClose = trend[t]?.close ?? Number.NaN;
+    const tMid = trendMid[t] ?? Number.NaN;
+    const tSlow = trendSlow[t] ?? Number.NaN;
+    const tMidBefore = trendMid[before] ?? Number.NaN;
+    const trendOk = t >= 0 && before >= 0 && isFiniteAll(tMid, tSlow, tMidBefore);
+    add(`Khung lớn: giá ${above} EMA${p.emaSlow}`, trendOk ? (long ? tClose > tSlow : tClose < tSlow) : null, trendOk ? `${fmt(tClose)} / ${fmt(tSlow)}` : null);
+    add(`Khung lớn: EMA${p.emaMid} ${above} EMA${p.emaSlow}`, trendOk ? (long ? tMid > tSlow : tMid < tSlow) : null, trendOk ? `${fmt(tMid)} / ${fmt(tSlow)}` : null);
+    add(
+      `Khung lớn: EMA${p.emaMid} đang ${long ? "đi lên" : "đi xuống"} (${p.slopeLookback} nến)`,
+      trendOk ? (long ? tMid > tMidBefore : tMid < tMidBefore) : null,
+      trendOk ? `${fmt(tMidBefore)} → ${fmt(tMid)}` : null,
+    );
+
+    const from = i - p.pullbackLookback + 1;
+    const c = entry[i];
+    const prev = entry[i - 1];
+    const fast = emaFast[i] ?? Number.NaN;
+    const mid = emaMid[i] ?? Number.NaN;
+    const atr = shared.atr[i] ?? Number.NaN;
+    const r = rsiSeries[i] ?? Number.NaN;
+    const rPrev = rsiSeries[i - 1] ?? Number.NaN;
+    const entryOk = i >= 1 && from >= 0 && c !== undefined && prev !== undefined && isFiniteAll(fast, mid, atr, r, rPrev);
+    add(`EMA${p.emaFast} ${above} EMA${p.emaMid}`, entryOk ? (long ? fast > mid : fast < mid) : null, entryOk ? `${fmt(fast)} / ${fmt(mid)}` : null);
+
+    let closesOk: boolean | null = entryOk ? true : null;
+    let touched = false;
+    let extreme = long ? Infinity : -Infinity;
+    if (entryOk) {
+      for (let k = from; k <= i; k++) {
+        const ck = entry[k]!;
+        const midK = emaMid[k]!;
+        const fastK = emaFast[k]!;
+        if (!isFiniteAll(midK, fastK)) {
+          closesOk = null;
+          break;
+        }
+        if (long ? ck.close < midK : ck.close > midK) closesOk = false;
+        if (long ? ck.low <= fastK : ck.high >= fastK) touched = true;
+        extreme = long ? Math.min(extreme, ck.low) : Math.max(extreme, ck.high);
+      }
+    }
+    const loopOk = closesOk !== null;
+    add(`${p.pullbackLookback} nến gần nhất không đóng cửa ${long ? "dưới" : "trên"} EMA${p.emaMid}`, closesOk);
+    add(`Có nhịp hồi chạm EMA${p.emaFast} trong ${p.pullbackLookback} nến`, loopOk ? touched : null);
+
+    const triggered =
+      entryOk && c && prev
+        ? long
+          ? c.close > c.open && c.close > fast && c.close > prev.high
+          : c.close < c.open && c.close < fast && c.close < prev.low
+        : null;
+    add(`Nến ${long ? "tăng" : "giảm"} đóng cửa ${above} EMA${p.emaFast} và ${long ? "đỉnh" : "đáy"} nến trước`, triggered, entryOk && c ? `đóng ${fmt(c.close)}` : null);
+
+    const [lo, hi] = long ? [p.rsiMin, p.rsiMax] : [100 - p.rsiMax, 100 - p.rsiMin];
+    const rsiOk = entryOk ? r >= lo && r <= hi && (long ? r > rPrev : r < rPrev) : null;
+    add(`RSI trong ${lo}–${hi} và đang ${long ? "tăng" : "giảm"}`, rsiOk, entryOk ? `${r.toFixed(1)} (trước ${rPrev.toFixed(1)})` : null);
+
+    const stopLoss = long ? extreme - p.slAtrBuffer * atr : extreme + p.slAtrBuffer * atr;
+    const stopOk = loopOk && entryOk && c ? (long ? stopLoss < c.close : stopLoss > c.close) : null;
+    add(`SL (${long ? "đáy" : "đỉnh"} nhịp hồi ${long ? "−" : "+"} ${p.slAtrBuffer} ATR) nằm ${long ? "dưới" : "trên"} giá`, stopOk, stopOk !== null ? fmt(stopLoss) : null);
+    return side(direction, checks);
+  }
+
+  function explain(i: number): StrategyExplanation {
+    return { method: "trendPullback", sides: [explainSide("LONG", i), explainSide("SHORT", i)] };
+  }
+
+  return { id: "trendPullback", evaluate, isInvalidated, explain };
 }

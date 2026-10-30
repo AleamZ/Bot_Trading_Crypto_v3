@@ -274,7 +274,14 @@ a {
   margin: 0 auto;
   padding: 20px 16px 48px;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 22px;
+}
+
+/* Tabs inside a row scroll on their own instead of widening the page. */
+.row > .tabs {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .grid3 {
@@ -346,9 +353,10 @@ a {
 
 .panel-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px 12px;
   padding: 10px 14px;
   border-bottom: 2px dashed var(--line);
 }
@@ -1020,4 +1028,96 @@ code,
     transition: none !important;
     animation: none !important;
   }
+}
+
+/* ---------- analysis page ---------- */
+
+.chart-host {
+  height: 480px;
+  width: 100%;
+}
+
+@media (max-width: 640px) {
+  .chart-host {
+    height: 340px;
+  }
+}
+
+.layer-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding: 10px 14px;
+  border-bottom: 2px dashed var(--line);
+  font-size: 12px;
+}
+
+.layer {
+  align-items: center;
+  gap: 6px;
+}
+
+.check.small {
+  width: 18px;
+  height: 18px;
+  border-width: 2px;
+  background-size: 10px 10px;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  padding: 10px 14px;
+  border-top: 2px dashed var(--line);
+  font-size: 11px;
+}
+
+.side {
+  padding: 10px;
+  border: 2px solid var(--line);
+  background: var(--well);
+}
+
+.side.ready {
+  border-color: var(--sky);
+  box-shadow: inset 0 0 0 2px var(--sky);
+}
+
+.checklist {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.check-item {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+
+.check-icon {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--line);
+  color: #fff;
+  background: var(--stone);
+}
+
+.check-item.ok .check-icon {
+  background: var(--quest);
+}
+
+.check-item.no .check-icon {
+  background: var(--heart);
+}
+
+.check-item.unknown {
+  color: var(--text-soft);
 }

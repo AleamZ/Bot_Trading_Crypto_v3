@@ -261,3 +261,29 @@ describe("web UI files", () => {
     expect(api.json().error).toBe("NOT_FOUND");
   });
 });
+
+describe("API chart", () => {
+  it("returns candles, overlays, each method's conditions, the guard verdict and trades for a symbol", async () => {
+    const h = await apiHarness();
+    const { cookie } = await h.login();
+    const res = await h.app.inject({ url: "/api/chart?symbol=btcusdt&limit=100", headers: { cookie } });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body).toMatchObject({ symbol: "BTCUSDT", timeframe: "15m", trendTimeframe: "1h", inWatchlist: true, preview: null, guard: { ok: true } });
+    expect(body.candles.length).toBeGreaterThan(0);
+    expect(body.overlays.lines.map((l: { id: string }) => l.id)).toContain("donchianUpper");
+    expect(Object.keys(body.explanation)).toEqual(["trendPullback", "donchianBreakout", "smcSweep"]);
+    expect(body.explanation.trendPullback.sides.map((s: { direction: string }) => s.direction)).toEqual(["LONG", "SHORT"]);
+    expect(body.analysis.consensus.level).toBe("NONE");
+  });
+
+  it("validates the symbol and reports exchange problems as 424", async () => {
+    const h = await apiHarness();
+    const { cookie } = await h.login();
+    expect((await h.app.inject({ url: "/api/chart?symbol=BTC", headers: { cookie } })).statusCode).toBe(400);
+    h.exchange.failCandles = new Error("timeout");
+    const res = await h.app.inject({ url: "/api/chart?symbol=DOGEUSDT", headers: { cookie } });
+    expect(res.statusCode).toBe(424);
+    expect(res.json().message).toContain("DOGEUSDT");
+  });
+});

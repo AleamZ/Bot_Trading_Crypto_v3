@@ -5,7 +5,7 @@ import { activeSignalAt } from "./strategies/active.js";
 import { prepareDonchianBreakout } from "./strategies/donchianBreakout.js";
 import { prepareSmcSweep } from "./strategies/smcSweep.js";
 import { prepareTrendPullback } from "./strategies/trendPullback.js";
-import type { MarketData, PreparedStrategy } from "./strategies/types.js";
+import type { MarketData, PreparedStrategy, StrategyExplanation } from "./strategies/types.js";
 import { METHOD_IDS, type MethodId, type MethodSignal } from "./types.js";
 
 export interface MethodState {
@@ -27,9 +27,15 @@ export interface SymbolAnalysis {
 export interface Analyzer {
   /** Number of entry candles. */
   readonly length: number;
+  /** The prepared methods (null when disabled), for charts and explanations. */
+  readonly strategies: Record<MethodId, PreparedStrategy | null>;
+  /** ATR of the entry timeframe, per candle. */
+  readonly atr: readonly number[];
   at(index: number): SymbolAnalysis;
   /** Analysis of the last closed candle. */
   latest(): SymbolAnalysis;
+  /** Every condition of every enabled method at a candle, for LONG and SHORT. */
+  explain(index: number): Record<MethodId, StrategyExplanation | null>;
 }
 
 /**
@@ -66,9 +72,18 @@ export function createAnalyzer(market: MarketData, settings: Settings): Analyzer
     };
   }
 
+  function explain(index: number): Record<MethodId, StrategyExplanation | null> {
+    const out = {} as Record<MethodId, StrategyExplanation | null>;
+    for (const id of METHOD_IDS) out[id] = prepared[id]?.explain(index) ?? null;
+    return out;
+  }
+
   return {
     length: market.entry.length,
+    strategies: prepared,
+    atr: shared.atr,
     at,
     latest: () => at(market.entry.length - 1),
+    explain,
   };
 }

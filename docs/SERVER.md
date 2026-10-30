@@ -121,6 +121,7 @@ Mọi route dưới `/api` cần đăng nhập, trừ `/api/health` và `/api/au
 | `POST /api/auth/login` `{username, password}`, `POST /api/auth/logout`, `GET /api/auth/me` | Đăng nhập |
 | `GET /api/status` | Trạng thái bot, cờ `.env`, Binance, user stream, Telegram, lượt quét gần nhất, kết quả hôm nay |
 | `GET /api/analysis`, `POST /api/scan` | Phân tích mới nhất của từng symbol; quét lại ngay |
+| `GET /api/chart?symbol=BTCUSDT&limit=300` | Nến, các đường và mốc để vẽ, điều kiện từng phương pháp trên nến vừa đóng, lệnh dự kiến nếu vào lúc này, các giới hạn, lệnh của bot trên symbol. Dùng nến của lượt quét gần nhất nếu còn mới, symbol khác thì lấy từ Binance |
 | `GET /api/settings`, `PUT /api/settings` (một phần), `POST /api/settings/reset` | Cài đặt, mặc định, JSON Schema để dựng form, cảnh báo |
 | `POST /api/bot/pause`, `POST /api/bot/resume` | Tạm dừng / chạy lại |
 | `GET /api/trades?status=OPEN,CLOSED&symbol=&limit=&offset=`, `GET /api/trades/:id` | Lệnh của bot, mới nhất trước |

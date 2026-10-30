@@ -90,6 +90,8 @@ export function lastClosedCandleTime(now: number, tfMs: number): number {
  */
 export class Scanner {
   readonly latest = new Map<string, AnalysisView>();
+  /** The candles each symbol was last analysed with (the chart reuses them). */
+  readonly markets = new Map<string, MarketData>();
   lastReport: ScanReport | null = null;
   nextScanAt: number | null = null;
 
@@ -176,6 +178,7 @@ export class Scanner {
     }
 
     for (const symbol of [...this.latest.keys()]) if (!settings.general.watchlist.includes(symbol)) this.latest.delete(symbol);
+    for (const symbol of [...this.markets.keys()]) if (!settings.general.watchlist.includes(symbol)) this.markets.delete(symbol);
     for (const symbol of Object.keys(episodes)) if (!settings.general.watchlist.includes(symbol)) delete episodes[symbol];
     this.deps.kv.set(EPISODES_KEY, episodes);
 
@@ -200,6 +203,7 @@ export class Scanner {
     const limits = candleLimits(settings);
     const entry = await this.freshCandles(symbol, entryTf, limits.entry, expectedClose);
     const trend = trendTf === entryTf ? entry : await this.deps.market.getClosedCandles(symbol, trendTf, limits.trend);
+    this.markets.set(symbol, { entry, trend });
     const analysis = this.analyze({ entry, trend }, settings);
     scan.level = analysis.consensus.level;
     scan.direction = analysis.consensus.direction;

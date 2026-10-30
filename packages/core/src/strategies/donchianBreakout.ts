@@ -1,8 +1,8 @@
 import { highestBefore, lowestBefore, sma } from "../indicators/moving.js";
 import { adx } from "../indicators/oscillators.js";
 import type { DonchianBreakoutParams } from "../settings/schema.js";
-import type { MethodSignal } from "../types.js";
-import { isFiniteAll, type MarketData, type PreparedStrategy, type SharedSeries } from "./types.js";
+import type { Direction, MethodSignal } from "../types.js";
+import { fmt, isFiniteAll, side, type Check, type MarketData, type PreparedStrategy, type SharedSeries, type SideExplanation, type StrategyExplanation } from "./types.js";
 
 /**
  * B. Donchian channel breakout with volume and ADX.
@@ -70,5 +70,53 @@ export function prepareDonchianBreakout(market: MarketData, p: DonchianBreakoutP
     return signal.direction === "LONG" ? entry[j]!.close < mid : entry[j]!.close > mid;
   }
 
-  return { id: "donchianBreakout", evaluate, isInvalidated };
+  /** The same conditions as evaluate(), each one reported instead of returning at the first miss. */
+  function explainSide(direction: Direction, i: number): SideExplanation {
+    const long = direction === "LONG";
+    const c = entry[i];
+    const up = upper[i] ?? Number.NaN;
+    const low = lower[i] ?? Number.NaN;
+    const avgVolume = volumeAverage[i - 1] ?? Number.NaN;
+    const adxValue = adxSeries[i] ?? Number.NaN;
+    const atr = shared.atr[i] ?? Number.NaN;
+    const range = c ? c.high - c.low : 0;
+    const ok = i >= 1 && c !== undefined && isFiniteAll(up, low, avgVolume, adxValue, atr) && range > 0 && avgVolume > 0;
+    const edge = long ? up : low;
+    const when = (pass: () => boolean) => (ok ? pass() : null);
+    const checks: Check[] = [
+      {
+        label: `Đóng cửa ${long ? "trên đỉnh" : "dưới đáy"} kênh ${p.channelLength} nến`,
+        pass: when(() => (long ? c!.close > up : c!.close < low)),
+        detail: ok ? `${fmt(c!.close)} / ${fmt(edge)}` : null,
+      },
+      {
+        label: `Volume ≥ ${p.volumeMultiplier}× trung bình ${p.volumeSmaLength} nến`,
+        pass: when(() => c!.volume >= p.volumeMultiplier * avgVolume),
+        detail: ok ? `×${(c!.volume / avgVolume).toFixed(2)}` : null,
+      },
+      { label: `ADX ≥ ${p.adxMin}`, pass: when(() => adxValue >= p.adxMin), detail: ok ? adxValue.toFixed(1) : null },
+      {
+        label: `Thân nến ≥ ${Math.round(p.minBodyRatio * 100)}% biên độ`,
+        pass: when(() => Math.abs(c!.close - c!.open) >= p.minBodyRatio * range),
+        detail: ok ? `${Math.round((Math.abs(c!.close - c!.open) / range) * 100)}%` : null,
+      },
+      {
+        label: `Nến ${long ? "tăng" : "giảm"}, đóng cửa trong ${Math.round(p.closeZoneRatio * 100)}% ${long ? "trên" : "dưới"} cùng`,
+        pass: when(() => (long ? c!.close > c!.open && c!.close >= c!.high - p.closeZoneRatio * range : c!.close < c!.open && c!.close <= c!.low + p.closeZoneRatio * range)),
+        detail: null,
+      },
+      {
+        label: `Cách kênh ≤ ${p.maxChaseAtr} ATR (không đuổi giá)`,
+        pass: when(() => (long ? c!.close - up : low - c!.close) <= p.maxChaseAtr * atr),
+        detail: ok ? `${((long ? c!.close - up : low - c!.close) / atr).toFixed(2)} ATR` : null,
+      },
+    ];
+    return side(direction, checks);
+  }
+
+  function explain(i: number): StrategyExplanation {
+    return { method: "donchianBreakout", sides: [explainSide("LONG", i), explainSide("SHORT", i)] };
+  }
+
+  return { id: "donchianBreakout", evaluate, isInvalidated, explain };
 }

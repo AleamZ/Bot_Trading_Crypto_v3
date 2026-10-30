@@ -1,4 +1,5 @@
 import {
+  ChartLineUpIcon,
   CircleHalfIcon,
   GaugeIcon,
   GearSixIcon,
@@ -9,7 +10,7 @@ import {
   SunIcon,
   TelegramLogoIcon,
 } from "@phosphor-icons/react";
-import { useEffect, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import { api, UNAUTHORIZED_EVENT } from "./api";
 import { useHashRoute, useLive, useTheme, type Live, type Route } from "./hooks";
 import { Activity } from "./pages/Activity";
@@ -43,8 +44,12 @@ export function App() {
   return <ToastProvider>{me.authenticated ? <Shell me={me} onLogout={() => setMe({ ...me, authenticated: false, username: null })} /> : <Login me={me} onLogin={setMe} />}</ToastProvider>;
 }
 
+// The chart library is big: load the analysis page only when it is opened.
+const Analysis = lazy(() => import("./pages/Analysis").then((m) => ({ default: m.Analysis })));
+
 const NAV: { id: Route; label: string; icon: ReactNode }[] = [
   { id: "dashboard", label: "Bảng điều khiển", icon: <GaugeIcon size={16} weight="bold" /> },
+  { id: "analysis", label: "Phân tích", icon: <ChartLineUpIcon size={16} weight="bold" /> },
   { id: "trades", label: "Lệnh", icon: <ReceiptIcon size={16} weight="bold" /> },
   { id: "activity", label: "Nhật ký", icon: <ListBulletsIcon size={16} weight="bold" /> },
   { id: "settings", label: "Cài đặt", icon: <GearSixIcon size={16} weight="bold" /> },
@@ -53,7 +58,7 @@ const NAV: { id: Route; label: string; icon: ReactNode }[] = [
 
 function Shell({ me, onLogout }: { me: Me; onLogout: () => void }) {
   const live = useLive();
-  const [route, go] = useHashRoute();
+  const [route, go, param] = useHashRoute();
   const [theme, nextTheme] = useTheme();
 
   useEffect(() => {
@@ -88,14 +93,20 @@ function Shell({ me, onLogout }: { me: Me; onLogout: () => void }) {
         </Button>
       </nav>
       <main className="page">
-        <Page route={route} live={live} go={go} />
+        <Page route={route} live={live} go={go} param={param} />
       </main>
     </>
   );
 }
 
-function Page({ route, live, go }: { route: Route; live: Live; go: (r: Route) => void }) {
+function Page({ route, live, go, param }: { route: Route; live: Live; go: (r: Route, param?: string) => void; param: string | null }) {
   switch (route) {
+    case "analysis":
+      return (
+        <Suspense fallback={<div className="empty-state">Đang tải trang phân tích…</div>}>
+          <Analysis live={live} symbol={param} go={go} />
+        </Suspense>
+      );
     case "trades":
       return <Trades live={live} />;
     case "activity":

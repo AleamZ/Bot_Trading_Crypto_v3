@@ -67,6 +67,11 @@ const eventsQuery = z.object({
   symbol: z.string().trim().toUpperCase().optional(),
 });
 
+const chartQuery = z.object({
+  symbol: z.string().trim().toUpperCase().regex(/^[A-Z0-9]{2,20}USDT$/, "Symbol phải có dạng XXXUSDT"),
+  limit: z.coerce.number().int().min(50).max(1000).default(300),
+});
+
 const loginBody = z.object({ username: z.string().max(200), password: z.string().max(1000) });
 
 function parse<T extends z.ZodType>(schema: T, value: unknown): z.output<T> {
@@ -177,6 +182,11 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
   });
 
   app.post("/api/scan", async () => runtime.scanner.scanNow());
+
+  app.get("/api/chart", async (request) => {
+    const q = parse(chartQuery, request.query);
+    return runtime.chart(q.symbol, q.limit);
+  });
 
   // --- settings
   app.get("/api/settings", async () => {
