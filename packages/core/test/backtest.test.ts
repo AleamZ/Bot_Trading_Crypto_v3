@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { SymbolAnalysis } from "../src/analyzer.js";
-import { runBacktest, summarize, type BacktestSymbol, type BacktestTrade } from "../src/backtest.js";
+import { methodsKey, runBacktest, signalSequence, summarize, type BacktestSymbol, type BacktestTrade } from "../src/backtest.js";
 import { decideConsensus } from "../src/consensus/index.js";
 import type { SymbolFilters } from "../src/risk/filters.js";
 import { defaultSettings, mergeSettings } from "../src/settings/index.js";
-import { METHOD_IDS, type Candle, type Direction, type MethodSignal } from "../src/types.js";
+import { METHOD_IDS, type Candle, type Direction, type MethodId, type MethodSignal } from "../src/types.js";
 import { candles, randomWalk, type Row } from "./helpers.js";
 
 const FILTERS: SymbolFilters = { symbol: "XUSDT", tickSize: "0.01", stepSize: "0.1", minQty: "0.1", maxQty: null, minNotional: "5" };
@@ -37,14 +37,14 @@ function series(count: number, overrides: Record<number, Row> = {}): Candle[] {
 }
 
 /** Analyzer stand-in: `script[i]` are the active signals at candle i. */
-function scripted(script: Record<number, MethodSignal[]>) {
+function scripted(script: Record<number, MethodSignal[]>, general = defaultSettings().general) {
   return (market: { entry: readonly Candle[] }) => ({
     at(i: number): SymbolAnalysis {
       const signals = script[i] ?? [];
       const methods = {} as SymbolAnalysis["methods"];
       for (const id of METHOD_IDS) methods[id] = { enabled: true, signal: signals.find((s) => s.method === id) ?? null };
       const c = market.entry[i]!;
-      return { index: i, time: c.closeTime, price: c.close, atr: 1, methods, consensus: decideConsensus(signals, defaultSettings().general) };
+      return { index: i, time: c.closeTime, price: c.close, atr: 1, methods, consensus: decideConsensus(signals, general) };
     },
   });
 }
@@ -169,6 +169,46 @@ describe("runBacktest: live rules", () => {
       const again = runBacktest([{ symbol: "XUSDT", market: { entry: entry.slice(0, cut + 1), trend }, filters: FILTERS }], { settings });
       expect(again.trades[0]).toMatchObject({ entryTime: first.entryTime, entry: first.entry, stopLoss: first.stopLoss, takeProfit: first.takeProfit });
     }
+  });
+});
+
+describe("runBacktest: breakdown by methods", () => {
+  it("groups closed trades by the agreeing methods and keeps the candle each one fired on", () => {
+    const settings = settingsWith({ general: { autoEntryThreshold: 2 } });
+    const a = series(30, { 12: [100, 104, 100, 103] });
+    const b = series(30, { 11: [100, 100.1, 98, 98.4] });
+    // A two candles before B on the first symbol; A and C on the same candle on the second.
+    const ab = [
+      { ...signal("trendPullback", "LONG", 98.5), time: a[8]!.closeTime },
+      { ...signal("donchianBreakout", "LONG", 98.5), time: a[10]!.closeTime },
+    ];
+    const ac = [signal("trendPullback", "LONG", 98.5), signal("smcSweep", "LONG", 98.5)].map((s) => ({ ...s, time: b[10]!.closeTime }));
+    const r = runBacktest([sym("AUSDT", a), sym("BUSDT", b)], {
+      settings,
+      analyzerFor: (market) => scripted({ 10: market.entry === a ? ab : ac }, settings.general)(market),
+    });
+    expect(Object.keys(r.byMethods)).toEqual(["trendPullback+donchianBreakout", "trendPullback+smcSweep"]);
+    expect(r.byMethods["trendPullback+donchianBreakout"]).toMatchObject({ trades: 1, wins: 1 });
+    expect(r.byMethods["trendPullback+smcSweep"]).toMatchObject({ trades: 1, wins: 0 });
+    const [first, second] = r.trades;
+    expect(signalSequence(first!.signalTimes)).toEqual([["trendPullback"], ["donchianBreakout"]]);
+    expect(signalSequence(second!.signalTimes)).toEqual([["trendPullback", "smcSweep"]]);
+  });
+
+  it("orders method sets as A, B, C whatever order they come in", () => {
+    expect(methodsKey(["smcSweep", "trendPullback"])).toBe("trendPullback+smcSweep");
+  });
+
+  it("lists pairs before the triple: A+B, A+C, B+C, A+B+C", () => {
+    const settings = settingsWith({ general: { autoEntryThreshold: 2 }, risk: { maxOpenPositions: 5 } });
+    const [a, b, c] = METHOD_IDS as [MethodId, MethodId, MethodId];
+    const sets = [[b, c], [a, b, c], [a, c], [a, b]];
+    const books = sets.map((_, k) => sym(`S${k}USDT`, series(30, { 11: [100, 100.1, 98, 98.4] })));
+    const r = runBacktest(books, {
+      settings,
+      analyzerFor: (market) => scripted({ 10: sets[books.findIndex((x) => x.market === market)]!.map((m) => signal(m, "LONG", 98.5)) }, settings.general)(market),
+    });
+    expect(Object.keys(r.byMethods)).toEqual([methodsKey([a, b]), methodsKey([a, c]), methodsKey([b, c]), methodsKey([a, b, c])]);
   });
 });
 

@@ -11,7 +11,19 @@
  * Read-only: only public market data endpoints are called.
  */
 import { writeFileSync } from "node:fs";
-import { defaultSettings, mergeSettings, runBacktest, TIMEFRAME_MINUTES, type BacktestSummary, type BacktestSymbol, type Settings } from "@bot-v3/core";
+import {
+  defaultSettings,
+  mergeSettings,
+  runBacktest,
+  signalSequence,
+  summarize,
+  TIMEFRAME_MINUTES,
+  type BacktestSummary,
+  type BacktestSymbol,
+  type BacktestTrade,
+  type MethodId,
+  type Settings,
+} from "@bot-v3/core";
 import { candleLimits } from "../src/app/scanner.js";
 import { BinanceFutures } from "../src/binance/futures.js";
 import { BinanceRest } from "../src/binance/rest.js";
@@ -110,9 +122,26 @@ const row = (name: string, s: BacktestSummary) =>
     String(s.ambiguous).padStart(5),
   ].join(" ");
 
-console.log(`\n${"Symbol".padEnd(10)} ${"Lệnh".padStart(6)} ${"Thắng".padStart(6)} ${"Tổng R".padStart(9)} ${"TB R".padStart(8)} ${"PF".padStart(6)} ${"DD R".padStart(7)} ${"Ròng $".padStart(10)} ${"Mơ hồ".padStart(5)}`);
+const header = (first: string) =>
+  `${first.padEnd(10)} ${"Lệnh".padStart(6)} ${"Thắng".padStart(6)} ${"Tổng R".padStart(9)} ${"TB R".padStart(8)} ${"PF".padStart(6)} ${"DD R".padStart(7)} ${"Ròng $".padStart(10)} ${"Mơ hồ".padStart(5)}`;
+console.log(`\n${header("Symbol")}`);
 for (const [symbol, summary] of Object.entries(result.bySymbol)) console.log(row(symbol, summary));
 console.log(row("TỔNG", result.total));
+
+const LETTER: Record<MethodId, string> = { trendPullback: "A", donchianBreakout: "B", smcSweep: "C" };
+const letters = (key: string) => key.split("+").map((m) => LETTER[m as MethodId]).join("+");
+// "A=B": both fired on the same candle (likely one move); "A→B": A first, B later.
+const sequence = (t: BacktestTrade) => signalSequence(t.signalTimes).map((group) => group.map((m) => LETTER[m]).join("=")).join("→");
+const closed = result.trades.filter((t) => t.exitReason !== "OPEN");
+if (closed.length) {
+  console.log(`\n${header("Đồng thuận")}`);
+  for (const [key, summary] of Object.entries(result.byMethods)) console.log(row(letters(key), summary));
+  console.log(`\n${header("Thứ tự")}`);
+  const bySequence = new Map<string, BacktestTrade[]>();
+  for (const t of closed) bySequence.set(sequence(t), [...(bySequence.get(sequence(t)) ?? []), t]);
+  for (const key of [...bySequence.keys()].sort()) console.log(row(key, summarize(bySequence.get(key)!)));
+  console.log("Thứ tự: A=B là hai phương pháp kích hoạt cùng một nến, A→B là A trước, B ở nến sau.");
+}
 const { alertThreshold, autoEntryThreshold } = settings.general;
 const readyLabel = alertThreshold < autoEntryThreshold ? `Báo SẴN SÀNG (${alertThreshold}/3): ${result.readyAlerts} lần · ` : "";
 console.log(`\n${readyLabel}Đủ ${autoEntryThreshold}/3: ${result.enterSignals} lần · vào lệnh: ${result.trades.length}`);
@@ -124,12 +153,13 @@ console.log("Mơ hồ = nến chạm cả SL lẫn TP, tính là thua. DD R = m�
 
 const csv = option("csv");
 if (csv) {
-  const header = "symbol,direction,methods,entryTime,entry,quantity,stopLoss,takeProfit,exitTime,exit,exitReason,netPnl,r,ambiguous,bars";
+  const columns = "symbol,direction,methods,sequence,entryTime,entry,quantity,stopLoss,takeProfit,exitTime,exit,exitReason,netPnl,r,ambiguous,bars";
   const lines = result.trades.map((t) =>
     [
       t.symbol,
       t.direction,
       t.methods.join("+"),
+      sequence(t),
       new Date(t.entryTime + 1).toISOString(),
       t.entry,
       t.quantity,
@@ -144,6 +174,6 @@ if (csv) {
       t.bars,
     ].join(","),
   );
-  writeFileSync(csv, [header, ...lines].join("\n") + "\n");
+  writeFileSync(csv, [columns, ...lines].join("\n") + "\n");
   console.log(`Đã ghi ${result.trades.length} lệnh vào ${csv}`);
 }

@@ -7,7 +7,7 @@ import { feeRateOf, planTrade } from "./risk/plan.js";
 import { netResultAt } from "./risk/targets.js";
 import { TIMEFRAME_MINUTES, type Settings } from "./settings/schema.js";
 import type { MarketData } from "./strategies/types.js";
-import type { Candle, Direction, MethodId } from "./types.js";
+import { METHOD_IDS, type Candle, type Direction, type MethodId } from "./types.js";
 
 export interface BacktestSymbol {
   symbol: string;
@@ -33,6 +33,8 @@ export interface BacktestTrade {
   symbol: string;
   direction: Direction;
   methods: MethodId[];
+  /** closeTime of the candle each agreeing method fired on (they can be a few candles apart). */
+  signalTimes: Partial<Record<MethodId, number>>;
   /** closeTime of the candle that gave 3/3 (the entry fills at its close). */
   entryTime: number;
   entry: number;
@@ -78,6 +80,8 @@ export interface BacktestResult {
   skipped: Record<string, number>;
   total: BacktestSummary;
   bySymbol: Record<string, BacktestSummary>;
+  /** Per set of agreeing methods, keyed by methodsKey (e.g. "trendPullback+donchianBreakout"). */
+  byMethods: Record<string, BacktestSummary>;
   from: number | null;
   to: number | null;
 }
@@ -217,6 +221,7 @@ export function runBacktest(symbols: readonly BacktestSymbol[], options: Backtes
         symbol: book.symbol,
         direction,
         methods: analysis.consensus.agreeing.map((s) => s.method),
+        signalTimes: Object.fromEntries(analysis.consensus.agreeing.map((s) => [s.method, s.time])),
         entryTime: time,
         entry: fill,
         quantity: plan.sizing.quantity,
@@ -241,6 +246,18 @@ export function runBacktest(symbols: readonly BacktestSymbol[], options: Backtes
   const closed = trades.filter((t) => t.exitReason !== "OPEN");
   const bySymbol: Record<string, BacktestSummary> = {};
   for (const s of symbols) bySymbol[s.symbol] = summarize(closed.filter((t) => t.symbol === s.symbol));
+  const byMethods: Record<string, BacktestSummary> = {};
+  // Pairs before the triple, each in A, B, C order: A+B, A+C, B+C, A+B+C.
+  const rank = (key: string) => key.split("+").map((m) => METHOD_IDS.indexOf(m as MethodId));
+  const order = (a: string, b: string) => {
+    const [ra, rb] = [rank(a), rank(b)];
+    if (ra.length !== rb.length) return ra.length - rb.length;
+    const i = ra.findIndex((x, k) => x !== rb[k]);
+    return i === -1 ? 0 : ra[i]! - rb[i]!;
+  };
+  for (const key of [...new Set(closed.map((t) => methodsKey(t.methods)))].sort(order)) {
+    byMethods[key] = summarize(closed.filter((t) => methodsKey(t.methods) === key));
+  }
   return {
     trades,
     readyAlerts,
@@ -248,9 +265,28 @@ export function runBacktest(symbols: readonly BacktestSymbol[], options: Backtes
     skipped,
     total: summarize(closed),
     bySymbol,
+    byMethods,
     from: options.from ?? times[0] ?? null,
     to: times.at(-1) ?? null,
   };
+}
+
+/** A set of methods in the fixed A, B, C order, joined with "+". */
+export function methodsKey(methods: readonly MethodId[]): string {
+  return METHOD_IDS.filter((m) => methods.includes(m)).join("+");
+}
+
+/**
+ * The order the agreeing methods fired in: groups of methods that fired on the same candle,
+ * earliest first. [[A, B]] means both on one candle (likely the same move); [[A], [B]] means A first.
+ */
+export function signalSequence(signalTimes: Partial<Record<MethodId, number>>): MethodId[][] {
+  const groups = new Map<number, MethodId[]>();
+  for (const m of METHOD_IDS) {
+    const time = signalTimes[m];
+    if (time !== undefined) groups.set(time, [...(groups.get(time) ?? []), m]);
+  }
+  return [...groups.entries()].sort((a, b) => a[0] - b[0]).map(([, methods]) => methods);
 }
 
 /** Whether the candle closes the trade, and where. */
