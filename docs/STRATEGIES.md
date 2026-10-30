@@ -82,7 +82,11 @@ Gọi L và S là số phương pháp đang có tín hiệu LONG và SHORT:
    - SL làm tròn theo tick, về phía xa giá vào.
    - Thiếu `minQty` hoặc `minNotional` thì **từ chối, không tăng khối lượng**, và báo 1R tối thiểu cần có.
    - Vượt `maxQty` thì giảm về `maxQty` (rủi ro chỉ nhỏ đi).
-4. **TP** = giá vào ± RR × khoảng SL, làm tròn theo tick (RR mặc định 2).
+4. **TP** đặt sao cho chạm TP thì **lãi ròng = RR × số tiền mất khi chạm SL**, đã trừ phí hai chiều (RR mặc định 2):
+   - LONG: `TP = (RR·L + Q·F·(1+phí)) / (Q·(1−phí))`
+   - SHORT: `TP = (Q·F·(1−phí) − RR·L) / (Q·(1+phí))`
+   - L là số tiền mất khi chạm SL. TP làm tròn theo tick, về phía xa giá vào, nên lãi ròng luôn ≥ RR × L.
+   - Lý do: nếu đặt TP = giá vào ± RR × khoảng SL, phí sẽ ăn vào phần lãi và "R:R 2" thực tế chỉ còn khoảng 1.77R. Khi tắt phí, hai cách tính cho cùng kết quả.
 5. **Sau khi khớp (`finalizeAfterFill`):**
    - `EXACT_1R` (mặc định) giải SL sao cho lỗ đúng 1R với giá khớp và khối lượng khớp thật:
      - LONG: `SL = (Q·F·(1+phí) − R) / (Q·(1−phí))`, làm tròn **lên** theo tick.
@@ -102,7 +106,7 @@ Gọi L và S là số phương pháp đang có tín hiệu LONG và SHORT:
 **Ví dụ** BTCUSDT LONG, 1R = 5$, giá vào 68,000, SL 67,200, step 0.001, tick 0.1:
 
 - qty = 0.005 BTC, notional 340$.
-- Giữ SL cấu trúc thì lỗ 4.338$ (0.87R).
-- `EXACT_1R`: SL = 67,067.6, lỗ 4.9997$, TP = 69,864.8.
+- Giữ SL cấu trúc thì lỗ 4.338$ (0.87R), TP = 69,804.2 (lãi ròng 8.676$).
+- `EXACT_1R`: SL = 67,067.6, lỗ 4.9997$, TP = 70,069.0 (lãi ròng 9.9998$ = 2R).
 
 Có test cho chính các con số này.

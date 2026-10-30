@@ -13,3 +13,4 @@ export { checkMargin, type MarginInput, type MarginResult } from "./margin.js";
 export { feeRateOf, planTrade, type PlanInput, type PlanRejectReason, type TradePlan } from "./plan.js";
 export { lossPerUnit, sizePosition, type SizingInput, type SizingRejectReason, type SizingResult } from "./sizing.js";
 export { combineStops, type StopPolicy } from "./stops.js";
+export { netResultAt, takeProfitPrice, type TargetInput } from "./targets.js";

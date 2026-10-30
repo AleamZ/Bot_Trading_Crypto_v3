@@ -83,6 +83,11 @@ const riskSchema = z
     minSlPct: num(0.01, 20).default(0.2).meta({ title: "Khoảng SL tối thiểu", unit: "%" }),
     maxSlPct: num(0.05, 50).default(3).meta({ title: "Khoảng SL tối đa", unit: "%" }),
     maxSlAtr: num(0.5, 20).default(3).meta({ title: "Khoảng SL tối đa theo ATR", unit: "× ATR" }),
+    triggerPrice: z
+      .enum(["MARK_PRICE", "CONTRACT_PRICE"])
+      .default("MARK_PRICE")
+      .meta({ title: "Giá kích hoạt SL/TP", description: "MARK_PRICE ít bị râu nến quét hơn CONTRACT_PRICE" }),
+    protectionRetries: int(0, 5).default(2).meta({ title: "Số lần thử lại khi đặt SL/TP lỗi" }),
     leverage: int(1, 125).default(10).meta({ title: "Đòn bẩy", unit: "x" }),
     marginType: z.enum(["ISOLATED", "CROSSED"]).default("ISOLATED").meta({ title: "Loại ký quỹ" }),
     maxMarginUsagePct: num(1, 100)

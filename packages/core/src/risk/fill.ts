@@ -1,6 +1,7 @@
 import type { Direction } from "../types.js";
-import { ceilToStep, dec, floorToStep, formatToStep, roundToStep, type Dec, type DecValue } from "./decimal.js";
+import { ceilToStep, dec, floorToStep, formatToStep, type Dec, type DecValue } from "./decimal.js";
 import { lossPerUnit } from "./sizing.js";
+import { takeProfitPrice } from "./targets.js";
 
 export type StopMode = "EXACT_1R" | "KEEP_STRUCTURE";
 
@@ -92,12 +93,16 @@ export function finalizeAfterFill(input: FillInput): FillResult {
     }
   }
 
-  const distance = fill.minus(stop).abs();
-  let takeProfit = roundToStep(long ? fill.plus(rr.mul(distance)) : fill.minus(rr.mul(distance)), input.tickSize);
-  const tick = dec(input.tickSize);
-  if (long ? takeProfit.lte(fill) : takeProfit.gte(fill)) takeProfit = long ? fill.plus(tick) : fill.minus(tick);
-
   const loss: Dec = qty.mul(lossPerUnit(fill, stop, fee));
+  const takeProfit = takeProfitPrice({
+    direction: input.direction,
+    entry: fill,
+    quantity: qty,
+    lossAtStop: loss,
+    rr,
+    feeRate: fee,
+    tickSize: input.tickSize,
+  });
   return {
     ok: true,
     stopLoss: formatToStep(stop, input.tickSize),

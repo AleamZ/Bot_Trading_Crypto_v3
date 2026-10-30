@@ -1,6 +1,7 @@
 import type { Direction } from "../types.js";
-import { ceilToStep, D, dec, floorToStep, formatToStep, roundToStep, type Dec, type DecValue } from "./decimal.js";
+import { ceilToStep, D, dec, floorToStep, formatToStep, type Dec, type DecValue } from "./decimal.js";
 import type { SymbolFilters } from "./filters.js";
+import { takeProfitPrice } from "./targets.js";
 
 export type SizingRejectReason = "INVALID_INPUT" | "STOP_WRONG_SIDE" | "QTY_BELOW_MIN" | "NOTIONAL_BELOW_MIN";
 
@@ -99,9 +100,16 @@ export function sizePosition(input: SizingInput): SizingResult {
     );
   }
 
-  const distance = entry.minus(stop).abs();
-  const takeProfit = roundToStep(long ? entry.plus(rr.mul(distance)) : entry.minus(rr.mul(distance)), filters.tickSize);
   const riskAtStop = quantity.mul(perUnit);
+  const takeProfit = takeProfitPrice({
+    direction: input.direction,
+    entry,
+    quantity,
+    lossAtStop: riskAtStop,
+    rr,
+    feeRate,
+    tickSize: filters.tickSize,
+  });
   return {
     ok: true,
     quantity: formatToStep(quantity, filters.stepSize),
