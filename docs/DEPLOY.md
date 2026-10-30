@@ -117,9 +117,7 @@ Chỉ đọc. Xem dòng `open positions` và `open algo orders`. Vị thế v2 �
 ```bash
 cd ~/Bot_trade/Bot_Trading_Crypto_v3
 pm2 stop smc-futures-api
-bash deploy.sh
-pm2 delete smc-futures-api
-pm2 save
+bash deploy.sh && pm2 delete smc-futures-api && pm2 save
 curl -s https://bot-trade.aleam.io.vn/api/health
 ```
 
@@ -129,7 +127,7 @@ curl -s https://bot-trade.aleam.io.vn/api/health
 2. khởi động `bot-v3` trên cổng 8787 và chờ `/health/ready`;
 3. thay giao diện trong `/var/www/bot-trade` bằng giao diện v3.
 
-`pm2 delete smc-futures-api` gỡ v2 khỏi pm2. `pm2 save` ghi lại danh sách tự bật khi khởi động: `bot-v3` cùng mọi app pm2 khác đang có.
+`&&` làm v2 chỉ bị gỡ khi `deploy.sh` báo thành công; nếu `deploy.sh` lỗi thì v2 vẫn còn trong pm2 (đang dừng). `pm2 delete smc-futures-api` gỡ v2 khỏi pm2. `pm2 save` ghi lại danh sách tự bật khi khởi động: `bot-v3` cùng mọi app pm2 khác đang có.
 
 Mở https://bot-trade.aleam.io.vn và đăng nhập bằng mật khẩu ở bước 3.
 
