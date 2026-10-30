@@ -6,7 +6,8 @@ import type { FastifyInstance } from "fastify";
 import { afterEach, describe, expect, it } from "vitest";
 import { hashPassword } from "../src/api/auth.js";
 import { buildServer, SESSION_COOKIE } from "../src/api/server.js";
-import { LONG3, runtimeHarness, type RuntimeHarnessOptions } from "./runtimeHarness.js";
+import { sampleTrade } from "./fixtures.js";
+import { fakeAi, LONG3, runtimeHarness, type RuntimeHarnessOptions } from "./runtimeHarness.js";
 
 const PASSWORD = "mật-khẩu-đủ-dài";
 const passwordHash = await hashPassword(PASSWORD, { N: 1024, r: 8, p: 1 });
@@ -285,5 +286,44 @@ describe("API chart", () => {
     const res = await h.app.inject({ url: "/api/chart?symbol=DOGEUSDT", headers: { cookie } });
     expect(res.statusCode).toBe(424);
     expect(res.json().message).toContain("DOGEUSDT");
+  });
+});
+
+describe("API AI", () => {
+  it("says AI is off and refuses chat with 409 when there is no AI_BASE_URL", async () => {
+    const h = await apiHarness();
+    const { cookie } = await h.login();
+    expect((await h.app.inject({ url: "/api/ai", headers: { cookie } })).json()).toMatchObject({ enabled: false, hint: expect.stringContaining("AI_BASE_URL") });
+    const chat = await h.app.inject({ method: "POST", url: "/api/ai/chat", headers: { cookie }, payload: { messages: [{ role: "user", content: "hi" }] } });
+    expect(chat.statusCode).toBe(409);
+    expect(chat.json().error).toBe("AI_OFF");
+  });
+
+  it("chats, validates the messages, and maps AI failures to 424", async () => {
+    const ai = fakeAi();
+    ai.replies.push({ content: "Xin chào" }, { status: 500, text: "router down" });
+    const h = await apiHarness({ ai });
+    const { cookie } = await h.login();
+    const ok = await h.app.inject({ method: "POST", url: "/api/ai/chat", headers: { cookie }, payload: { messages: [{ role: "user", content: "hi" }] } });
+    expect(ok.json()).toMatchObject({ reply: "Xin chào", model: "fake-model" });
+    expect((await h.app.inject({ method: "POST", url: "/api/ai/chat", headers: { cookie }, payload: { messages: [] } })).statusCode).toBe(400);
+    const down = await h.app.inject({ method: "POST", url: "/api/ai/chat", headers: { cookie }, payload: { messages: [{ role: "user", content: "hi" }] } });
+    expect(down.statusCode).toBe(424);
+    expect(down.json().message).toContain("500");
+  });
+
+  it("reviews a closed trade on request and lists reviews with their trade", async () => {
+    const ai = fakeAi();
+    ai.replies.push({ content: '{"summary":"Thắng nhờ xu hướng","causes":["xu hướng mạnh"]}' });
+    const h = await apiHarness({ ai });
+    const { cookie } = await h.login();
+    await h.runtime.trades.insert(sampleTrade({ id: "w1", status: "CLOSED", exitReason: "TP", pnlR: 1.8, netPnl: "9", openedAt: h.exchange.clock - 3_600_000, closedAt: h.exchange.clock - 600_000 }));
+    expect((await h.app.inject({ method: "POST", url: "/api/reviews/nope", headers: { cookie } })).statusCode).toBe(404);
+    const res = await h.app.inject({ method: "POST", url: "/api/reviews/w1", headers: { cookie } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ tradeId: "w1", status: "DONE", outcome: "WIN", review: { summary: "Thắng nhờ xu hướng", lessons: [] }, trade: { id: "w1" } });
+    const list = (await h.app.inject({ url: "/api/reviews?outcome=WIN", headers: { cookie } })).json();
+    expect(list.items.map((r: { tradeId: string }) => r.tradeId)).toEqual(["w1"]);
+    expect((await h.app.inject({ url: "/api/reviews/insights", headers: { cookie } })).json()).toEqual({ insights: null });
   });
 });

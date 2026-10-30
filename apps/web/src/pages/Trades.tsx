@@ -1,7 +1,7 @@
 import { Fragment, useState } from "react";
 import { api } from "../api";
 import { dateTime, fullDateTime, price, rMultiple, usd } from "../format";
-import { useLoad, type Live } from "../hooks";
+import { useLoad, type Live, type Route } from "../hooks";
 import { METHODS, type Trade } from "../types";
 import { Button, DirectionChip, ExitChip, Notice, Panel, Stat, Tabs, TradeStatusChip } from "../ui";
 
@@ -15,7 +15,7 @@ type FilterId = (typeof FILTERS)[number]["id"];
 
 const PAGE = 50;
 
-export function Trades({ live }: { live: Live }) {
+export function Trades({ live, go }: { live: Live; go: (route: Route, param?: string) => void }) {
   const [filter, setFilter] = useState<FilterId>("all");
   const [page, setPage] = useState(0);
   const [open, setOpen] = useState<string | null>(null);
@@ -102,7 +102,7 @@ export function Trades({ live }: { live: Live }) {
                     {open === t.id && (
                       <tr className="detail">
                         <td colSpan={11}>
-                          <TradeDetail trade={t} />
+                          <TradeDetail trade={t} go={go} />
                         </td>
                       </tr>
                     )}
@@ -130,7 +130,7 @@ export function Trades({ live }: { live: Live }) {
   );
 }
 
-function TradeDetail({ trade: t }: { trade: Trade }) {
+function TradeDetail({ trade: t, go }: { trade: Trade; go: (route: Route, param?: string) => void }) {
   const rows: [string, string][] = [
     ["Mã lệnh", t.id],
     ["Phương pháp", t.methods.map((m) => METHODS.find((x) => x.id === m)?.letter ?? m).join(", ")],
@@ -156,6 +156,16 @@ function TradeDetail({ trade: t }: { trade: Trade }) {
         ))}
       </div>
       {t.note && <Notice tone={t.status === "FAILED" || t.exitReason === "EMERGENCY" ? "coin" : "sky"}>{t.note}</Notice>}
+      {t.status === "CLOSED" && t.entryPrice && (
+        <div className="row">
+          <Button tone="sky" small onClick={() => go("reviews", t.id)}>
+            Xem AI phân tích lệnh này
+          </Button>
+          <Button tone="plain" small onClick={() => go("analysis", t.symbol)}>
+            Xem chart
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

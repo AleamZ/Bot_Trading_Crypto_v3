@@ -79,7 +79,20 @@ export type SystemEvent =
   | { type: "STREAM_STATUS"; connected: boolean; detail: string };
 
 /** Everything that ends up in the activity log, on the SSE stream and (filtered) on Telegram. */
-export type AppEvent = BotEvent | ScanEvent | SystemEvent;
+export type AiEvent =
+  | {
+      type: "REVIEW_DONE";
+      tradeId: string;
+      symbol: string;
+      direction: Direction;
+      outcome: "WIN" | "LOSS" | "FLAT";
+      pnlR: number | null;
+      exitReason: string | null;
+      summary: string;
+    }
+  | { type: "REVIEW_FAILED"; tradeId: string; symbol: string; detail: string };
+
+export type AppEvent = BotEvent | ScanEvent | SystemEvent | AiEvent;
 export type AppEventType = AppEvent["type"];
 
 const side = (d: Direction | null) => (d === "LONG" ? "LONG" : d === "SHORT" ? "SHORT" : "—");
@@ -170,6 +183,12 @@ export function describeEvent(event: AppEvent): { level: LogLevelName; symbol: s
       return { level: "info", symbol: null, title: "Đã đổi cài đặt", message: `Bởi ${event.by}: ${event.changed.join(", ") || "không đổi gì"}` };
     case "EXCHANGE_STATUS":
       return { level: event.ok ? "info" : "error", symbol: null, title: event.ok ? "Đã kết nối lại Binance" : "Không gọi được Binance", message: event.detail };
+    case "REVIEW_DONE": {
+      const result = event.outcome === "WIN" ? "thắng" : event.outcome === "LOSS" ? "thua" : "hoà";
+      return { level: "info", symbol: event.symbol, title: `AI phân tích ${event.symbol} ${event.direction}: ${result} ${r(event.pnlR)}`, message: event.summary };
+    }
+    case "REVIEW_FAILED":
+      return { level: "warn", symbol: event.symbol, title: `AI chưa phân tích được lệnh ${event.symbol}`, message: event.detail };
     case "STREAM_STATUS":
       return { level: event.connected ? "info" : "warn", symbol: null, title: event.connected ? "User stream đã kết nối" : "User stream mất kết nối", message: event.detail };
   }

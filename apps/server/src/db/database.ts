@@ -41,6 +41,21 @@ const MIGRATIONS: readonly string[] = [
   );
   CREATE INDEX events_time ON events (time);
   `,
+  `
+  CREATE TABLE trade_reviews (
+    trade_id TEXT PRIMARY KEY,
+    symbol TEXT NOT NULL,
+    status TEXT NOT NULL,
+    outcome TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    model TEXT,
+    facts TEXT,
+    review TEXT,
+    error TEXT
+  );
+  CREATE INDEX trade_reviews_updated ON trade_reviews (updated_at);
+  `,
 ];
 
 /** Opens (or creates) the database file and brings the schema up to date. ":memory:" works for tests. */

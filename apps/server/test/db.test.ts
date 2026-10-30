@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { openDatabase, schemaVersion } from "../src/db/database.js";
-import { EventLog, KeyValueStore, SqliteTradeStore } from "../src/db/stores.js";
+import { EventLog, KeyValueStore, ReviewStore, SqliteTradeStore } from "../src/db/stores.js";
 import { sampleTrade } from "./fixtures.js";
 
 const dir = mkdtempSync(path.join(tmpdir(), "bot-v3-db-"));
@@ -13,11 +13,11 @@ describe("database", () => {
   it("creates the schema once and reopens an existing file", () => {
     const file = path.join(dir, "nested", "bot.db");
     const db = openDatabase(file);
-    expect(schemaVersion(db)).toBe(1);
+    expect(schemaVersion(db)).toBe(2);
     new SqliteTradeStore(db).insert(sampleTrade());
     db.close();
     const again = openDatabase(file);
-    expect(schemaVersion(again)).toBe(1);
+    expect(schemaVersion(again)).toBe(2);
     expect(new SqliteTradeStore(again).getSync("t1")?.symbol).toBe("BTCUSDT");
     again.close();
   });
@@ -82,5 +82,19 @@ describe("KeyValueStore and EventLog", () => {
     expect(log.since(2).map((e) => e.data)).toEqual([{ n: 3 }, { n: 4 }]);
     expect(log.prune(2500)).toBe(2);
     expect(log.list().length).toBe(2);
+  });
+});
+
+describe("ReviewStore", () => {
+  it("saves, updates and lists reviews", () => {
+    const reviews = new ReviewStore(openDatabase(":memory:"));
+    const base = { symbol: "BTCUSDT", createdAt: 1, model: null, facts: { a: 1 }, review: null, error: null };
+    reviews.save({ ...base, tradeId: "t1", status: "PENDING", outcome: "LOSS", updatedAt: 1 });
+    reviews.save({ ...base, tradeId: "t2", status: "DONE", outcome: "WIN", updatedAt: 2, review: { summary: "ok" } });
+    reviews.save({ ...base, tradeId: "t1", status: "DONE", outcome: "LOSS", updatedAt: 3, model: "m", review: { summary: "sl" } });
+    expect(reviews.get("t1")).toMatchObject({ status: "DONE", model: "m", facts: { a: 1 }, review: { summary: "sl" } });
+    expect(reviews.list().map((r) => r.tradeId)).toEqual(["t1", "t2"]);
+    expect(reviews.list({ outcome: "WIN" }).map((r) => r.tradeId)).toEqual(["t2"]);
+    expect(reviews.get("nope")).toBeNull();
   });
 });

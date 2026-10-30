@@ -18,6 +18,7 @@ Luật giao dịch chi tiết: [docs/STRATEGIES.md](docs/STRATEGIES.md). Thiết
 | 3c | SQLite, quét nến 2/3 · 3/3, Telegram, API + đăng nhập + SSE ([SERVER.md](docs/SERVER.md)) | xong |
 | 3d | Giao diện web pixel (Vite + React): bảng điều khiển, lệnh, nhật ký, cài đặt sinh từ schema, Telegram ([UI_DESIGN.md](docs/UI_DESIGN.md)) | xong |
 | 3e | Backtest ([BACKTEST.md](docs/BACKTEST.md)), pm2 + `deploy.sh`, hướng dẫn thay v2 bằng v3 trên VPS ([DEPLOY.md](docs/DEPLOY.md)) | xong; đã thử một lệnh thật trên DEMO (LINKUSDT) |
+| AI | AI phân tích vì sao lệnh thắng/thua, bài học tổng hợp, chat hỗ trợ trên web và `/ask` ([AI.md](docs/AI.md)) | xong |
 
 ## Cấu trúc
 
@@ -48,5 +49,7 @@ Cần Node.js 22.13 trở lên (bot dùng `node:sqlite` có sẵn trong Node).
 ## Cấu hình
 
 Sao chép `.env.example` thành `.env` rồi điền. Không commit `.env`.
+
+AI (phân tích lệnh, chat) bật bằng `AI_BASE_URL` trong `.env`, xem [docs/AI.md](docs/AI.md).
 
 Mọi thông số giao dịch (1R, RR, ngưỡng, tham số từng phương pháp...) nằm trong schema `packages/core/src/settings/schema.ts` và sẽ chỉnh được trên UI. Các cờ an toàn (`BINANCE_ENV`, `TRADING_ENABLED`, khoá API, token Telegram) chỉ đọc từ `.env`; UI không đè được.

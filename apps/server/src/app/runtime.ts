@@ -10,12 +10,16 @@ import {
   type Settings,
   type SymbolAnalysis,
 } from "@bot-v3/core";
+import { ChatService } from "../ai/chat.js";
+import type { AiClient } from "../ai/client.js";
+import { readRules } from "../ai/rules.js";
+import { ReviewService, type CandleSource } from "../ai/reviews.js";
 import { errorText } from "../binance/errors.js";
 import type { FuturesApi, MarketApi } from "../binance/types.js";
 import { UserStream, type SocketLike } from "../binance/userStream.js";
 import type { AppEnv } from "../config/env.js";
 import type { Database } from "../db/database.js";
-import { EventLog, KeyValueStore, SqliteTradeStore } from "../db/stores.js";
+import { EventLog, KeyValueStore, ReviewStore, SqliteTradeStore, type LogLevelName } from "../db/stores.js";
 import { Executor } from "../engine/executor.js";
 import { chooseLeverage } from "../engine/leverage.js";
 import { flatten } from "../engine/protection.js";
@@ -31,7 +35,8 @@ import { EventHub, toAnalysisView } from "./events.js";
 import { candleLimits, lastClosedCandleTime, Scanner } from "./scanner.js";
 
 export type ExchangeApi = FuturesApi &
-  MarketApi & {
+  MarketApi &
+  CandleSource & {
     createListenKey(): Promise<string>;
     keepAliveListenKey(): Promise<void>;
   };
@@ -41,6 +46,8 @@ export interface RuntimeOptions {
   db: Database;
   exchange: ExchangeApi;
   telegramClient: TelegramClient | null;
+  /** OpenAI-compatible endpoint for trade reviews and the chat; null turns AI off. */
+  aiClient?: AiClient | null;
   logger?: Logger;
   now?: () => number;
   /** Replaces the WebSocket in tests; null disables the user stream. */
@@ -81,6 +88,10 @@ export class BotRuntime {
   readonly watchdog: Watchdog;
   readonly scanner: Scanner;
   readonly telegram: TelegramService | null;
+  readonly reviewStore: ReviewStore;
+  readonly reviews: ReviewService;
+  readonly chat: ChatService;
+  readonly ai: AiClient | null;
   readonly userStream: UserStream | null;
   readonly startedAt: number;
 
@@ -157,6 +168,10 @@ export class BotRuntime {
             today: async () => formatToday(this.today()),
             pause: (by) => this.control.pause(by),
             resume: (by) => this.control.resume(by),
+            ask: async (question) => {
+              if (!this.chat.enabled || !this.settings.get().ai.chatEnabled) return null;
+              return (await this.chat.reply([{ role: "user", content: question }])).reply;
+            },
           },
           todayLine: () => formatToday(this.today()),
           logger: this.logger,
@@ -164,12 +179,55 @@ export class BotRuntime {
         })
       : null;
 
+    this.ai = options.aiClient ?? null;
+    this.reviewStore = new ReviewStore(db);
+    this.reviews = new ReviewService({
+      ai: this.ai,
+      store: this.reviewStore,
+      trades: this.trades,
+      market: exchange,
+      settings,
+      hub: this.hub,
+      kv: this.kv,
+      logger: this.logger,
+      now: this.now,
+    });
+    this.chat = new ChatService(
+      this.ai,
+      {
+        status: () => this.status(),
+        settings: () => this.settings.get(),
+        symbolAnalysis: async (symbol) => {
+          const c = await this.chart(symbol, 120);
+          return {
+            symbol: c.symbol,
+            timeframe: c.timeframe,
+            analysis: c.analysis,
+            explanation: c.explanation,
+            preview: c.preview,
+            guard: c.guard,
+            recentTriggers: c.overlays.signals.slice(-10).map((s) => ({ method: s.method, direction: s.direction, price: s.price, stopLoss: s.stopLoss, reason: s.reason, candleOpen: s.openTime })),
+          };
+        },
+        trades: ({ status, symbol, limit }) =>
+          this.trades.list({ ...(status ? { statuses: status.split(",").map((x) => x.trim().toUpperCase()) as Trade["status"][] } : {}), ...(symbol ? { symbol } : {}), limit }).trades,
+        trade: (id) => this.trades.getSync(id),
+        review: (id) => this.reviewStore.get(id),
+        reviews: (o) => this.reviewStore.list(o),
+        events: ({ limit, level }) => this.log.list({ limit, levels: (level === "error" ? ["error"] : level === "warn" ? ["warn", "error"] : []) as LogLevelName[] }),
+        insights: () => this.reviews.latestInsights(),
+        rules: () => readRules(),
+      },
+      { logger: this.logger, now: this.now },
+    );
+
     this.settings.onChange(() => this.scanner.reschedule());
   }
 
   async start(): Promise<void> {
     if (this.started) return;
     this.started = true;
+    this.reviews.start();
     this.telegram?.start();
     const s = this.settings.get();
     this.hub.emit({
@@ -202,6 +260,7 @@ export class BotRuntime {
     if (!this.started) return;
     this.started = false;
     this.hub.emit({ type: "BOT_STOPPING", signal });
+    this.reviews.stop();
     for (const timer of this.timers.splice(0)) clearInterval(timer);
     if (this.reconcileSoon) clearTimeout(this.reconcileSoon);
     this.userStream?.stop();
@@ -230,6 +289,19 @@ export class BotRuntime {
         this.hub.emit({ type: "EXCHANGE_STATUS", ok: false, detail });
       }
     }
+  }
+
+  /** AI configuration as the UI shows it (never the key). */
+  aiStatus() {
+    const ai = this.settings.get().ai;
+    return {
+      enabled: this.ai !== null,
+      model: this.ai?.model ?? null,
+      host: this.ai?.host ?? null,
+      autoReview: ai.autoReview,
+      chatEnabled: ai.chatEnabled,
+      hint: this.ai ? null : "Thêm AI_BASE_URL (và AI_MODEL, AI_API_KEY nếu cần) vào .env rồi khởi động lại bot",
+    };
   }
 
   async refreshBalance(): Promise<void> {
@@ -294,6 +366,7 @@ export class BotRuntime {
       lastScan: this.scanner.lastReport,
       warnings: settingsWarnings(this.settings.get()),
       riskCheck: this.riskCheck(),
+      ai: this.aiStatus(),
       limits: this.limits(),
     };
   }

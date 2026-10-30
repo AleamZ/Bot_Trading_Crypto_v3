@@ -18,6 +18,8 @@ export interface TelegramCommands {
   status(): Promise<string>;
   positions(): Promise<string>;
   today(): Promise<string>;
+  /** Answer a question with the AI chat; null when AI or the chat is off. */
+  ask?(question: string): Promise<string | null>;
   /** Return false when nothing changed (already paused / already running). */
   pause(by: string): boolean;
   resume(by: string): boolean;
@@ -238,6 +240,12 @@ export class TelegramService {
         return void (await reply(await this.deps.commands.status()));
       case "/positions":
         return void (await reply(await this.deps.commands.positions()));
+      case "/ask": {
+        const question = message.text.trim().replace(/^\/ask(@\S+)?/i, "").trim();
+        if (!question) return void (await reply("Gõ câu hỏi sau /ask, ví dụ: /ask vì sao chưa vào lệnh BTCUSDT?"));
+        const answer = this.deps.commands.ask ? await this.deps.commands.ask(question).catch((e: unknown) => `AI lỗi: ${e instanceof Error ? e.message : String(e)}`) : null;
+        return void (await reply(answer === null ? "Chat AI đang tắt (cần AI_BASE_URL trong .env và bật trong Cài đặt → AI)." : escapeHtml(answer)));
+      }
       case "/today":
         return void (await reply(await this.deps.commands.today()));
       case "/pause":

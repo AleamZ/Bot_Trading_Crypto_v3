@@ -8,6 +8,7 @@ import {
   type Settings,
   type SymbolAnalysis,
 } from "@bot-v3/core";
+import { AiClient } from "../src/ai/client.js";
 import { BotRuntime } from "../src/app/runtime.js";
 import { lastClosedCandleTime } from "../src/app/scanner.js";
 import { parseEnv, type AppEnv } from "../src/config/env.js";
@@ -34,6 +35,20 @@ export class FakeExchange extends FakeBinance {
       const closeTime = last - (n - 1 - i) * tf;
       return { openTime: closeTime + 1 - tf, open: 68_000, high: 68_100, low: 67_900, close: 68_000, volume: 1, closeTime };
     });
+  }
+
+  /** Candles per "SYMBOL:interval"; without an entry, flat candles at 68,000 are made up. */
+  readonly candleBook = new Map<string, Candle[]>();
+
+  async getCandlesBetween(symbol: string, interval: string, startTime: number, endTime: number): Promise<Candle[]> {
+    const book = this.candleBook.get(`${symbol}:${interval}`);
+    if (book) return book.filter((c) => c.closeTime >= startTime && c.openTime <= endTime && c.closeTime < this.clock);
+    const tf = interval === "1h" ? 3_600_000 : TF;
+    const out: Candle[] = [];
+    for (let open = Math.floor(startTime / tf) * tf; open + tf - 1 < Math.min(endTime, this.clock); open += tf) {
+      out.push({ openTime: open, open: 68_000, high: 68_100, low: 67_900, close: 68_000, volume: 1, closeTime: open + tf - 1 });
+    }
+    return out;
   }
 
   async createListenKey(): Promise<string> {
@@ -93,9 +108,26 @@ export function fakeTelegramFetch() {
   };
 }
 
+/** A scripted OpenAI-compatible endpoint: each call takes the next reply (text or tool calls). */
+export function fakeAi() {
+  const bodies: Record<string, unknown>[] = [];
+  const headers: Record<string, string>[] = [];
+  const replies: ({ content?: string; tools?: { name: string; args: unknown }[] } | { status: number; text: string })[] = [];
+  const fetchImpl = (async (_url: string | URL, init?: RequestInit) => {
+    bodies.push(JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>);
+    headers.push((init?.headers ?? {}) as Record<string, string>);
+    const next = replies.shift() ?? { content: "ok" };
+    if ("status" in next) return new Response(next.text, { status: next.status });
+    const tool_calls = next.tools?.map((t, i) => ({ id: `c${i}`, type: "function", function: { name: t.name, arguments: JSON.stringify(t.args) } }));
+    return Response.json({ model: "fake-model", choices: [{ message: { content: next.content ?? "", ...(tool_calls ? { tool_calls } : {}) } }] });
+  }) as typeof fetch;
+  return { fetch: fetchImpl, bodies, headers, replies };
+}
+
 export interface RuntimeHarnessOptions {
   env?: Record<string, string>;
   telegram?: boolean;
+  ai?: ReturnType<typeof fakeAi>;
 }
 
 export function runtimeHarness(options: RuntimeHarnessOptions = {}) {
@@ -115,6 +147,7 @@ export function runtimeHarness(options: RuntimeHarnessOptions = {}) {
     db,
     exchange,
     telegramClient: env.TELEGRAM_BOT_TOKEN ? new TelegramClient(env.TELEGRAM_BOT_TOKEN, { fetch: telegram.fetch }) : null,
+    aiClient: options.ai ? new AiClient({ baseUrl: "http://ai.test/v1", apiKey: "sk-test-SECRET", model: "fake-model", timeoutMs: 5000 }, options.ai.fetch) : null,
     now: () => exchange.clock,
     createSocket: null,
     watchdogIntervalMs: 3_600_000,

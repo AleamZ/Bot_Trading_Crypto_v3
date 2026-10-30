@@ -45,6 +45,11 @@ const envSchema = z.object({
   /** Built web UI to serve; found next to the server when left empty. */
   WEB_DIR: optionalText,
   LOG_LEVEL: z.preprocess(empty, z.enum(["debug", "info", "warn", "error"]).default("info")),
+  /** OpenAI-compatible /chat/completions endpoint for trade reviews and the chat. Empty: AI off. */
+  AI_BASE_URL: z.preprocess(empty, z.url().optional()),
+  AI_API_KEY: optionalText,
+  AI_MODEL: z.preprocess(empty, z.string().trim().default("cx/gpt-5.6-sol")),
+  AI_TIMEOUT_MS: z.preprocess(empty, z.coerce.number().int().min(5_000).max(600_000).default(120_000)),
 });
 
 export type RawEnv = z.output<typeof envSchema>;

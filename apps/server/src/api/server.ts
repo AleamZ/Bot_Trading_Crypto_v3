@@ -5,6 +5,7 @@ import { BotError, type BotRuntime } from "../app/runtime.js";
 import type { LogLevelName } from "../db/stores.js";
 import type { TradeStatus } from "../engine/types.js";
 import { silentLogger, type Logger } from "../lib/logger.js";
+import { AiError } from "../ai/client.js";
 import { TelegramError } from "../telegram/client.js";
 import { serveWeb } from "./web.js";
 import { clearedCookie, LoginLimiter, parseCookies, safeEqual, SessionSigner, sessionCookie, verifyPassword, type Session } from "./auth.js";
@@ -71,6 +72,21 @@ const chartQuery = z.object({
   symbol: z.string().trim().toUpperCase().regex(/^[A-Z0-9]{2,20}USDT$/, "Symbol phải có dạng XXXUSDT"),
   limit: z.coerce.number().int().min(50).max(1000).default(300),
 });
+
+const chatBody = z.object({
+  messages: z
+    .array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().trim().min(1).max(4000) }))
+    .min(1)
+    .max(30),
+});
+
+const reviewsQuery = z.object({
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  outcome: z.enum(["WIN", "LOSS", "FLAT"]).optional(),
+  symbol: z.string().trim().toUpperCase().optional(),
+});
+
+const errorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 const loginBody = z.object({ username: z.string().max(200), password: z.string().max(1000) });
 
@@ -182,6 +198,47 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
   });
 
   app.post("/api/scan", async () => runtime.scanner.scanNow());
+
+  // --- AI: trade reviews and the chat
+  app.get("/api/ai", async () => runtime.aiStatus());
+
+  app.post("/api/ai/chat", async (request) => {
+    const body = parse(chatBody, request.body);
+    if (!runtime.chat.enabled) throw new BotError(409, "AI_OFF", "AI đang tắt: thêm AI_BASE_URL vào .env rồi khởi động lại bot");
+    if (!runtime.settings.get().ai.chatEnabled) throw new BotError(409, "CHAT_OFF", "Chat AI đang tắt trong Cài đặt → AI");
+    try {
+      return await runtime.chat.reply(body.messages);
+    } catch (error) {
+      if (error instanceof AiError) throw new BotError(424, "AI_ERROR", error.message);
+      throw error;
+    }
+  });
+
+  app.get("/api/reviews", async (request) => {
+    const q = parse(reviewsQuery, request.query);
+    const items = runtime.reviewStore.list({ limit: q.limit, ...(q.outcome ? { outcome: q.outcome } : {}), ...(q.symbol ? { symbol: q.symbol } : {}) });
+    return { items: items.map((r) => ({ ...r, trade: runtime.trades.getSync(r.tradeId) })) };
+  });
+
+  app.get("/api/reviews/insights", async () => ({ insights: runtime.reviews.latestInsights() }));
+
+  app.post("/api/reviews/insights", async () => {
+    if (!runtime.reviews.enabled) throw new BotError(409, "AI_OFF", "AI đang tắt: thêm AI_BASE_URL vào .env rồi khởi động lại bot");
+    try {
+      return { insights: await runtime.reviews.insights() };
+    } catch (error) {
+      throw new BotError(error instanceof AiError ? 424 : 409, "INSIGHTS_FAILED", errorMessage(error));
+    }
+  });
+
+  app.post<{ Params: { tradeId: string } }>("/api/reviews/:tradeId", async (request) => {
+    const trade = runtime.trades.getSync(request.params.tradeId);
+    if (!trade) throw new BotError(404, "NOT_FOUND", `Không có lệnh ${request.params.tradeId}`);
+    if (trade.status !== "CLOSED" || !trade.entryPrice) throw new BotError(409, "NOT_CLOSED", "Chỉ phân tích được lệnh đã vào và đã đóng");
+    if (!runtime.reviews.enabled) throw new BotError(409, "AI_OFF", "AI đang tắt: thêm AI_BASE_URL vào .env rồi khởi động lại bot");
+    const record = await runtime.reviews.enqueue(trade.id);
+    return { ...record, trade: runtime.trades.getSync(trade.id) };
+  });
 
   app.get("/api/chart", async (request) => {
     const q = parse(chartQuery, request.query);

@@ -176,12 +176,25 @@ const telegramSchema = z
   })
   .meta({ title: "Telegram" });
 
+const aiSchema = z
+  .object({
+    autoReview: z
+      .boolean()
+      .default(true)
+      .meta({ title: "AI phân tích lệnh khi chạm TP / SL", description: "Cần AI_BASE_URL trong .env" }),
+    reviewManualExits: z.boolean().default(false).meta({ title: "Phân tích cả lệnh đóng tay / đóng khẩn" }),
+    notifyReview: z.boolean().default(true).meta({ title: "Gửi tóm tắt phân tích lên Telegram" }),
+    chatEnabled: z.boolean().default(true).meta({ title: "Bật chat AI (web và /ask trên Telegram)" }),
+  })
+  .meta({ title: "AI" });
+
 export const settingsSchema = z
   .object({
     general: generalSchema.prefault({}),
     risk: riskSchema.prefault({}),
     methods: methodsSchema.prefault({}),
     telegram: telegramSchema.prefault({}),
+    ai: aiSchema.prefault({}),
   })
   .superRefine((s, ctx) => {
     const issue = (path: (string | number)[], message: string) => ctx.addIssue({ code: "custom", path, message });
@@ -206,6 +219,7 @@ export type Settings = z.output<typeof settingsSchema>;
 export type SettingsInput = z.input<typeof settingsSchema>;
 export type GeneralSettings = Settings["general"];
 export type RiskSettings = Settings["risk"];
+export type AiSettings = Settings["ai"];
 export type TrendPullbackParams = Settings["methods"]["trendPullback"];
 export type DonchianBreakoutParams = Settings["methods"]["donchianBreakout"];
 export type SmcSweepParams = Settings["methods"]["smcSweep"];

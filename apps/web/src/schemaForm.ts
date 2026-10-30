@@ -32,7 +32,7 @@ export interface Section {
   groups: Group[];
 }
 
-const SECTION_TITLES: Record<string, string> = { general: "Chung", risk: "Quản lý vốn", methods: "Phương pháp", telegram: "Telegram" };
+const SECTION_TITLES: Record<string, string> = { general: "Chung", risk: "Quản lý vốn", methods: "Phương pháp", telegram: "Telegram", ai: "AI" };
 const GROUP_TITLES: Record<string, string> = {
   trendPullback: "A. Xu hướng + hồi EMA",
   donchianBreakout: "B. Phá kênh Donchian",

@@ -135,6 +135,16 @@ export function formatEvent(event: AppEvent, ctx: FormatContext): string | null 
       const shown = event.changed.slice(0, 12).join(", ") + (event.changed.length > 12 ? ` và ${event.changed.length - 12} mục khác` : "");
       return `⚙️ Cài đặt đã đổi (bởi ${escapeHtml(event.by)}): ${escapeHtml(shown)}`;
     }
+    case "REVIEW_DONE": {
+      if (!ctx.settings.ai.notifyReview) return null;
+      const result = event.outcome === "WIN" ? "THẮNG" : event.outcome === "LOSS" ? "THUA" : "HOÀ";
+      return [
+        `🧠 <b>AI phân tích · ${escapeHtml(event.symbol)} ${event.direction} · ${result} ${rText(event.pnlR)}${event.exitReason ? ` (${escapeHtml(event.exitReason)})` : ""}</b>`,
+        escapeHtml(event.summary),
+        "Chi tiết: trang AI phân tích trên web.",
+      ].join("\n");
+    }
+    case "REVIEW_FAILED":
     case "SIGNAL_ENTER":
     case "FOREIGN_POSITION":
     case "STREAM_STATUS":
@@ -191,6 +201,7 @@ export const HELP_TEXT = [
   "/today · kết quả hôm nay",
   "/pause · tạm dừng vào lệnh mới (lệnh đang mở vẫn giữ SL/TP)",
   "/resume · cho vào lệnh lại",
+  "/ask câu hỏi · hỏi AI về bot (ví dụ: /ask vì sao chưa vào lệnh BTC?)",
 ].join("\n");
 
 export const BOT_COMMANDS = [
@@ -199,5 +210,6 @@ export const BOT_COMMANDS = [
   { command: "today", description: "Kết quả hôm nay" },
   { command: "pause", description: "Tạm dừng vào lệnh mới" },
   { command: "resume", description: "Cho vào lệnh lại" },
+  { command: "ask", description: "Hỏi AI về bot" },
   { command: "help", description: "Danh sách lệnh" },
 ];

@@ -1,4 +1,5 @@
 import {
+  BrainIcon,
   ChartLineUpIcon,
   CircleHalfIcon,
   GaugeIcon,
@@ -12,10 +13,12 @@ import {
 } from "@phosphor-icons/react";
 import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import { api, UNAUTHORIZED_EVENT } from "./api";
+import { ChatWidget } from "./ChatWidget";
 import { useHashRoute, useLive, useTheme, type Live, type Route } from "./hooks";
 import { Activity } from "./pages/Activity";
 import { Dashboard } from "./pages/Dashboard";
 import { Login } from "./pages/Login";
+import { Reviews } from "./pages/Reviews";
 import { SettingsPage } from "./pages/Settings";
 import { TelegramPage } from "./pages/Telegram";
 import { Trades } from "./pages/Trades";
@@ -51,6 +54,7 @@ const NAV: { id: Route; label: string; icon: ReactNode }[] = [
   { id: "dashboard", label: "Bảng điều khiển", icon: <GaugeIcon size={16} weight="bold" /> },
   { id: "analysis", label: "Phân tích", icon: <ChartLineUpIcon size={16} weight="bold" /> },
   { id: "trades", label: "Lệnh", icon: <ReceiptIcon size={16} weight="bold" /> },
+  { id: "reviews", label: "AI phân tích", icon: <BrainIcon size={16} weight="bold" /> },
   { id: "activity", label: "Nhật ký", icon: <ListBulletsIcon size={16} weight="bold" /> },
   { id: "settings", label: "Cài đặt", icon: <GearSixIcon size={16} weight="bold" /> },
   { id: "telegram", label: "Telegram", icon: <TelegramLogoIcon size={16} weight="bold" /> },
@@ -95,6 +99,7 @@ function Shell({ me, onLogout }: { me: Me; onLogout: () => void }) {
       <main className="page">
         <Page route={route} live={live} go={go} param={param} />
       </main>
+      <ChatWidget live={live} />
     </>
   );
 }
@@ -108,7 +113,9 @@ function Page({ route, live, go, param }: { route: Route; live: Live; go: (r: Ro
         </Suspense>
       );
     case "trades":
-      return <Trades live={live} />;
+      return <Trades live={live} go={go} />;
+    case "reviews":
+      return <Reviews live={live} focus={param} go={go} />;
     case "activity":
       return <Activity live={live} />;
     case "settings":

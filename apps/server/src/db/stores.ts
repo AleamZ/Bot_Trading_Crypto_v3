@@ -204,3 +204,102 @@ function toEntry(row: RawEvent): LogEntry {
     data: row.data === null ? null : (JSON.parse(row.data) as unknown),
   };
 }
+
+export type ReviewStatus = "PENDING" | "DONE" | "FAILED";
+export type ReviewOutcome = "WIN" | "LOSS" | "FLAT";
+
+/** An AI review of a closed trade: the facts the code computed and what the AI made of them. */
+export interface ReviewRecord {
+  tradeId: string;
+  symbol: string;
+  status: ReviewStatus;
+  outcome: ReviewOutcome | null;
+  createdAt: number;
+  updatedAt: number;
+  model: string | null;
+  facts: unknown;
+  review: unknown;
+  error: string | null;
+}
+
+interface RawReview {
+  trade_id: string;
+  symbol: string;
+  status: ReviewStatus;
+  outcome: ReviewOutcome | null;
+  created_at: number;
+  updated_at: number;
+  model: string | null;
+  facts: string | null;
+  review: string | null;
+  error: string | null;
+}
+
+const parse = (text: string | null): unknown => (text === null ? null : (JSON.parse(text) as unknown));
+
+function toReview(row: RawReview): ReviewRecord {
+  return {
+    tradeId: row.trade_id,
+    symbol: row.symbol,
+    status: row.status,
+    outcome: row.outcome,
+    createdAt: Number(row.created_at),
+    updatedAt: Number(row.updated_at),
+    model: row.model,
+    facts: parse(row.facts),
+    review: parse(row.review),
+    error: row.error,
+  };
+}
+
+export class ReviewStore {
+  constructor(private readonly db: Database) {}
+
+  save(record: ReviewRecord): void {
+    this.db
+      .prepare(
+        `INSERT INTO trade_reviews (trade_id, symbol, status, outcome, created_at, updated_at, model, facts, review, error)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT (trade_id) DO UPDATE SET status = excluded.status, outcome = excluded.outcome, updated_at = excluded.updated_at,
+           model = excluded.model, facts = excluded.facts, review = excluded.review, error = excluded.error`,
+      )
+      .run(
+        record.tradeId,
+        record.symbol,
+        record.status,
+        record.outcome,
+        record.createdAt,
+        record.updatedAt,
+        record.model,
+        record.facts === null || record.facts === undefined ? null : JSON.stringify(record.facts),
+        record.review === null || record.review === undefined ? null : JSON.stringify(record.review),
+        record.error,
+      );
+  }
+
+  get(tradeId: string): ReviewRecord | null {
+    const row = this.db.prepare("SELECT * FROM trade_reviews WHERE trade_id = ?").get(tradeId) as unknown as RawReview | undefined;
+    return row ? toReview(row) : null;
+  }
+
+  /** Newest first. */
+  list(options: { limit?: number; outcome?: ReviewOutcome; symbol?: string; status?: ReviewStatus } = {}): ReviewRecord[] {
+    const where: string[] = [];
+    const params: (string | number)[] = [];
+    if (options.outcome) {
+      where.push("outcome = ?");
+      params.push(options.outcome);
+    }
+    if (options.symbol) {
+      where.push("symbol = ?");
+      params.push(options.symbol);
+    }
+    if (options.status) {
+      where.push("status = ?");
+      params.push(options.status);
+    }
+    const clause = where.length ? `WHERE ${where.join(" AND ")}` : "";
+    const rows = this.db.prepare(`SELECT * FROM trade_reviews ${clause} ORDER BY updated_at DESC LIMIT ?`).all(...params, options.limit ?? 50) as unknown as RawReview[];
+    return rows.map(toReview);
+  }
+}

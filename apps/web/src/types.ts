@@ -138,6 +138,7 @@ export interface Status {
   lastScan: ScanReport | null;
   warnings: string[];
   riskCheck: RiskCheck | null;
+  ai: AiStatus;
   limits: {
     entryTf: string;
     trendTf: string;
@@ -308,4 +309,65 @@ export interface ChartResponse {
   trades: Trade[];
   lastScanAt: number | null;
   nextScanAt: number | null;
+}
+
+export interface AiStatus {
+  enabled: boolean;
+  model: string | null;
+  host: string | null;
+  autoReview: boolean;
+  chatEnabled: boolean;
+  hint: string | null;
+}
+
+export interface TradeReview {
+  summary: string;
+  whyEntered: string;
+  whatHappened: string;
+  causes: string[];
+  methodNotes: { method: string; note: string }[];
+  lessons: string[];
+  suggestions: { area: string; change: string; confidence: "thấp" | "vừa" | "cao" }[];
+  tags: string[];
+}
+
+export interface ReviewItem {
+  tradeId: string;
+  symbol: string;
+  status: "PENDING" | "DONE" | "FAILED";
+  outcome: "WIN" | "LOSS" | "FLAT" | null;
+  createdAt: number;
+  updatedAt: number;
+  model: string | null;
+  facts: {
+    trade?: { stopDistancePct?: number; stopDistanceAtr?: number; heldMinutes?: number };
+    path?: { maxFavourableR: number | null; maxAdverseR: number | null; maxProgressToTp: number | null; candlesHeld: number };
+    atEntry?: { atrPct: number | null; adx: number | null; higherTimeframeTrend: string };
+  } | null;
+  review: TradeReview | null;
+  error: string | null;
+  trade: Trade | null;
+}
+
+export interface InsightsRecord {
+  createdAt: number;
+  model: string;
+  reviewCount: number;
+  stats: {
+    overall: { trades: number; wins: number; losses: number; winRate: number; totalR: number };
+    byMethod: Record<string, { trades: number; wins: number; losses: number; winRate: number; totalR: number }>;
+  };
+  result: {
+    overview: string;
+    patterns: string[];
+    weaknesses: string[];
+    recommendations: { area: string; change: string; why: string; confidence: string }[];
+    nextExperiments: string[];
+  };
+}
+
+export interface ChatReply {
+  reply: string;
+  model: string;
+  tools: string[];
 }

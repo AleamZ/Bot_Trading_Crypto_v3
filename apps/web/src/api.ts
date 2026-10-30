@@ -1,4 +1,4 @@
-import type { ChartResponse, JsonObject, LogEntry, Me, PositionsResponse, ScanReport, SettingsResponse, Status, TelegramInfo, Trade } from "./types";
+import type { AiStatus, ChartResponse, ChatReply, InsightsRecord, JsonObject, ReviewItem, LogEntry, Me, PositionsResponse, ScanReport, SettingsResponse, Status, TelegramInfo, Trade } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -49,6 +49,12 @@ export const api = {
   status: () => request<Status>("GET", "/api/status"),
   scan: () => request<ScanReport>("POST", "/api/scan"),
   chart: (symbol: string, limit = 300) => request<ChartResponse>("GET", `/api/chart${query({ symbol, limit })}`),
+  ai: () => request<AiStatus>("GET", "/api/ai"),
+  chat: (messages: { role: "user" | "assistant"; content: string }[]) => request<ChatReply>("POST", "/api/ai/chat", { messages }),
+  reviews: (params: { limit?: number; outcome?: string; symbol?: string } = {}) => request<{ items: ReviewItem[] }>("GET", `/api/reviews${query(params)}`),
+  reviewTrade: (tradeId: string) => request<ReviewItem>("POST", `/api/reviews/${encodeURIComponent(tradeId)}`),
+  insights: () => request<{ insights: InsightsRecord | null }>("GET", "/api/reviews/insights"),
+  makeInsights: () => request<{ insights: InsightsRecord }>("POST", "/api/reviews/insights"),
   pause: () => request<{ paused: boolean }>("POST", "/api/bot/pause"),
   resume: () => request<{ paused: boolean }>("POST", "/api/bot/resume"),
   settings: () => request<SettingsResponse>("GET", "/api/settings"),

@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { AiClient } from "./ai/client.js";
 import { isPasswordHash } from "./api/auth.js";
 import { buildServer } from "./api/server.js";
 import { findWebDir } from "./api/web.js";
@@ -30,7 +31,11 @@ export async function run(): Promise<void> {
   await rest.syncTime().catch((error) => logger.warn("Clock sync failed; will retry on the first signed request", { error: String(error) }));
   const exchange = new BinanceFutures(rest);
   const telegramClient = env.TELEGRAM_BOT_TOKEN ? new TelegramClient(env.TELEGRAM_BOT_TOKEN) : null;
-  const runtime = new BotRuntime({ env, db, exchange, telegramClient, logger });
+  const aiClient = env.AI_BASE_URL
+    ? new AiClient({ baseUrl: env.AI_BASE_URL, apiKey: env.AI_API_KEY, model: env.AI_MODEL, timeoutMs: env.AI_TIMEOUT_MS })
+    : null;
+  logger.info(aiClient ? "AI on" : "AI off (no AI_BASE_URL)", aiClient ? { host: aiClient.host, model: aiClient.model } : {});
+  const runtime = new BotRuntime({ env, db, exchange, telegramClient, aiClient, logger });
 
   let passwordHash = env.ADMIN_PASSWORD_HASH ?? null;
   if (passwordHash && !isPasswordHash(passwordHash)) {

@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import type { AnalysisView, LogEntry, Status } from "./types";
 
-export type Route = "dashboard" | "analysis" | "trades" | "activity" | "settings" | "telegram";
-const ROUTES: Route[] = ["dashboard", "analysis", "trades", "activity", "settings", "telegram"];
+export type Route = "dashboard" | "analysis" | "reviews" | "trades" | "activity" | "settings" | "telegram";
+const ROUTES: Route[] = ["dashboard", "analysis", "reviews", "trades", "activity", "settings", "telegram"];
 
 /** "#/analysis/BTCUSDT" → { route: "analysis", param: "BTCUSDT" }. */
 function readHash(): { route: Route; param: string | null } {

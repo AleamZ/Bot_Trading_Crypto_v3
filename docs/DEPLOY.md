@@ -192,6 +192,20 @@ Khi v3 đã chạy ổn (khoá Binance đã nằm trong `.env` của v3):
 rm -rf ~/Bot_trade/Bot_Trading_Crypto_v2
 ```
 
+## AI phân tích lệnh và chat (không bắt buộc)
+
+Router AI trên VPS chạy ở `http://localhost:20128/v1` (v2 cũng dùng router này). Thêm vào `.env` của v3:
+
+```bash
+cd ~/Bot_trade/Bot_Trading_Crypto_v3
+grep -q '^AI_BASE_URL=' .env || printf 'AI_BASE_URL=http://localhost:20128/v1\nAI_MODEL=cx/gpt-5.6-sol\n' >> .env
+pm2 restart bot-v3
+pm2 logs bot-v3 --lines 30 --nostream | grep '"AI '
+```
+
+- Dòng log `AI on` là đã bật. Router cần key thì thêm `AI_API_KEY=` vào `.env` bằng `nano .env`.
+- Chi tiết: [AI.md](AI.md).
+
 ## Hằng ngày
 
 | Việc | Lệnh |

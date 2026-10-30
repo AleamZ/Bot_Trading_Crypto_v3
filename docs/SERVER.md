@@ -76,6 +76,7 @@ Mỗi database chỉ cho **một bot** chạy: file `bot.db.lock` cạnh databas
 | ⚪ 3/3 nhưng không vào lệnh, kèm lý do | `notifyEntry` |
 | ✅ CHẠM TP / ❌ CHẠM SL / ✋ đóng tay / 🚨 đóng khẩn: giá thoát, lãi/lỗ ròng, R, kết quả hôm nay | `notifyExit` |
 | 🔴 không vào được lệnh, 🛠 đặt lại SL/TP, ⚠️ lỗi, Binance mất kết nối | `notifyError` |
+| 🧠 AI phân tích lệnh vừa đóng: thắng/thua, R, kết luận ([AI.md](AI.md)) | `ai.notifyReview` |
 | 🚨 không đặt được SL/TP | luôn gửi |
 | bot khởi động, dừng, tạm dừng, chạy lại, đổi cài đặt | luôn gửi |
 
@@ -91,6 +92,7 @@ Mỗi database chỉ cho **một bot** chạy: file `bot.db.lock` cạnh databas
 | `/positions` | Các lệnh đang mở với SL/TP |
 | `/today` | Kết quả hôm nay |
 | `/pause` / `/resume` | Tạm dừng / cho vào lệnh mới. SL/TP của lệnh đang mở vẫn hoạt động |
+| `/ask <câu hỏi>` | Hỏi AI về bot (cần bật AI, xem [AI.md](AI.md)) |
 
 ## Đăng nhập web
 
@@ -131,6 +133,11 @@ Mọi route dưới `/api` cần đăng nhập, trừ `/api/health` và `/api/au
 | `GET /api/events?before=&limit=&level=error,warn&symbol=` | Nhật ký hoạt động |
 | `GET /api/events/stream` | SSE (xem dưới) |
 | `GET /api/telegram`, `POST /api/telegram/test` | Trạng thái Telegram, chat id tìm được; gửi tin thử |
+| `GET /api/ai` | AI bật hay tắt, model, host, gợi ý khi tắt |
+| `POST /api/ai/chat` `{messages: [{role, content}]}` | Hỏi AI (1-30 tin, mỗi tin tối đa 4000 ký tự). `409 AI_OFF` / `CHAT_OFF` khi tắt, `424 AI_ERROR` khi AI lỗi |
+| `GET /api/reviews?outcome=WIN\|LOSS&symbol=&limit=` | Các bài AI phân tích lệnh, kèm lệnh |
+| `POST /api/reviews/:tradeId` | Phân tích (lại) một lệnh đã đóng; chờ tới khi xong |
+| `GET /api/reviews/insights`, `POST /api/reviews/insights` | Bài học tổng hợp gần nhất; tạo bài mới |
 
 **Mã lỗi:**
 
@@ -140,7 +147,7 @@ Mọi route dưới `/api` cần đăng nhập, trừ `/api/health` và `/api/au
   - `404`: không có;
   - `409`: trạng thái không cho phép, ví dụ chưa có khoá API;
   - `422`: cài đặt sai, kèm `errors`;
-  - `424`: Binance hoặc Telegram lỗi;
+  - `424`: Binance, Telegram hoặc AI lỗi;
   - `429`: đăng nhập sai quá nhiều.
 - Lỗi không lường trước trả `500`.
 - Không có route nào trả `502`, vì Cloudflare thay nội dung của 502 bằng trang riêng và làm mất lỗi thật.
@@ -164,5 +171,6 @@ SQLite (`node:sqlite`, có sẵn trong Node 22.13+), WAL, file `DB_PATH` (mặc 
 | `trades` | Mỗi lệnh dạng JSON, kèm cột trạng thái và thời gian để lọc |
 | `kv` | Cài đặt, trạng thái tạm dừng, đợt tín hiệu, offset Telegram, chat id tìm được |
 | `events` | Nhật ký hoạt động, giữ 60 ngày |
+| `trade_reviews` | Bài AI phân tích từng lệnh: dữ kiện, kết quả, model, lỗi |
 
 Phiên bản schema nằm trong `PRAGMA user_version`; bot tự nâng cấp khi khởi động. Sao lưu: dừng bot rồi chép cả thư mục `data/`.
