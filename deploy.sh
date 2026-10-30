@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Updates and restarts bot v3 on the VPS (docs/DEPLOY.md):
-#   bash deploy.sh                          pull, install, check, build, restart, wait for /health/ready
-#   WEB_ROOT=/var/www/bot-trade bash deploy.sh   also publish the web UI there (after a backup)
+#   bash deploy.sh    pull, install, check, build, restart, wait for /health/ready, then publish the web
+#                     UI to DEPLOY_WEB_ROOT from .env (or WEB_ROOT=...) after a backup
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -22,6 +22,7 @@ if [ ! -f .env ]; then
 fi
 PORT="$(grep -E '^PORT=' .env | tail -n1 | cut -d= -f2 | tr -d '[:space:]' || true)"
 PORT="${PORT:-8787}"
+WEB_ROOT="${WEB_ROOT:-$(grep -E '^DEPLOY_WEB_ROOT=' .env | tail -n1 | cut -d= -f2- | tr -d '[:space:]' || true)}"
 
 echo "==> git pull"
 git pull --ff-only
@@ -59,6 +60,15 @@ if [ "$ready" != 1 ]; then
 fi
 
 if [ -n "${WEB_ROOT:-}" ]; then
+  # The folder is emptied before the copy: refuse anything that is not a real, nested web folder.
+  case "$WEB_ROOT" in
+    /var/www/?*) ;;
+    *) echo "DEPLOY_WEB_ROOT phải nằm trong /var/www/ (đang là '$WEB_ROOT'), không chép giao diện" >&2; exit 1 ;;
+  esac
+  if [ ! -d "$WEB_ROOT" ]; then
+    echo "Không có thư mục $WEB_ROOT, không chép giao diện" >&2
+    exit 1
+  fi
   backup="/root/bot-trade-web-backup-$(date +%Y%m%d-%H%M%S)"
   echo "==> sao lưu $WEB_ROOT vào $backup, rồi chép giao diện mới"
   cp -a "$WEB_ROOT" "$backup"

@@ -1,140 +1,157 @@
-# Deploy lên VPS
+# Deploy lên VPS: thay bot v2 bằng v3
 
-VPS hiện chạy bot v2:
+Bot v3 thay hẳn v2 trên VPS. **Những gì giữ nguyên:**
 
-- pm2 app `smc-futures-api`, cổng `8787`, thư mục `~/Bot_trade/Bot_Trading_Crypto_v2`;
-- nginx phục vụ giao diện từ `/var/www/bot-trade` và chuyển `/api` sang `127.0.0.1:8787`;
-- Cloudflare Tunnel đưa ra ngoài ở https://bot-trade.aleam.io.vn.
+| Thứ | Giữ thế nào |
+|---|---|
+| Tên miền https://bot-trade.aleam.io.vn, Cloudflare Tunnel, cấu hình nginx | không đụng tới |
+| Cổng API `127.0.0.1:8787` (nginx chuyển `/api` vào đây) | v3 chạy đúng cổng này |
+| Thư mục giao diện `/var/www/bot-trade` (nginx phục vụ `/`) | chép giao diện v3 vào, sao lưu bản v2 trước |
+| Khoá Binance DEMO trong `.env` của v2 | chép sang `.env` của v3 ngay trên VPS (khoá không rời máy) |
+| pm2 tự chạy lại khi khởi động VPS | `pm2 save` sau khi đổi app |
 
-Bot v3 nằm ở thư mục riêng, `.env` riêng, database riêng. Làm theo 3 giai đoạn, giai đoạn nào cũng quay lại được:
+**Những gì thay đổi:**
 
-| Giai đoạn | v2 | v3 | Rủi ro |
-|---|---|---|---|
-| 1. Chạy song song | chạy như cũ | cổng `8788`, chỉ báo tín hiệu (`TRADING_ENABLED=false`), bot Telegram riêng | không đụng tới v2 hay tài khoản |
-| 2. Chuyển hẳn | dừng | cổng `8787`, giao diện mới ở tên miền cũ | trang web đổi; quay lại v2 bằng 3 lệnh |
-| 3. Bật giao dịch DEMO | — | thêm khoá DEMO, `TRADING_ENABLED=true` | bot tự vào lệnh 3/3 trên DEMO |
+| v2 | v3 |
+|---|---|
+| pm2 app `smc-futures-api` | pm2 app `bot-v3` |
+| thư mục `~/Bot_trade/Bot_Trading_Crypto_v2` | `~/Bot_trade/Bot_Trading_Crypto_v3` |
+| database Postgres | SQLite trong `data/bot.db` của v3 (Postgres để nguyên, không dùng nữa) |
+| đăng nhập web theo tài khoản v2 | một tài khoản admin trong `.env` của v3 |
 
-Mọi lệnh dưới đây bạn tự chạy sau khi SSH vào VPS (`ssh <user>@<máy-vps> -p <cổng>`, như khi deploy v2).
+Mọi lệnh dưới đây bạn tự chạy sau khi SSH vào VPS (`ssh <user>@<máy-vps> -p <cổng>`, như khi deploy v2). Làm lần lượt; tới trước bước 9 vẫn quay lại v2 được.
 
-## 0. Kiểm tra máy
+## 1. Sao lưu v2
+
+```bash
+B=/root/backup-v2-$(date +%Y%m%d-%H%M%S) && mkdir -p "$B" && echo "$B" > /root/backup-v2-latest
+cp -a ~/Bot_trade/Bot_Trading_Crypto_v2/.env "$B/env-v2"
+cp -a /var/www/bot-trade "$B/web"
+tar --exclude='*/node_modules' -czf "$B/src-v2.tgz" -C ~/Bot_trade Bot_Trading_Crypto_v2
+pm2 save && cp ~/.pm2/dump.pm2 "$B/pm2-dump.pm2"
+ls -la "$B"
+```
+
+Nếu muốn giữ lịch sử lệnh của v2 trong Postgres (không bắt buộc):
+
+```bash
+command -v pg_dump && pg_dump "$(grep -E '^DATABASE_URL=' ~/Bot_trade/Bot_Trading_Crypto_v2/.env | cut -d= -f2-)" | gzip > "$(cat /root/backup-v2-latest)/db-v2.sql.gz"
+```
+
+## 2. Node 22
 
 ```bash
 node -v
-pm2 -v
 ```
 
-Bot v3 cần **Node 22.13 trở lên** (dùng `node:sqlite` có sẵn trong Node).
-
-Nếu `node -v` thấp hơn, đừng nâng Node hệ thống: v2 dùng module native (argon2) build cho Node hiện tại, nâng lên sẽ làm v2 lỗi. Cài Node 22 riêng bằng nvm:
+Bot v3 cần **Node 22.13 trở lên**. Nếu thấp hơn, cài Node 22 bằng nvm. Node cũ của hệ thống vẫn giữ để pm2 chạy như trước:
 
 ```bash
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
 source ~/.nvm/nvm.sh
 nvm install 22
+nvm alias default 22
 node -v
 ```
 
-`deploy.sh` tự dùng Node 22 của nvm và báo cho pm2 chạy v3 bằng Node đó. v2 vẫn chạy bằng Node hệ thống.
+`deploy.sh` tự dùng Node 22 của nvm và báo cho pm2 chạy bot bằng Node đó.
 
-## 1. Chạy song song (chỉ báo tín hiệu)
+## 3. Lấy code v3
 
 ```bash
 cd ~/Bot_trade
 git clone https://github.com/AleamZ/Bot_Trading_Crypto_v3.git
 cd Bot_Trading_Crypto_v3
-source ~/.nvm/nvm.sh 2>/dev/null; nvm use 22 2>/dev/null
+source ~/.nvm/nvm.sh 2>/dev/null; nvm use 22 >/dev/null 2>&1; node -v
 npm ci
-cp .env.example .env
-npm run hash-password
 ```
 
-Mở `.env` (`nano .env`) và sửa:
+## 4. Tạo `.env` cho v3, mang cấu hình cũ sang
 
-| Dòng | Giá trị |
-|---|---|
-| `PORT` | `8788` (v2 đang giữ 8787) |
-| `PUBLIC_URL` | để trống trong giai đoạn này |
-| `TRADING_ENABLED` | `false` |
-| `BINANCE_API_KEY` / `BINANCE_API_SECRET` | để trống (chưa cần) |
-| `TELEGRAM_BOT_TOKEN` | token của **một bot Telegram mới** dành cho VPS (không dùng token của bản trên máy bạn) |
-| `TELEGRAM_CHAT_ID` | để trống, lấy ở bước dưới |
-| `ADMIN_PASSWORD_HASH`, `SESSION_SECRET` | hai dòng `npm run hash-password` vừa in |
-
-Rồi chạy:
-
-```bash
-bash deploy.sh
-```
-
-**Lấy chat id:**
-
-1. Mở bot Telegram mới, bấm **Start**. Bot trả lời chat id.
-2. Điền `TELEGRAM_CHAT_ID=` trong `.env`.
-3. Khởi động lại: `pm2 restart bot-v3`.
-4. Telegram nhận "🤖 Bot v3 đã khởi động". Gửi `/status` để thử.
-
-**Mở giao diện** trong giai đoạn này (chưa có tên miền). Trên máy bạn, mở một cửa sổ terminal và giữ nó mở:
-
-```bash
-ssh -L 8788:127.0.0.1:8788 <user>@<máy-vps> -p <cổng>
-```
-
-Sau đó vào http://localhost:8788 và đăng nhập.
-
-Để bot chạy vài ngày. Kiểm tra:
-
-- Telegram nhận SẴN SÀNG 2/3 khi có tín hiệu;
-- `pm2 logs bot-v3` không có lỗi lặp lại.
-
-## 2. Chuyển hẳn sang v3
-
-**Trước khi dừng v2,** xem tài khoản DEMO còn vị thế hay lệnh chờ của v2 không. Vị thế v2 để lại vẫn giữ SL/TP trên Binance, nhưng không còn bot nào quản lý nó. Bot v3 chỉ báo "vị thế không phải của bot" và không đụng vào.
+Chép mẫu, lấy khoá Binance từ `.env` của v2, rồi đặt tên miền và nơi chép giao diện:
 
 ```bash
 cd ~/Bot_trade/Bot_Trading_Crypto_v3
-cp -a /var/www/bot-trade /root/bot-trade-web-backup-$(date +%Y%m%d-%H%M%S)
-pm2 stop smc-futures-api
-sed -i 's/^PORT=.*/PORT=8787/; s#^PUBLIC_URL=.*#PUBLIC_URL=https://bot-trade.aleam.io.vn#' .env
-WEB_ROOT=/var/www/bot-trade bash deploy.sh
-curl -s https://bot-trade.aleam.io.vn/api/health
+cp .env.example .env
+V2ENV=~/Bot_trade/Bot_Trading_Crypto_v2/.env
+for k in BINANCE_API_KEY BINANCE_API_SECRET; do
+  v=$(grep -E "^$k=" "$V2ENV" | tail -n1 | cut -d= -f2-)
+  [ -n "$v" ] && sed -i "s|^$k=.*|$k=$v|" .env
+done
+sed -i 's|^PORT=.*|PORT=8787|; s|^PUBLIC_URL=.*|PUBLIC_URL=https://bot-trade.aleam.io.vn|; s|^TRADING_ENABLED=.*|TRADING_ENABLED=false|; s|^DEPLOY_WEB_ROOT=.*|DEPLOY_WEB_ROOT=/var/www/bot-trade|' .env
+grep -cE '^BINANCE_API_(KEY|SECRET)=.+' .env
 ```
 
-- `deploy.sh` với `WEB_ROOT` sao lưu thư mục web một lần nữa rồi chép giao diện v3 vào.
-- Tệp của giao diện có hash trong tên, nên không cần `?v=` như v2; `index.html` không bị cache.
-- nginx giữ nguyên: `/api` vẫn sang cổng 8787, kể cả luồng SSE `/api/events/stream`. Bot gửi `x-accel-buffering: no` và cứ 15 giây gửi một nhịp, nên nginx không gom dữ liệu và không cắt kết nối.
+Dòng cuối phải in `2` (đã có đủ hai khoá).
 
-Nếu muốn chắc, xem cấu hình nginx:
+**Mật khẩu web:**
 
 ```bash
-nginx -T 2>/dev/null | grep -n "location /api" -A8
+npm run hash-password
+nano .env
 ```
 
-Thấy `proxy_pass http://127.0.0.1:8787;` (không có `/` ở cuối) là đúng.
+Trong `nano`:
 
-**Quay lại v2** (thay `<thư-mục-sao-lưu>` bằng thư mục `/root/bot-trade-web-backup-...` vừa tạo):
+- dán đè hai dòng `ADMIN_PASSWORD_HASH=` và `SESSION_SECRET=` bằng hai dòng lệnh vừa in;
+- điền `TELEGRAM_BOT_TOKEN=` bằng token của **một bot Telegram dành cho VPS**, khác token bạn dùng trên máy (tạo thêm bằng `/newbot` ở @BotFather);
+- để trống `TELEGRAM_CHAT_ID=`.
 
-```bash
-pm2 stop bot-v3
-pm2 start smc-futures-api
-rm -rf /var/www/bot-trade/* && cp -r <thư-mục-sao-lưu>/. /var/www/bot-trade/
-```
+`Ctrl+O`, `Enter`, `Ctrl+X` để lưu và thoát.
 
-Khi v3 đã chạy ổn vài ngày: `pm2 delete smc-futures-api && pm2 save`.
+`TRADING_ENABLED=false` ở lần chạy đầu: bot chỉ báo tín hiệu cho tới khi bạn kiểm tra xong.
 
-## 3. Bật giao dịch trên DEMO
-
-1. Tạo khoá API trên https://demo.binance.com (Futures). Tài khoản phải ở **One-way mode**.
-2. Điền `BINANCE_API_KEY`, `BINANCE_API_SECRET` và `TRADING_ENABLED=true` vào `.env`.
-3. Chạy:
+## 5. Xem tài khoản trước khi tắt v2
 
 ```bash
-pm2 restart bot-v3
 npm run smoke:demo -w @bot-v3/server
 ```
 
-`smoke:demo` chỉ đọc: kiểm tra khoá, chế độ vị thế, số dư và user stream.
+Chỉ đọc. Xem dòng `open positions` và `open algo orders`. Vị thế v2 đang mở sẽ **không còn ai quản lý** sau khi tắt v2:
 
-Telegram sẽ báo "Tự vào lệnh: BẬT". Từ đây, mỗi lần 3/3:
+- v3 chỉ báo "vị thế không phải của bot" và không đụng vào;
+- đóng chúng trên https://demo.binance.com, hoặc đặt SL/TP tay, trước hoặc ngay sau bước 6;
+- vị thế AVAXUSDT −294 thấy ngày 2026-10-30 không có SL/TP nào trên sàn.
+
+## 6. Chuyển sang v3
+
+```bash
+cd ~/Bot_trade/Bot_Trading_Crypto_v3
+pm2 stop smc-futures-api
+bash deploy.sh
+curl -s https://bot-trade.aleam.io.vn/api/health
+```
+
+`deploy.sh` chạy lần lượt:
+
+1. `git pull`, `npm ci`, typecheck, test, build;
+2. khởi động `bot-v3` trên cổng 8787 và chờ `/health/ready`;
+3. sao lưu `/var/www/bot-trade` thêm một lần;
+4. chép giao diện v3 vào đó.
+
+Mở https://bot-trade.aleam.io.vn và đăng nhập bằng mật khẩu ở bước 4.
+
+- Tệp giao diện có hash trong tên, nên không cần `?v=` như v2; `index.html` không bị cache.
+- nginx giữ nguyên: `/api` vẫn sang cổng 8787, kể cả luồng SSE `/api/events/stream`. Bot gửi `x-accel-buffering: no` và cứ 15 giây gửi một nhịp, nên nginx không gom dữ liệu và không cắt kết nối.
+- Nếu trang không lên, xem cấu hình nginx: `nginx -T 2>/dev/null | grep -n "location /api" -A8`. Phải thấy `proxy_pass http://127.0.0.1:8787;`.
+
+## 7. Telegram
+
+1. Mở bot Telegram dành cho VPS, bấm **Start**. Bot trả lời chat id.
+2. Điền `TELEGRAM_CHAT_ID=` trong `.env` (`nano .env`).
+3. Chạy `pm2 restart bot-v3`.
+4. Telegram nhận "🤖 Bot v3 đã khởi động". Gửi `/status` để thử.
+
+## 8. Bật tự vào lệnh trên DEMO
+
+Tài khoản phải ở **One-way mode**. Bước 5 đã in ra chế độ này.
+
+```bash
+sed -i 's|^TRADING_ENABLED=.*|TRADING_ENABLED=true|' .env
+pm2 restart bot-v3
+```
+
+Telegram báo "Tự vào lệnh: BẬT". Từ đây, mỗi lần 3/3:
 
 1. bot vào lệnh MARKET theo 1R;
 2. đặt SL và TP;
@@ -142,22 +159,36 @@ Telegram sẽ báo "Tự vào lệnh: BẬT". Từ đây, mỗi lần 3/3:
 
 Không đặt được SL/TP thì bot đóng vị thế ngay (xem [EXECUTION.md](EXECUTION.md)).
 
-Muốn thử một lệnh thật trước khi chờ tín hiệu (bot mở rồi tự đóng một lệnh nhỏ):
+## 9. Dọn v2
+
+Chỉ làm khi v3 đã chạy ổn (ví dụ sau một hai ngày). Bản sao lưu ở bước 1 vẫn giữ:
 
 ```bash
-npm run smoke:demo -w @bot-v3/server -- --trade --symbol ETHUSDT --risk 1 --yes-demo
+pm2 delete smc-futures-api
+pm2 save
+rm -rf ~/Bot_trade/Bot_Trading_Crypto_v2
+```
+
+## Quay lại v2 (trước bước 9)
+
+```bash
+B=$(cat /root/backup-v2-latest)
+pm2 stop bot-v3
+pm2 start smc-futures-api
+rm -rf /var/www/bot-trade/* && cp -r "$B/web/." /var/www/bot-trade/
 ```
 
 ## Hằng ngày
 
 | Việc | Lệnh |
 |---|---|
-| Cập nhật code | `cd ~/Bot_trade/Bot_Trading_Crypto_v3 && bash deploy.sh` (thêm `WEB_ROOT=/var/www/bot-trade` từ giai đoạn 2) |
+| Cập nhật code | `cd ~/Bot_trade/Bot_Trading_Crypto_v3 && bash deploy.sh` (tự chép giao diện vào `DEPLOY_WEB_ROOT`) |
 | Xem log | `pm2 logs bot-v3 --lines 100` (tệp ở `logs/bot-v3/`) |
 | Khởi động lại sau khi sửa `.env` | `pm2 restart bot-v3` |
 | Tạm dừng vào lệnh mới | `/pause` trên Telegram, hoặc nút Tạm dừng trên web |
-| Sao lưu database khi bot đang chạy | xem lệnh dưới bảng |
+| Thử một lệnh thật nhỏ (mở rồi tự đóng) | `npm run smoke:demo -w @bot-v3/server -- --trade --symbol LINKUSDT --risk 1 --yes-demo` |
 | Backtest với cài đặt đang dùng | `npm run backtest -- --db --days 90` |
+| Sao lưu database khi bot đang chạy | xem lệnh dưới bảng |
 
 Sao lưu database khi bot đang chạy:
 
