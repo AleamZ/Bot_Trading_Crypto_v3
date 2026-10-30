@@ -88,6 +88,19 @@ const riskSchema = z
       .default("MARK_PRICE")
       .meta({ title: "Giá kích hoạt SL/TP", description: "MARK_PRICE ít bị râu nến quét hơn CONTRACT_PRICE" }),
     protectionRetries: int(0, 5).default(2).meta({ title: "Số lần thử lại khi đặt SL/TP lỗi" }),
+    moveSl: z
+      .boolean()
+      .default(true)
+      .meta({ title: "Dời SL khi giá chạy về phía TP", description: "Bot kiểm tra giá mark khoảng 15 giây một lần" }),
+    breakEvenAtTpPct: int(0, 100)
+      .default(50)
+      .meta({ title: "Dời SL về giá vào khi đạt", unit: "% đường tới TP", description: "0 = không dời. Lệnh chạm SL này lỗ khoảng bằng phí" }),
+    lockAtTpPct: int(0, 100)
+      .default(75)
+      .meta({ title: "Dời SL lên khoá lãi khi đạt", unit: "% đường tới TP", description: "0 = không dời" }),
+    lockSlAtTpPct: int(0, 100)
+      .default(50)
+      .meta({ title: "Mức SL khoá lãi", unit: "% đường tới TP", description: "Với RR 2, 50% đường tới TP là +1R trước phí" }),
     leverageMode: z
       .enum(["AUTO", "FIXED"])
       .default("AUTO")
@@ -172,6 +185,7 @@ const telegramSchema = z
     notifyReady: z.boolean().default(true).meta({ title: "Báo SẴN SÀNG" }),
     notifyEntry: z.boolean().default(true).meta({ title: "Báo ĐÃ VÀO LỆNH" }),
     notifyExit: z.boolean().default(true).meta({ title: "Báo chạm TP / SL" }),
+    notifyStopMove: z.boolean().default(true).meta({ title: "Báo dời SL (hoà vốn, khoá lãi)" }),
     notifyError: z.boolean().default(true).meta({ title: "Báo LỖI" }),
   })
   .meta({ title: "Telegram" });
@@ -205,6 +219,12 @@ export const settingsSchema = z
       issue(["general", "alertThreshold"], "Ngưỡng báo phải nhỏ hơn hoặc bằng ngưỡng tự vào lệnh");
     }
     if (s.risk.minSlPct >= s.risk.maxSlPct) issue(["risk", "minSlPct"], "Khoảng SL tối thiểu phải nhỏ hơn tối đa");
+    if (s.risk.lockAtTpPct > 0 && s.risk.lockSlAtTpPct >= s.risk.lockAtTpPct) {
+      issue(["risk", "lockSlAtTpPct"], "Mức SL khoá lãi phải thấp hơn mức kích hoạt khoá lãi");
+    }
+    if (s.risk.breakEvenAtTpPct > 0 && s.risk.lockAtTpPct > 0 && s.risk.breakEvenAtTpPct >= s.risk.lockAtTpPct) {
+      issue(["risk", "breakEvenAtTpPct"], "Mức dời về giá vào phải thấp hơn mức khoá lãi");
+    }
     const tp = s.methods.trendPullback;
     if (!(tp.emaFast < tp.emaMid && tp.emaMid < tp.emaSlow)) {
       issue(["methods", "trendPullback", "emaFast"], "Cần EMA nhanh < EMA giữa < EMA chậm");

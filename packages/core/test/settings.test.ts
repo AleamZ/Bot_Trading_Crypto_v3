@@ -14,10 +14,11 @@ describe("settings", () => {
       autoTrade: true,
     });
     expect(s.risk).toMatchObject({ riskUsd: 5, rr: 2, slPolicy: "WIDEST", slMode: "EXACT_1R", leverage: 10, marginType: "ISOLATED" });
+    expect(s.risk).toMatchObject({ moveSl: true, breakEvenAtTpPct: 50, lockAtTpPct: 75, lockSlAtTpPct: 50 });
     expect(s.methods.trendPullback).toMatchObject({ enabled: true, emaFast: 20, emaMid: 50, emaSlow: 200 });
     expect(s.methods.donchianBreakout).toMatchObject({ enabled: true, channelLength: 20, volumeMultiplier: 1.5 });
     expect(s.methods.smcSweep).toMatchObject({ enabled: true, swingStrength: 3 });
-    expect(s.telegram).toEqual({ notifyReady: true, notifyEntry: true, notifyExit: true, notifyError: true });
+    expect(s.telegram).toEqual({ notifyReady: true, notifyEntry: true, notifyExit: true, notifyStopMove: true, notifyError: true });
   });
 
   it("normalizes and validates the watchlist", () => {

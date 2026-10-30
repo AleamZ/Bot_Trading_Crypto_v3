@@ -5,6 +5,7 @@ import type { SymbolFilters } from "./risk/filters.js";
 import { checkEntryGuards, tradingDayKey } from "./risk/guards.js";
 import { feeRateOf, planTrade } from "./risk/plan.js";
 import { netResultAt } from "./risk/targets.js";
+import { nextStop, tpProgress, type StopStage } from "./risk/trail.js";
 import { TIMEFRAME_MINUTES, type Settings } from "./settings/schema.js";
 import type { MarketData } from "./strategies/types.js";
 import { METHOD_IDS, type Candle, type Direction, type MethodId } from "./types.js";
@@ -41,6 +42,8 @@ export interface BacktestTrade {
   quantity: string;
   stopLoss: number;
   takeProfit: number;
+  /** How far the stop had been moved when the trade ended: 0 not moved, 1 to the entry, 2 into profit. */
+  stopStage: StopStage;
   /** Loss at the stop and net win at the take profit, fees included, in USDT. */
   riskAtStop: number;
   rewardAtTp: number;
@@ -89,6 +92,10 @@ export interface BacktestResult {
 interface Position {
   trade: BacktestTrade;
   entryIndex: number;
+  /** The stop in force now (moves towards the TP with settings risk.moveSl). */
+  stop: number;
+  /** Furthest progress towards the TP so far (1 = at the TP). */
+  best: number;
 }
 
 interface Book {
@@ -144,8 +151,11 @@ export function runBacktest(symbols: readonly BacktestSymbol[], options: Backtes
       const position = book.position;
       if (i === undefined || !position || i <= position.entryIndex) continue;
       const candle = book.data.market.entry[i]!;
-      const exit = exitOn(position.trade, candle, slip);
-      if (!exit) continue;
+      const exit = exitOn(position.trade, position.stop, candle, slip);
+      if (!exit) {
+        moveStop(position, candle, risk, book.data.filters.tickSize);
+        continue;
+      }
       const t = position.trade;
       t.exit = exit.price;
       t.exitTime = time;
@@ -227,6 +237,7 @@ export function runBacktest(symbols: readonly BacktestSymbol[], options: Backtes
         quantity: plan.sizing.quantity,
         stopLoss: Number(final.stopLoss),
         takeProfit: Number(final.takeProfit),
+        stopStage: 0,
         riskAtStop: Number(final.riskUsd),
         rewardAtTp: Number(final.rewardUsd),
         exitTime: null,
@@ -238,7 +249,7 @@ export function runBacktest(symbols: readonly BacktestSymbol[], options: Backtes
         bars: 0,
       };
       trades.push(trade);
-      book.position = { trade, entryIndex: i };
+      book.position = { trade, entryIndex: i, stop: trade.stopLoss, best: 0 };
       opened.set(day, (opened.get(day) ?? 0) + 1);
     }
   }
@@ -289,17 +300,43 @@ export function signalSequence(signalTimes: Partial<Record<MethodId, number>>): 
   return [...groups.entries()].sort((a, b) => a[0] - b[0]).map(([, methods]) => methods);
 }
 
-/** Whether the candle closes the trade, and where. */
-function exitOn(t: BacktestTrade, c: Candle, slip: number): { reason: "TP" | "SL"; price: number; ambiguous: boolean } | null {
+/**
+ * After a candle that did not end the trade: the stop follows the live rule (risk.moveSl), from the
+ * candle's best price. It moves only after the candle, so a move never helps the candle that
+ * triggered it, and not when the close is already past the new stop (the live bot waits then too).
+ */
+function moveStop(position: Position, c: Candle, risk: Settings["risk"], tickSize: string): void {
+  const t = position.trade;
   const long = t.direction === "LONG";
-  const hitSl = long ? c.low <= t.stopLoss : c.high >= t.stopLoss;
+  position.best = Math.max(position.best, tpProgress(t.direction, t.entry, t.takeProfit, long ? c.high : c.low));
+  const next = nextStop({
+    direction: t.direction,
+    entry: t.entry,
+    takeProfit: t.takeProfit,
+    stopLoss: position.stop,
+    stage: t.stopStage,
+    bestProgress: position.best,
+    settings: risk,
+    tickSize,
+  });
+  if (!next) return;
+  const stop = Number(next.stopLoss);
+  if (long ? c.close <= stop : c.close >= stop) return;
+  position.stop = stop;
+  t.stopStage = next.stage;
+}
+
+/** Whether the candle closes the trade, and where. */
+function exitOn(t: BacktestTrade, stop: number, c: Candle, slip: number): { reason: "TP" | "SL"; price: number; ambiguous: boolean } | null {
+  const long = t.direction === "LONG";
+  const hitSl = long ? c.low <= stop : c.high >= stop;
   const hitTp = long ? c.high >= t.takeProfit : c.low <= t.takeProfit;
   if (!hitSl && !hitTp) return null;
   // Exits are market orders once triggered: slippage works against the trade.
   const worse = (price: number) => (long ? price * (1 - slip) : price * (1 + slip));
   if (hitSl) {
-    const gapped = long ? c.open < t.stopLoss : c.open > t.stopLoss;
-    return { reason: "SL", price: worse(gapped ? c.open : t.stopLoss), ambiguous: hitTp };
+    const gapped = long ? c.open < stop : c.open > stop;
+    return { reason: "SL", price: worse(gapped ? c.open : stop), ambiguous: hitTp };
   }
   const gapped = long ? c.open > t.takeProfit : c.open < t.takeProfit;
   return { reason: "TP", price: worse(gapped ? c.open : t.takeProfit), ambiguous: false };

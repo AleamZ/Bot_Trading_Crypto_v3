@@ -76,6 +76,8 @@ Gọi L và S là số phương pháp đang có tín hiệu LONG và SHORT:
    - `MEDIAN`: trung vị; với số lượng chẵn thì lấy giá trị xa hơn trong hai giá trị giữa.
    - `TIGHTEST`: gần nhất.
 2. **Kiểm tra SL:** khoảng SL trong `[minSlPct 0.2%, maxSlPct 3%]` và ≤ `maxSlAtr` (3) × ATR. Không đạt thì bỏ lệnh.
+   - Đây là lệnh bị **bỏ qua theo cài đặt**, không phải lỗi: Telegram báo ⚪ "KHÔNG VÀO LỆNH", nhật ký ghi "Bỏ qua".
+   - Trên khung nhỏ (5m), ATR nhỏ nên SL cấu trúc thường vượt 3 ATR. Khi đó nới `maxSlAtr`, dùng `slPolicy` = `MEDIAN`, hoặc dùng khung lớn hơn.
 3. **Khối lượng:**
    - lỗ trên mỗi coin = |giá vào − SL| + phí × (giá vào + SL). Phí taker mặc định 0.05% mỗi chiều, tắt được bằng `includeFees`.
    - qty = 1R / lỗ trên mỗi coin, **làm tròn xuống** theo stepSize.
@@ -102,7 +104,14 @@ Gọi L và S là số phương pháp đang có tín hiệu LONG và SHORT:
    - Số dư giới hạn 1R: với ký quỹ isolated, lỗ khi bị thanh lý xấp xỉ bằng ký quỹ, nên 1R tối đa ≈ ký quỹ được dùng × khoảng SL / (1.5 × khoảng SL + tỉ lệ ký quỹ duy trì), tức luôn nhỏ hơn ký quỹ được dùng / 1.5.
    - Ví dụ: số dư 10$, dùng tối đa 50% làm ký quỹ, SL 1.25%: 1R tối đa ≈ 2.97$.
    - Bot lấy số dư mỗi phút và cảnh báo trên bảng điều khiển và trang Cài đặt khi 1R vượt mức này, với một phần hay toàn bộ khoảng SL từ `minSlPct` tới `maxSlPct` (`riskAffordability`).
-7. **Giới hạn:**
+7. **Dời SL khi giá chạy về phía TP** (`moveSl`, mặc định bật; `nextStop` trong `risk/trail.ts`):
+   - Tiến độ = quãng giá đã đi từ giá vào về phía TP, tính bằng % (0% ở giá vào, 100% ở TP). Bot nhớ mức xa nhất đã đạt.
+   - Đạt `breakEvenAtTpPct` (50%): SL dời về **giá vào**. Chạm SL này thì lỗ khoảng bằng phí (khoảng −0.1R), không phải 0.
+   - Đạt `lockAtTpPct` (75%): SL dời lên `lockSlAtTpPct` (50%) đường tới TP. Với RR 2, đó là +1R trước phí, khoảng +0.8–0.9R sau phí.
+   - Giá đi thẳng qua 75% thì dời luôn lên mức khoá lãi. SL chỉ tiến, không bao giờ lùi.
+   - Mức khoá lãi làm tròn theo tick về phía giá vào, nên không bao giờ khoá nhiều hơn cài đặt.
+   - Đặt `breakEvenAtTpPct` hoặc `lockAtTpPct` = 0 để bỏ bước tương ứng.
+8. **Giới hạn:**
    - tự vào lệnh phải được bật cả trong cài đặt lẫn `TRADING_ENABLED`; bot không bị tạm dừng;
    - symbol không có vị thế hoặc lệnh chờ, không trong thời gian nghỉ;
    - số vị thế < `maxOpenPositions`, số lệnh trong ngày < `maxTradesPerDay`;

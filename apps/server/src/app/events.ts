@@ -1,6 +1,6 @@
 import { GUARD_MESSAGES, METHOD_LABELS, type ConsensusLevel, type Direction, type Episode, type GuardReason, type MethodId, type SymbolAnalysis } from "@bot-v3/core";
 import type { EventLog, LogEntry, LogLevelName } from "../db/stores.js";
-import type { BotEvent, EventSink, Trade } from "../engine/types.js";
+import { isStopRuleRejection, stopStage, type BotEvent, type EventSink, type Trade } from "../engine/types.js";
 import { silentLogger, type Logger } from "../lib/logger.js";
 
 export interface SignalView {
@@ -142,6 +142,14 @@ export function describeEvent(event: AppEvent): { level: LogLevelName; symbol: s
       };
     }
     case "ENTRY_FAILED":
+      if (isStopRuleRejection(event)) {
+        return {
+          level: "warn",
+          symbol: event.symbol,
+          title: `Không vào lệnh ${event.symbol} ${event.direction}: SL ngoài giới hạn`,
+          message: `${event.detail}. Giới hạn nằm trong Cài đặt → Quản lý vốn`,
+        };
+      }
       return { level: "error", symbol: event.symbol, title: `Lỗi vào lệnh ${event.symbol} ${event.direction}`, message: `${event.reason}: ${event.detail}` };
     case "PROTECTION_FAILED":
       return {
@@ -152,9 +160,19 @@ export function describeEvent(event: AppEvent): { level: LogLevelName; symbol: s
       };
     case "PROTECTION_REPAIRED":
       return { level: "warn", symbol: event.trade.symbol, title: `Đã đặt lại ${event.legs.join(" + ")} ${event.trade.symbol}`, message: `SL ${event.trade.stopLoss}, TP ${event.trade.takeProfit}` };
+    case "STOP_MOVED": {
+      const m = event.move;
+      return {
+        level: "info",
+        symbol: event.trade.symbol,
+        title: `Dời SL ${event.trade.symbol} ${m.stage === 1 ? "về giá vào" : "lên khoá lãi"}`,
+        message: `SL ${m.from} → ${m.to}; giá đã đi ${Math.round(m.progress * 100)}% đường tới TP`,
+      };
+    }
     case "TRADE_CLOSED": {
       const t = event.trade;
-      const label = t.exitReason ? EXIT_LABEL[t.exitReason] : "Đã đóng";
+      const stage = stopStage(t);
+      const label = t.exitReason === "SL" && stage > 0 ? (stage === 1 ? "Chạm SL hoà vốn" : "Chạm SL khoá lãi") : t.exitReason ? EXIT_LABEL[t.exitReason] : "Đã đóng";
       return {
         level: t.exitReason === "EMERGENCY" ? "warn" : "info",
         symbol: t.symbol,

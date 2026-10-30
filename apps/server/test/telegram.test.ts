@@ -41,6 +41,27 @@ describe("Telegram messages", () => {
     expect(sl).toContain("<b>−5.00$</b> (−1.00R)");
   });
 
+  it("a stop move says where it went and what it locks in; a stop hit after a move is not a loss", () => {
+    const trade = sampleTrade({ entryPrice: "68000", takeProfit: "69600", quantity: "0.0057" });
+    const move = { at: 0, stage: 2 as const, from: "68000", to: "68800", progress: 0.8 };
+    const text = formatEvent({ type: "STOP_MOVED", trade, move }, ctx)!;
+    expect(text).toContain("DỜI SL LÊN KHOÁ LÃI");
+    expect(text).toContain("68000 → <b>68800</b>");
+    // 800 × 0.0057 = 4.56, minus 0.05% fees on 68000 and 68800 (0.39): +4.17$, +0.83R on a 5$ R.
+    expect(text).toContain("lãi khoảng +4.17$ (+0.83R)");
+    const closed = sampleTrade({ status: "CLOSED", exitReason: "SL", netPnl: "3.7", pnlR: 0.74, slMoves: [move] });
+    expect(formatEvent({ type: "TRADE_CLOSED", trade: closed }, ctx)).toContain("CHẠM SL KHOÁ LÃI");
+  });
+
+  it("a 3/3 refused because the stop is too far is a skip, not an error", () => {
+    const refused = { type: "ENTRY_FAILED" as const, symbol: "SOLUSDT", direction: "SHORT" as const, stage: "PLAN" as const, reason: "STOP_TOO_FAR_ATR", detail: "Khoảng SL bằng 6.01 ATR, lớn hơn 3 ATR" };
+    const text = formatEvent(refused, ctx)!;
+    expect(text).toContain("⚪ <b>KHÔNG VÀO LỆNH · SOLUSDT SHORT");
+    expect(text).not.toContain("🔴");
+    const real = formatEvent({ ...refused, stage: "ORDER", reason: "ORDER_REJECTED", detail: "x" }, ctx)!;
+    expect(real).toContain("🔴");
+  });
+
   it("follows the notification switches, but always reports a position left without SL/TP", () => {
     const quiet = mergeSettings(settings, { telegram: { notifyReady: false, notifyEntry: false, notifyExit: false, notifyError: false } });
     if (!quiet.ok) throw new Error("bad settings");

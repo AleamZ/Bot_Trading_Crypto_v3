@@ -1,6 +1,6 @@
-import { GUARD_MESSAGES, METHOD_IDS, METHOD_LABELS, type MethodId, type Settings } from "@bot-v3/core";
+import { feeRateOf, GUARD_MESSAGES, METHOD_IDS, METHOD_LABELS, netResultAt, type MethodId, type Settings } from "@bot-v3/core";
 import type { AnalysisView, AppEvent } from "../app/events.js";
-import type { Trade } from "../engine/types.js";
+import { isStopRuleRejection, stopStage, type Trade } from "../engine/types.js";
 
 /** Telegram HTML messages. Every value that came from outside is escaped. */
 
@@ -35,6 +35,12 @@ function methodLines(a: AnalysisView): string[] {
 const head = (a: AnalysisView) => `${escapeHtml(a.symbol)} ${a.consensus.direction ?? ""}`.trim();
 const count = (a: AnalysisView) => Math.max(a.consensus.longCount, a.consensus.shortCount);
 
+/** Net result if the position closes at `exit`, fees included: "+4.12$ (+0.82R)". */
+function netAt(t: Trade, exit: string, settings: Settings): string {
+  const net = netResultAt(t.direction, t.entryPrice!, exit, t.quantity, feeRateOf(settings.risk)).toNumber();
+  return `${usd(net)} (${rText(net / t.riskUsd)})`;
+}
+
 function tradeLines(t: Trade): string[] {
   return [
     `Khối lượng <b>${t.quantity}</b> @ ${t.entryPrice} · ${t.leverage}x`,
@@ -49,6 +55,9 @@ const EXIT_HEAD: Record<NonNullable<Trade["exitReason"]>, string> = {
   MANUAL: "✋ <b>ĐÃ ĐÓNG TAY",
   EMERGENCY: "🚨 <b>ĐÓNG KHẨN",
 };
+
+/** A stop hit after it was moved is a break-even or a locked win, not a loss. */
+const MOVED_STOP_HEAD = { 1: "🛡 <b>CHẠM SL HOÀ VỐN", 2: "🔒 <b>CHẠM SL KHOÁ LÃI" } as const;
 
 export interface FormatContext {
   settings: Settings;
@@ -83,8 +92,10 @@ export function formatEvent(event: AppEvent, ctx: FormatContext): string | null 
     case "TRADE_CLOSED": {
       if (!n.notifyExit) return null;
       const t = event.trade;
+      const stage = stopStage(t);
+      const headText = t.exitReason === "SL" && stage !== 0 ? MOVED_STOP_HEAD[stage] : t.exitReason ? EXIT_HEAD[t.exitReason] : "<b>ĐÃ ĐÓNG";
       const lines = [
-        `${t.exitReason ? EXIT_HEAD[t.exitReason] : "<b>ĐÃ ĐÓNG"} · ${escapeHtml(t.symbol)} ${t.direction}</b>`,
+        `${headText} · ${escapeHtml(t.symbol)} ${t.direction}</b>`,
         `Vào ${t.entryPrice} → thoát ${t.exitPrice ?? "?"}`,
         `Lãi/lỗ ròng <b>${usd(t.netPnl)}</b> (${rText(t.pnlR)}) · phí ${t.fees ?? "?"}$`,
       ];
@@ -101,8 +112,27 @@ export function formatEvent(event: AppEvent, ctx: FormatContext): string | null 
       ].join("\n");
     }
     case "ENTRY_FAILED":
+      if (isStopRuleRejection(event)) {
+        if (!n.notifyEntry) return null;
+        return [
+          `⚪ <b>KHÔNG VÀO LỆNH · ${escapeHtml(event.symbol)} ${event.direction}</b>`,
+          `SL ngoài giới hạn: ${escapeHtml(event.detail)}`,
+          "Bot bỏ qua theo cài đặt (Cài đặt → Quản lý vốn), không phải lỗi.",
+        ].join("\n");
+      }
       if (!n.notifyError) return null;
       return [`🔴 <b>KHÔNG VÀO ĐƯỢC LỆNH · ${escapeHtml(event.symbol)} ${event.direction}</b>`, `${event.stage} · ${escapeHtml(event.reason)}`, escapeHtml(event.detail)].join("\n");
+    case "STOP_MOVED": {
+      if (!n.notifyStopMove) return null;
+      const t = event.trade;
+      const m = event.move;
+      const locked = m.stage === 2 && t.entryPrice ? netAt(t, m.to, ctx.settings) : null;
+      return [
+        `${m.stage === 1 ? "🛡 <b>DỜI SL VỀ GIÁ VÀO" : "🔒 <b>DỜI SL LÊN KHOÁ LÃI"} · ${escapeHtml(t.symbol)} ${t.direction}</b>`,
+        `Giá đã đi ${Math.round(m.progress * 100)}% đường tới TP ${t.takeProfit}`,
+        `SL ${m.from} → <b>${m.to}</b>${locked ? ` · chạm SL này lãi khoảng ${locked}` : " · chạm SL này lỗ khoảng bằng phí"}`,
+      ].join("\n");
+    }
     case "PROTECTION_REPAIRED":
       if (!n.notifyError) return null;
       return [`🛠 <b>Đã đặt lại ${event.legs.join(" + ")} · ${escapeHtml(event.trade.symbol)}</b>`, `SL ${event.trade.stopLoss} · TP ${event.trade.takeProfit}`].join("\n");

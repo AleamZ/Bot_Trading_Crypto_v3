@@ -1057,6 +1057,12 @@ code,
   gap: 6px;
 }
 
+.range {
+  width: 96px;
+  accent-color: var(--sky);
+  cursor: pointer;
+}
+
 .check.small {
   width: 18px;
   height: 18px;

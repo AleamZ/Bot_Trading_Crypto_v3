@@ -74,9 +74,11 @@ Mỗi database chỉ cho **một bot** chạy: file `bot.db.lock` cạnh databas
 | 🟡 SẴN SÀNG 2/3: từng phương pháp, chiều, SL, lý do | `notifyReady` |
 | 🟢 ĐÃ VÀO LỆNH 3/3: khối lượng, SL (lỗ $ và R), TP (lãi ròng $ và R) | `notifyEntry` |
 | ⚪ 3/3 nhưng không vào lệnh, kèm lý do | `notifyEntry` |
-| ✅ CHẠM TP / ❌ CHẠM SL / ✋ đóng tay / 🚨 đóng khẩn: giá thoát, lãi/lỗ ròng, R, kết quả hôm nay | `notifyExit` |
+| ✅ CHẠM TP / ❌ CHẠM SL / 🛡 SL hoà vốn / 🔒 SL khoá lãi / ✋ đóng tay / 🚨 đóng khẩn: giá thoát, lãi/lỗ ròng, R, kết quả hôm nay | `notifyExit` |
 | 🔴 không vào được lệnh, 🛠 đặt lại SL/TP, ⚠️ lỗi, Binance mất kết nối | `notifyError` |
 | 🧠 AI phân tích lệnh vừa đóng: thắng/thua, R, kết luận ([AI.md](AI.md)) | `ai.notifyReview` |
+| 🛡 dời SL về giá vào, 🔒 dời SL lên khoá lãi (kèm lãi chắc chắn nếu chạm) | `notifyStopMove` |
+| ⚪ 3/3 bị bỏ qua vì SL ngoài giới hạn (`minSlPct`, `maxSlPct`, `maxSlAtr`) | `notifyEntry` |
 | 🚨 không đặt được SL/TP | luôn gửi |
 | bot khởi động, dừng, tạm dừng, chạy lại, đổi cài đặt | luôn gửi |
 

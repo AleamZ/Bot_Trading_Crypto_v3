@@ -7,6 +7,7 @@ npm run backtest -- --db                                 # dùng cài đặt bot
 npm run backtest -- --source binance                     # nến Binance thật thay vì DEMO
 npm run backtest -- --set risk.maxSlAtr=6 --set general.signalTtlBars=8   # thử cài đặt khác, không lưu
 npm run backtest -- --slippage 0.0002 --csv trades.csv   # trượt giá 0.02%, xuất từng lệnh
+npm run backtest -- --compare risk.moveSl=false          # chạy lại trên cùng bộ nến với một thay đổi, so tổng
 ```
 
 Lệnh này chỉ gọi endpoint dữ liệu công khai, không cần khoá API.
@@ -35,6 +36,7 @@ Giả định:
 | Nến chạm cả SL lẫn TP | tính là **thua** (cột "Mơ hồ"), vì nến không cho biết cái nào chạm trước |
 | Phí | taker 0.05% hai chiều (theo cài đặt) |
 | Trượt giá | 0 nếu không truyền `--slippage` |
+| Dời SL (`moveSl`) | tiến độ tới TP tính từ đỉnh/đáy của nến; SL mới chỉ có hiệu lực từ nến sau, và chỉ khi giá đóng cửa chưa qua SL mới (bot live kiểm tra giá mark mỗi 15 giây, nên dời sớm hơn một chút) |
 | Ký quỹ, giá thanh lý | không mô phỏng |
 | Lệnh còn mở cuối giai đoạn | không tính vào kết quả |
 
@@ -79,3 +81,17 @@ Có test kiểm tra mô phỏng không nhìn trước tương lai: cắt lịch 
   - Lý do chính là tỉ lệ thắng thấp hơn: 31%, so với 37% trên 15m.
   - Phí cũng nặng hơn: SL trung vị 0.68% giá (15m: 1.20%), nên phí hai chiều chiếm khoảng 15% của 1R (15m: 8%). Lệnh chạm TP chỉ còn lãi ròng khoảng +1.6R (15m: +1.76R). Vì vậy cần thắng khoảng 38% mới hoà vốn.
   - Các tham số mặc định (EMA, kênh 20 nến...) được chọn cho 15m.
+
+## Dời SL về giá vào ở 50%, khoá lãi 50% ở 75% (2026-10-30)
+
+Cùng 7 symbol, 180 ngày, nến Binance thật, vào lệnh khi 2/3, `maxSlAtr=6`. So sánh trên cùng bộ nến (`--compare risk.moveSl=false`):
+
+| | Bật dời SL | Tắt dời SL |
+|---|---|---|
+| 15m | 235 lệnh, +9.2R, PF 1.08, sụt giảm tối đa 18.8R | 220 lệnh, +2.6R, PF 1.02, sụt giảm tối đa 20.6R |
+| 5m | 569 lệnh, −87.8R, PF 0.72 | 527 lệnh, −98.4R, PF 0.73 |
+
+- Trên 15m: 36 lệnh chạm SL hoà vốn, 24 lệnh chạm SL khoá lãi.
+- Dời SL tốt hơn ở cả hai khung, nhưng chênh lệch (+6.6R trên khoảng 230 lệnh ở 15m) vẫn nằm trong mức dao động ngẫu nhiên.
+- Có nhiều lệnh hơn vì lệnh đóng sớm hơn, bot rảnh để vào lệnh tiếp.
+- Không làm khung 5m có lãi.

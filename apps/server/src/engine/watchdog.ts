@@ -1,10 +1,10 @@
-import { dec, feeRateOf, finalizeAfterFill, type Settings } from "@bot-v3/core";
+import { dec, feeRateOf, finalizeAfterFill, nextStop, tpProgress, type Settings } from "@bot-v3/core";
 import { errorText } from "../binance/errors.js";
 import type { AlgoOrder, FuturesApi, PositionInfo } from "../binance/types.js";
 import { silentLogger, type Logger } from "../lib/logger.js";
 import { absQty, closedStats, flatten, placeProtection } from "./protection.js";
 import { KeyedLock, sleep as realSleep } from "./support.js";
-import { CLIENT_ID, type EventSink, type Trade, type TradeStore } from "./types.js";
+import { CLIENT_ID, type EventSink, type StopMove, type Trade, type TradeStore } from "./types.js";
 
 export interface WatchdogDeps {
   api: FuturesApi;
@@ -22,6 +22,8 @@ export interface ReconcileReport {
   checked: number;
   closed: string[];
   repaired: string[];
+  /** Trades whose stop was moved towards the TP. */
+  stopsMoved: string[];
   flattened: string[];
   skippedLocked: string[];
   foreign: string[];
@@ -36,6 +38,7 @@ const FILLED_ALGO = new Set(["TRIGGERED", "FINISHED"]);
 /**
  * Compares the bot's open trades with the exchange (on a timer and after every user-stream event):
  * - a position without its SL or TP gets them back, or is closed if that fails;
+ * - the stop moves to the entry, then into profit, as the mark price runs towards the TP;
  * - a trade whose position is gone is closed out (TP/SL/manual), and the leftover leg is canceled;
  * - a trade left OPENING by a crash is adopted (protected) or marked FAILED;
  * - positions the bot did not open are reported once and left alone.
@@ -61,7 +64,7 @@ export class Watchdog {
 
   private async pass(): Promise<ReconcileReport> {
     const { api, store, locks } = this.deps;
-    const report: ReconcileReport = { checked: 0, closed: [], repaired: [], flattened: [], skippedLocked: [], foreign: [], orphansCanceled: [] };
+    const report: ReconcileReport = { checked: 0, closed: [], repaired: [], stopsMoved: [], flattened: [], skippedLocked: [], foreign: [], orphansCanceled: [] };
     const [positions, algos, trades] = await Promise.all([api.getPositions(), api.getOpenAlgoOrders(), store.listByStatus(["OPENING", "OPEN"])]);
 
     for (const trade of trades) {
@@ -111,7 +114,7 @@ export class Watchdog {
         return;
       }
       if (trade.status === "OPENING") await this.adopt(trade, position!, report);
-      else await this.ensureProtection(trade, absQty(position!.positionAmt), algos, report);
+      else if (await this.ensureProtection(trade, absQty(position!.positionAmt), algos, report)) await this.moveStop(trade, position!, report);
     } catch (error) {
       this.logger.error("Reconcile failed", { tradeId: trade.id, symbol: trade.symbol, error: errorText(error) });
       this.deps.events.emit({ type: "ERROR", message: `Đối chiếu ${trade.symbol} lỗi`, detail: errorText(error) });
@@ -162,7 +165,8 @@ export class Watchdog {
     await this.replace(trade, ["SL", "TP"], trade.quantity, report);
   }
 
-  private async ensureProtection(trade: Trade, quantity: string, algos: AlgoOrder[], report: ReconcileReport): Promise<void> {
+  /** Puts back missing legs; true when both were already in place. */
+  private async ensureProtection(trade: Trade, quantity: string, algos: AlgoOrder[], report: ReconcileReport): Promise<boolean> {
     const { api } = this.deps;
     const missing: ("SL" | "TP")[] = [];
     for (const leg of ["SL", "TP"] as const) {
@@ -176,12 +180,86 @@ export class Watchdog {
         continue;
       }
       const state = id ? await api.getAlgoOrder(id).catch(() => null) : null;
-      if (state && FIRING_ALGO.has(state.algoStatus)) return; // closing right now; check again next pass
+      if (state && FIRING_ALGO.has(state.algoStatus)) return false; // closing right now; check again next pass
       missing.push(leg);
     }
-    if (missing.length === 0) return;
+    if (missing.length === 0) return true;
     if (quantity !== trade.quantity) trade.quantity = quantity;
     await this.replace(trade, missing, quantity, report);
+    return false;
+  }
+
+  /**
+   * Moves the stop as the mark price runs towards the TP (settings risk.moveSl): to the entry at
+   * breakEvenAtTpPct of the way, into profit at lockAtTpPct. The new stop is placed before the old
+   * one is canceled, so the position is never without a stop. A move that would trigger at once
+   * (price already came back) waits for a later pass.
+   */
+  private async moveStop(trade: Trade, position: PositionInfo, report: ReconcileReport): Promise<void> {
+    const { api, store, events } = this.deps;
+    const risk = this.deps.settings().risk;
+    const mark = Number(position.markPrice);
+    if (!risk.moveSl || !trade.entryPrice || !trade.stopLoss || !trade.takeProfit || !trade.tpClientId || !(mark > 0)) return;
+    const progress = tpProgress(trade.direction, Number(trade.entryPrice), Number(trade.takeProfit), mark);
+    const best = Math.max(trade.bestProgress ?? 0, progress);
+    const bestChanged = best > (trade.bestProgress ?? 0) + 1e-9;
+    if (bestChanged) trade.bestProgress = best;
+
+    const info = await api.getSymbol(trade.symbol);
+    const next = nextStop({
+      direction: trade.direction,
+      entry: trade.entryPrice,
+      takeProfit: trade.takeProfit,
+      stopLoss: trade.stopLoss,
+      stage: trade.slMoves?.at(-1)?.stage ?? 0,
+      bestProgress: best,
+      settings: risk,
+      tickSize: info.filters.tickSize,
+    });
+    const long = trade.direction === "LONG";
+    const triggersNow = next !== null && (long ? dec(next.stopLoss).gte(mark) : dec(next.stopLoss).lte(mark));
+    if (!next || triggersNow) {
+      if (bestChanged) await store.update(trade);
+      return;
+    }
+
+    const version = trade.protectionVersion + 1;
+    const slClientId = CLIENT_ID.stop(trade.id, version);
+    const placed = await placeProtection(api, {
+      symbol: trade.symbol,
+      direction: trade.direction,
+      quantity: absQty(position.positionAmt),
+      stopLoss: next.stopLoss,
+      takeProfit: trade.takeProfit,
+      slClientId,
+      tpClientId: trade.tpClientId,
+      workingType: risk.triggerPrice,
+      retries: risk.protectionRetries,
+      legs: ["SL"],
+      sleep: this.sleep,
+    });
+    if (!placed.ok) {
+      // The old stop is still in place; try again next pass.
+      if (bestChanged) await store.update(trade);
+      if (placed.reason !== "WOULD_TRIGGER") events.emit({ type: "ERROR", message: `${trade.symbol}: không dời được SL`, detail: placed.detail });
+      return;
+    }
+    if (trade.slClientId) {
+      const old = trade.slClientId;
+      await api.cancelAlgoOrder(trade.symbol, old).catch((error) => {
+        // Both stops are reduce-only and the new one is closer, so it fires first; leftovers are canceled at close.
+        this.logger.warn("Old stop not canceled", { tradeId: trade.id, clientAlgoId: old, error: errorText(error) });
+      });
+    }
+    const move: StopMove = { at: this.now(), stage: next.stage, from: trade.stopLoss, to: next.stopLoss, progress: Math.round(best * 1000) / 1000 };
+    trade.slMoves = [...(trade.slMoves ?? []), move];
+    trade.stopLoss = next.stopLoss;
+    trade.slClientId = slClientId;
+    trade.protectionVersion = version;
+    await store.update(trade);
+    report.stopsMoved.push(trade.id);
+    events.emit({ type: "STOP_MOVED", trade: structuredClone(trade), move });
+    this.logger.info("Stop moved", { tradeId: trade.id, symbol: trade.symbol, stage: move.stage, from: move.from, to: move.to });
   }
 
   /** Places the given legs again under new client ids; flattens if that fails. */

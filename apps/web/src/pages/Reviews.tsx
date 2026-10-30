@@ -181,7 +181,7 @@ function ReviewCard({ item, focused, busy, canRun, onRerun, go }: { item: Review
           {item.symbol}
           {t && <DirectionChip direction={t.direction} />}
           <Chip tone={tone}>{item.outcome === "WIN" ? "Thắng" : item.outcome === "LOSS" ? "Thua" : "Hoà"}</Chip>
-          {t && <ExitChip reason={t.exitReason} />}
+          {t && <ExitChip reason={t.exitReason} trade={t} />}
           {t && <span className="num">{rMultiple(t.pnlR)}</span>}
         </h2>
         <div className="row">

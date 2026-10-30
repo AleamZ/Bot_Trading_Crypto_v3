@@ -115,6 +115,94 @@ describe("Watchdog: protection", () => {
   });
 });
 
+describe("Watchdog: moving the stop", () => {
+  /** The price `pct` of the way from the entry to the TP. */
+  const at = (trade: Trade, pct: number) => Number(trade.entryPrice) + (pct / 100) * (Number(trade.takeProfit) - Number(trade.entryPrice));
+
+  it("moves the stop to the entry at 50% of the way, then to 50% at 75%, never leaving the position without one", async () => {
+    const h = await opened();
+    const entry = Number(h.trade.entryPrice);
+
+    h.api.setMark("BTCUSDT", at(h.trade, 40));
+    expect((await h.watchdog.reconcile()).stopsMoved).toEqual([]);
+
+    h.api.setMark("BTCUSDT", at(h.trade, 55));
+    expect((await h.watchdog.reconcile()).stopsMoved).toEqual(["t1"]);
+    let t = (await h.store.get("t1"))!;
+    expect(Number(t.stopLoss)).toBe(entry);
+    expect(t.slMoves).toMatchObject([{ stage: 1, from: h.trade.stopLoss, to: t.stopLoss }]);
+    expect(h.api.openAlgos().map((a) => [a.clientAlgoId, Number(a.triggerPrice)]).sort()).toEqual([
+      ["v3s-t1-2", entry],
+      ["v3t-t1-1", Number(h.trade.takeProfit)],
+    ]);
+    expect(h.events.at(-1)).toMatchObject({ type: "STOP_MOVED", move: { stage: 1 } });
+
+    h.api.setMark("BTCUSDT", at(h.trade, 80));
+    await h.watchdog.reconcile();
+    t = (await h.store.get("t1"))!;
+    expect(Number(t.stopLoss)).toBeCloseTo(at(h.trade, 50), 0);
+    expect(Number(t.stopLoss)).toBeLessThanOrEqual(at(h.trade, 50));
+    expect(t.slMoves?.map((m) => m.stage)).toEqual([1, 2]);
+    expect(h.api.openAlgos().map((a) => a.clientAlgoId).sort()).toEqual(["v3s-t1-3", "v3t-t1-1"]);
+
+    // The locked stop fills: an exit at the stop, but a win of about +0.9R after fees.
+    h.api.setMark("BTCUSDT", at(h.trade, 45));
+    await h.watchdog.reconcile();
+    t = (await h.store.get("t1"))!;
+    expect(t).toMatchObject({ status: "CLOSED", exitReason: "SL" });
+    expect(t.pnlR).toBeGreaterThan(0.8);
+    expect(t.pnlR).toBeLessThan(1);
+  });
+
+  it("goes straight to the locked stop when price is already past 75%", async () => {
+    const h = await opened();
+    h.api.setMark("BTCUSDT", at(h.trade, 90));
+    await h.watchdog.reconcile();
+    const t = (await h.store.get("t1"))!;
+    expect(t.slMoves?.map((m) => m.stage)).toEqual([2]);
+  });
+
+  it("waits when price came back past the new stop, and moves once it is safe", async () => {
+    const h = await opened();
+    const t0 = (await h.store.get("t1"))!;
+    t0.bestProgress = 0.6;
+    await h.store.update(t0);
+    // Between the original stop and the entry: a stop at the entry would fill at once.
+    h.api.setMark("BTCUSDT", Number(h.trade.entryPrice) - 50);
+    expect((await h.watchdog.reconcile()).stopsMoved).toEqual([]);
+    expect(h.api.positionAmt()).not.toBe(0);
+    h.api.setMark("BTCUSDT", at(h.trade, 10));
+    expect((await h.watchdog.reconcile()).stopsMoved).toEqual(["t1"]);
+    expect(Number((await h.store.get("t1"))!.stopLoss)).toBe(Number(h.trade.entryPrice));
+  });
+
+  it("keeps the old stop when the new one cannot be placed", async () => {
+    const h = await opened();
+    h.api.failNext("placeAlgoOrder", rejected(-1111, "bad"), { times: 3 });
+    h.api.setMark("BTCUSDT", at(h.trade, 60));
+    await h.watchdog.reconcile();
+    expect((await h.store.get("t1"))!.stopLoss).toBe(h.trade.stopLoss);
+    expect(h.api.openAlgos().map((a) => a.clientAlgoId).sort()).toEqual(["v3s-t1-1", "v3t-t1-1"]);
+    expect(h.events.at(-1)).toMatchObject({ type: "ERROR" });
+  });
+
+  it("does nothing when moving the stop is off", async () => {
+    const h = await opened({ risk: { moveSl: false } });
+    h.api.setMark("BTCUSDT", at(h.trade, 90));
+    expect((await h.watchdog.reconcile()).stopsMoved).toEqual([]);
+    expect((await h.store.get("t1"))!.stopLoss).toBe(h.trade.stopLoss);
+  });
+
+  it("works the same way for a SHORT", async () => {
+    const h = harness();
+    const outcome = await h.executor.enter(h.request("SHORT"));
+    if (!outcome.ok) throw new Error(outcome.detail);
+    h.api.setMark("BTCUSDT", at(outcome.trade, 55));
+    await h.watchdog.reconcile();
+    expect(Number((await h.store.get("t1"))!.stopLoss)).toBe(Number(outcome.trade.entryPrice));
+  });
+});
+
 describe("Watchdog: after a crash", () => {
   const opening = (h: ReturnType<typeof harness>): Trade => ({
     id: "c1",

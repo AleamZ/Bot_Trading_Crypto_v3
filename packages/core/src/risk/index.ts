@@ -14,3 +14,4 @@ export { feeRateOf, planTrade, type PlanInput, type PlanRejectReason, type Trade
 export { lossPerUnit, sizePosition, type SizingInput, type SizingRejectReason, type SizingResult } from "./sizing.js";
 export { combineStops, type StopPolicy } from "./stops.js";
 export { netResultAt, takeProfitPrice, type TargetInput } from "./targets.js";
+export { nextStop, tpProgress, type NextStop, type NextStopInput, type StopMoveSettings, type StopStage } from "./trail.js";

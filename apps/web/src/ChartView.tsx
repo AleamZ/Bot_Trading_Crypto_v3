@@ -13,6 +13,7 @@ import {
   type UTCTimestamp,
 } from "lightweight-charts";
 import { useEffect, useRef, useState } from "react";
+import { ZonesPrimitive, type Zone } from "./chartZones";
 import type { ChartResponse, Tone } from "./types";
 import { METHODS } from "./types";
 
@@ -79,10 +80,10 @@ function useThemeTick(): number {
 
 /**
  * Candles with what the bot looks at: method A's EMAs, method B's Donchian channel, method C's
- * swings and fair value gaps, every trigger (A/B/C), the 2/3 and 3/3 moments, the bot's trades and
- * the stop / take profit an entry would get now.
+ * swings and fair value gaps, every trigger (A/B/C), the 2/3 and 3/3 moments, the bot's trades with
+ * their TP/SL zones and stop moves, and the zones an entry would get now.
  */
-export function ChartView({ data, layers }: { data: ChartResponse; layers: Layers }) {
+export function ChartView({ data, layers, zoneOpacity }: { data: ChartResponse; layers: Layers; zoneOpacity: number }) {
   const host = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const themeTick = useThemeTick();
@@ -141,18 +142,45 @@ export function ChartView({ data, layers }: { data: ChartResponse; layers: Layer
       series.setData(line.points.map((p) => ({ time: t(p.time), value: p.value })));
     }
 
+    // Shaded boxes under the candles: FVGs, TP (green) / SL (red) of trades and of the entry now.
+    const zones: Zone[] = [];
+    const indexOf = new Map(data.candles.map((k, i) => [k.openTime, i]));
+    const lastIndex = data.candles.length - 1;
+    const tf = (data.candles[1]?.openTime ?? 0) - (data.candles[0]?.openTime ?? 0) || 900_000;
+    const bar = (ms: number) => Math.floor(ms / tf) * tf;
     if (layers.smc) {
-      const times = data.candles.map((k) => k.openTime);
       for (const gap of data.overlays.fvgs) {
-        const span = times.filter((x) => x >= gap.from && x <= gap.to);
-        if (span.length === 0) continue;
-        const color = `${gap.direction === "LONG" ? c.tone.quest : c.tone.heart}${gap.filled ? "66" : "cc"}`;
-        for (const price of [gap.top, gap.bottom]) {
-          const edge = chart.addSeries(LineSeries, { color, lineWidth: 2, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false, priceFormat });
-          edge.setData(span.map((x) => ({ time: t(x), value: price })));
+        const from = indexOf.get(gap.from);
+        if (from === undefined) continue;
+        const to = indexOf.get(gap.to) ?? lastIndex;
+        const color = gap.direction === "LONG" ? c.tone.quest : c.tone.heart;
+        zones.push({ from, to, top: gap.top, bottom: gap.bottom, color, alpha: gap.filled ? 0.12 : 0.3, outline: !gap.filled, label: gap.filled ? undefined : "FVG" });
+      }
+    }
+    if (layers.trades) {
+      for (const trade of data.trades) {
+        const from = trade.openedAt === null ? undefined : indexOf.get(bar(trade.openedAt));
+        if (from === undefined || !trade.entryPrice || !trade.stopLoss || !trade.takeProfit) continue;
+        const open = trade.status === "OPEN" || trade.status === "OPENING";
+        const to = open ? lastIndex : (indexOf.get(bar(trade.closedAt ?? 0)) ?? lastIndex);
+        const entryPrice = Number(trade.entryPrice);
+        // The red zone is the risk taken at the entry: the stop before any move.
+        const firstStop = Number(trade.slMoves?.[0]?.from ?? trade.stopLoss);
+        zones.push({ from, to, top: Number(trade.takeProfit), bottom: entryPrice, color: c.tone.quest, alpha: zoneOpacity, label: "TP" });
+        zones.push({ from, to, top: entryPrice, bottom: firstStop, color: c.tone.heart, alpha: zoneOpacity, label: "SL" });
+        for (const move of trade.slMoves ?? []) {
+          const at = indexOf.get(bar(move.at)) ?? from;
+          zones.push({ from: at, to, top: Number(move.to), bottom: Number(move.to), color: c.tone.sky, alpha: 1, line: true, label: move.stage === 1 ? "SL hoà vốn" : "SL khoá lãi" });
         }
       }
     }
+    const preview = data.preview;
+    if (preview?.sizing) {
+      const entryNow = preview.entryPrice;
+      zones.push({ from: lastIndex + 1, to: lastIndex + 8, top: Number(preview.sizing.takeProfit), bottom: entryNow, color: c.tone.quest, alpha: zoneOpacity, label: "TP" });
+      zones.push({ from: lastIndex + 1, to: lastIndex + 8, top: entryNow, bottom: Number(preview.sizing.stopLoss), color: c.tone.heart, alpha: zoneOpacity, label: "SL" });
+    }
+    candles.attachPrimitive(new ZonesPrimitive(zones, c.text));
 
     const markers: SeriesMarker<Time>[] = [];
     if (layers.smc) {
@@ -186,9 +214,7 @@ export function ChartView({ data, layers }: { data: ChartResponse; layers: Layer
       }
     }
     if (layers.trades) {
-      const tf = (data.candles[1]?.openTime ?? 0) - (data.candles[0]?.openTime ?? 0) || 900_000;
       const first = data.candles[0]!.openTime;
-      const bar = (ms: number) => Math.floor(ms / tf) * tf;
       for (const trade of data.trades) {
         if (!trade.openedAt || trade.openedAt < first) continue;
         const long = trade.direction === "LONG";
@@ -215,7 +241,6 @@ export function ChartView({ data, layers }: { data: ChartResponse; layers: Layer
         }
       }
     }
-    const preview = data.preview;
     if (preview?.sizing) {
       candles.createPriceLine({ price: Number(preview.sizing.stopLoss), color: c.tone.heart, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: "SL dự kiến" });
       candles.createPriceLine({ price: Number(preview.sizing.takeProfit), color: c.tone.quest, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: "TP dự kiến" });
@@ -223,12 +248,13 @@ export function ChartView({ data, layers }: { data: ChartResponse; layers: Layer
     markers.sort((a, b) => Number(a.time) - Number(b.time));
     createSeriesMarkers(candles, markers);
 
-    chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, data.candles.length - 160), to: data.candles.length + 4 });
+    // Room on the right for the zones of the entry the bot would make now.
+    chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, data.candles.length - 160), to: data.candles.length + (preview?.sizing ? 10 : 4) });
     return () => {
       chart.remove();
       chartRef.current = null;
     };
-  }, [data, layers, themeTick]);
+  }, [data, layers, zoneOpacity, themeTick]);
 
   return <div ref={host} className="chart-host" role="img" aria-label={`Biểu đồ ${data.symbol} ${data.timeframe}`} />;
 }

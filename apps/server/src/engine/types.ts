@@ -1,5 +1,16 @@
 import type { Direction, MethodId, StopMode } from "@bot-v3/core";
 
+/** One move of the stop after the entry. */
+export interface StopMove {
+  at: number;
+  /** 1: to the entry; 2: into profit. */
+  stage: 1 | 2;
+  from: string;
+  to: string;
+  /** How far price had gone towards the TP (1 = at the TP). */
+  progress: number;
+}
+
 export type TradeStatus = "OPENING" | "OPEN" | "CLOSED" | "FAILED";
 export type ExitReason = "TP" | "SL" | "EMERGENCY" | "MANUAL";
 
@@ -37,6 +48,10 @@ export interface Trade {
   tpClientId: string | null;
   /** Bumped every time SL/TP are placed again, so client ids stay unique. */
   protectionVersion: number;
+  /** Stop moves (break-even, locked profit), oldest first. Missing on trades from before the feature. */
+  slMoves?: StopMove[];
+  /** Furthest the mark price went towards the TP while open (1 = at the TP). */
+  bestProgress?: number;
   exitReason: ExitReason | null;
   exitPrice: string | null;
   /** Realized PnL minus commissions, in USDT. */
@@ -44,6 +59,19 @@ export interface Trade {
   fees: string | null;
   pnlR: number | null;
   note: string | null;
+}
+
+/**
+ * An entry refused by the stop-distance rules (Settings → risk: min/max SL %, max SL × ATR): the
+ * bot chose not to trade, nothing went wrong.
+ */
+export function isStopRuleRejection(event: { stage: EntryStage; reason: string }): boolean {
+  return event.stage === "PLAN" && ["STOP_TOO_CLOSE", "STOP_TOO_FAR", "STOP_TOO_FAR_ATR", "STOP_WRONG_SIDE"].includes(event.reason);
+}
+
+/** 0: the stop the trade opened with; 1: at the entry; 2: in profit. */
+export function stopStage(trade: Pick<Trade, "slMoves">): 0 | 1 | 2 {
+  return trade.slMoves?.at(-1)?.stage ?? 0;
 }
 
 export interface TradeStore {
@@ -60,6 +88,7 @@ export type BotEvent =
   | { type: "ENTRY_FAILED"; symbol: string; direction: Direction; stage: EntryStage; reason: string; detail: string }
   | { type: "PROTECTION_FAILED"; trade: Trade; detail: string; flattened: boolean }
   | { type: "PROTECTION_REPAIRED"; trade: Trade; legs: ("SL" | "TP")[] }
+  | { type: "STOP_MOVED"; trade: Trade; move: StopMove }
   | { type: "TRADE_CLOSED"; trade: Trade }
   | { type: "FOREIGN_POSITION"; symbol: string; positionAmt: string }
   | { type: "ERROR"; message: string; detail?: string };

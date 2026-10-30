@@ -58,6 +58,12 @@ Chạy lúc khởi động, mỗi 15 giây, và ngay sau mỗi sự kiện từ 
 - **Lệnh `OPENING` sau khi bot khởi động lại:**
   - nếu có vị thế: tính SL/TP từ giá vào của vị thế rồi đặt;
   - nếu không: đánh dấu `FAILED`.
+- **Dời SL** (khi SL và TP đều còn nguyên, cài `moveSl`):
+  - Tiến độ tới TP tính từ **giá mark** của vị thế, mỗi lượt 15 giây; mức xa nhất được lưu vào lệnh (`bestProgress`).
+  - Đủ mức thì đặt SL mới (client id `-<n+1>`) **trước**, rồi mới huỷ SL cũ, nên vị thế không lúc nào thiếu SL. Huỷ SL cũ lỗi thì cả hai cùng là reduce-only; SL mới gần hơn nên chạy trước, SL cũ bị huỷ khi lệnh đóng.
+  - Giá đã quay lại qua mức SL mới (đặt sẽ khớp ngay) thì chưa dời, chờ lượt sau.
+  - Đặt SL mới lỗi thì giữ SL cũ và báo lỗi.
+  - Mỗi lần dời ghi vào `slMoves` của lệnh và gửi `STOP_MOVED`. Lệnh chạm SL đã dời được báo là "SL hoà vốn" hoặc "SL khoá lãi".
 - **Lệnh đang kích hoạt** (`TRIGGERING`/`TRIGGERED`): không đụng vào, đợi lượt sau.
 - **Vị thế không phải của bot:** chỉ báo `FOREIGN_POSITION` một lần, không đụng vào.
 - **Lệnh algo `v3…` sót lại** ở symbol bot không còn giao dịch: huỷ.

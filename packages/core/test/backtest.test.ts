@@ -172,6 +172,23 @@ describe("runBacktest: live rules", () => {
   });
 });
 
+describe("runBacktest: moving the stop", () => {
+  // Candle 12 goes about 60% of the way to the TP and closes above the entry; candle 13 falls back through it.
+  const entry = series(30, { 12: [100, 101.9, 100, 101.5], 13: [101.5, 101.6, 99.5, 99.8] });
+
+  it("moves the stop to the entry after the candle that went half way, so the fall back costs only fees", () => {
+    const t = runBacktest([sym("XUSDT", entry)], { settings: defaultSettings(), analyzerFor: scripted({ 10: THREE_LONG }) }).trades[0]!;
+    expect(t).toMatchObject({ exitReason: "SL", exit: 100, stopStage: 1, exitTime: entry[13]!.closeTime });
+    expect(t.r).toBeLessThan(0);
+    expect(t.r).toBeGreaterThan(-0.1);
+  });
+
+  it("keeps the original stop when moving is off", () => {
+    const t = runBacktest([sym("XUSDT", entry)], { settings: settingsWith({ risk: { moveSl: false } }), analyzerFor: scripted({ 10: THREE_LONG }) }).trades[0]!;
+    expect(t).toMatchObject({ exitReason: "OPEN", stopStage: 0 });
+  });
+});
+
 describe("runBacktest: breakdown by methods", () => {
   it("groups closed trades by the agreeing methods and keeps the candle each one fired on", () => {
     const settings = settingsWith({ general: { autoEntryThreshold: 2 } });

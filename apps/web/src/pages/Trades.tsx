@@ -1,6 +1,6 @@
 import { Fragment, useState } from "react";
 import { api } from "../api";
-import { dateTime, fullDateTime, price, rMultiple, usd } from "../format";
+import { clock, dateTime, fullDateTime, price, rMultiple, usd } from "../format";
 import { useLoad, type Live, type Route } from "../hooks";
 import { METHODS, type Trade } from "../types";
 import { Button, DirectionChip, ExitChip, Notice, Panel, Stat, Tabs, TradeStatusChip } from "../ui";
@@ -90,7 +90,7 @@ export function Trades({ live, go }: { live: Live; go: (route: Route, param?: st
                       <td>
                         {t.status === "CLOSED" ? (
                           <span className="row" style={{ gap: 6 }}>
-                            <ExitChip reason={t.exitReason} /> <span className="num">{price(t.exitPrice)}</span>
+                            <ExitChip reason={t.exitReason} trade={t} /> <span className="num">{price(t.exitPrice)}</span>
                           </span>
                         ) : (
                           "—"
@@ -143,6 +143,14 @@ function TradeDetail({ trade: t, go }: { trade: Trade; go: (route: Route, param?
     ["Lỗ nếu chạm SL", t.riskAtStopUsd ? `${t.riskAtStopUsd}$ (${rMultiple(t.riskAtStopR === null ? null : -t.riskAtStopR)})` : "—"],
     ["Lãi ròng nếu chạm TP", t.rewardAtTpUsd ? `${t.rewardAtTpUsd}$ (${rMultiple(t.rewardAtTpR)})` : "—"],
     ["Phí", t.fees ? `${t.fees}$` : "—"],
+    [
+      "Dời SL",
+      t.slMoves?.length
+        ? t.slMoves.map((m) => `${clock(m.at)} ${m.stage === 1 ? "về giá vào" : "khoá lãi"} ${price(m.from)} → ${price(m.to)} (giá đi ${Math.round(m.progress * 100)}%)`).join(" · ")
+        : t.bestProgress !== undefined && t.status === "OPEN"
+          ? `chưa; giá đã đi xa nhất ${Math.round(t.bestProgress * 100)}% đường tới TP`
+          : "—",
+    ],
     ["Client id", [t.entryClientId, t.slClientId, t.tpClientId].filter(Boolean).join(" · ")],
   ];
   return (

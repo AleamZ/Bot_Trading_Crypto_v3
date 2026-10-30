@@ -73,6 +73,17 @@ export interface Trade {
   entryClientId: string;
   slClientId: string | null;
   tpClientId: string | null;
+  /** Stop moves after the entry (to the entry, then into profit), oldest first. */
+  slMoves?: StopMove[];
+  bestProgress?: number;
+}
+
+export interface StopMove {
+  at: number;
+  stage: 1 | 2;
+  from: string;
+  to: string;
+  progress: number;
 }
 
 export type LogLevel = "info" | "warn" | "error";

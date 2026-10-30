@@ -7,6 +7,7 @@
  *   npm run backtest -- --source binance               real Binance futures candles instead of DEMO
  *   npm run backtest -- --slippage 0.0002 --csv trades.csv
  *   npm run backtest -- --set risk.maxSlAtr=5 --set risk.slPolicy=MEDIAN   try other settings
+ *   npm run backtest -- --compare risk.moveSl=false   run again on the same candles with one change
  *
  * Read-only: only public market data endpoints are called.
  */
@@ -56,10 +57,9 @@ if (symbolsArg) {
   if (!merged.ok) throw new Error(JSON.stringify(merged.errors));
   settings = merged.settings;
 }
-// --set section.key=value (repeatable): try a setting without saving it anywhere.
-for (let i = 0; i < args.length; i++) {
-  if (args[i] !== "--set" || !args[i + 1]) continue;
-  const [path, raw = ""] = args[i + 1]!.split("=");
+/** Applies "section.key=value" to the settings, without saving it anywhere. */
+function withSetting(base: Settings, assignment: string, flagName: string): Settings {
+  const [path, raw = ""] = assignment.split("=");
   let value: unknown = raw;
   try {
     value = JSON.parse(raw);
@@ -67,9 +67,18 @@ for (let i = 0; i < args.length; i++) {
     // plain text (enum values)
   }
   const patch = path!.split(".").reduceRight<unknown>((inner, key) => ({ [key]: inner }), value);
-  const merged = mergeSettings(settings, patch);
-  if (!merged.ok) throw new Error(`--set ${args[i + 1]}: ${merged.errors.map((e) => `${e.path} ${e.message}`).join("; ")}`);
-  settings = merged.settings;
+  const merged = mergeSettings(base, patch);
+  if (!merged.ok) throw new Error(`--${flagName} ${assignment}: ${merged.errors.map((e) => `${e.path} ${e.message}`).join("; ")}`);
+  return merged.settings;
+}
+// --set section.key=value (repeatable): try a setting.
+for (let i = 0; i < args.length; i++) {
+  if (args[i] === "--set" && args[i + 1]) settings = withSetting(settings, args[i + 1]!, "set");
+}
+// --compare section.key=value (repeatable): a second run on the same candles with these changes.
+let compared: Settings | null = null;
+for (let i = 0; i < args.length; i++) {
+  if (args[i] === "--compare" && args[i + 1]) compared = withSetting(compared ?? settings, args[i + 1]!, "compare");
 }
 const days = Number(option("days") ?? 90);
 const slippage = Number(option("slippage") ?? 0);
@@ -147,19 +156,33 @@ const readyLabel = alertThreshold < autoEntryThreshold ? `Báo SẴN SÀNG (${al
 console.log(`\n${readyLabel}Đủ ${autoEntryThreshold}/3: ${result.enterSignals} lần · vào lệnh: ${result.trades.length}`);
 const skipped = Object.entries(result.skipped);
 if (skipped.length) console.log(`${autoEntryThreshold}/3 không vào được: ${skipped.map(([k, v]) => `${k} ${v}`).join(", ")}`);
+if (settings.risk.moveSl) {
+  const stopped = (stage: number) => closed.filter((t) => t.exitReason === "SL" && t.stopStage === stage).length;
+  const { breakEvenAtTpPct, lockAtTpPct, lockSlAtTpPct } = settings.risk;
+  console.log(`Dời SL (về giá vào ở ${breakEvenAtTpPct}%, lên ${lockSlAtTpPct}% ở ${lockAtTpPct}% đường tới TP): chạm SL hoà vốn ${stopped(1)} lệnh, chạm SL khoá lãi ${stopped(2)} lệnh`);
+}
+if (compared) {
+  const other = runBacktest(data, { settings: compared, from, slippage });
+  const changes = args.flatMap((a, i) => (a === "--compare" && args[i + 1] ? [args[i + 1]] : [])).join(", ");
+  console.log(`\n${header("So sánh")}`);
+  console.log(row("hiện tại", result.total));
+  console.log(row("thay đổi", other.total));
+  console.log(`"thay đổi" = cùng nến, thêm ${changes}`);
+}
 const open = result.trades.filter((t) => t.exitReason === "OPEN").length;
 if (open) console.log(`${open} lệnh còn mở ở cuối giai đoạn (không tính vào kết quả)`);
 console.log("Mơ hồ = nến chạm cả SL lẫn TP, tính là thua. DD R = mức sụt giảm lớn nhất tính theo R.");
 
 const csv = option("csv");
 if (csv) {
-  const columns = "symbol,direction,methods,sequence,entryTime,entry,quantity,stopLoss,takeProfit,exitTime,exit,exitReason,netPnl,r,ambiguous,bars";
+  const columns = "symbol,direction,methods,sequence,stopStage,entryTime,entry,quantity,stopLoss,takeProfit,exitTime,exit,exitReason,netPnl,r,ambiguous,bars";
   const lines = result.trades.map((t) =>
     [
       t.symbol,
       t.direction,
       t.methods.join("+"),
       sequence(t),
+      t.stopStage,
       new Date(t.entryTime + 1).toISOString(),
       t.entry,
       t.quantity,

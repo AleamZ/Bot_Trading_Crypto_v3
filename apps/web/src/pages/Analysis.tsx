@@ -18,6 +18,16 @@ const LAYER_LABELS: [keyof Layers, string][] = [
 ];
 
 const LAYERS_KEY = "bot3.chartLayers";
+const OPACITY_KEY = "bot3.zoneOpacity";
+
+function readOpacity(): number {
+  try {
+    const stored = Number(localStorage.getItem(OPACITY_KEY));
+    return stored >= 10 && stored <= 100 ? stored : 70;
+  } catch {
+    return 70;
+  }
+}
 
 function readLayers(): Layers {
   try {
@@ -34,6 +44,7 @@ export function Analysis({ live, symbol, go }: { live: Live; symbol: string | nu
   // Reload when the bot finishes a new scan of this symbol.
   const chart = useLoad(() => api.chart(current, 300), [current, view?.time]);
   const [layers, setLayers] = useState<Layers>(readLayers);
+  const [opacity, setOpacity] = useState(readOpacity);
   const [other, setOther] = useState("");
 
   useEffect(() => {
@@ -43,6 +54,14 @@ export function Analysis({ live, symbol, go }: { live: Live; symbol: string | nu
       // storage blocked: the choice lasts until reload
     }
   }, [layers]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(OPACITY_KEY, String(opacity));
+    } catch {
+      // storage blocked: the choice lasts until reload
+    }
+  }, [opacity]);
 
   const data = chart.data?.symbol === current ? chart.data : null;
   return (
@@ -83,8 +102,13 @@ export function Analysis({ live, symbol, go }: { live: Live; symbol: string | nu
                 {label}
               </label>
             ))}
+            <label className="check-row layer">
+              Độ đậm vùng TP/SL
+              <input type="range" className="range" min={10} max={100} step={5} value={opacity} onChange={(e) => setOpacity(Number(e.target.value))} aria-label="Độ đậm vùng TP/SL" />
+              <span className="num">{opacity}%</span>
+            </label>
           </div>
-          {data ? <ChartView data={data} layers={layers} /> : <div className="chart-host empty-state">{chart.loading ? "Đang tải nến…" : "Chưa có dữ liệu"}</div>}
+          {data ? <ChartView data={data} layers={layers} zoneOpacity={opacity / 100} /> : <div className="chart-host empty-state">{chart.loading ? "Đang tải nến…" : "Chưa có dữ liệu"}</div>}
           <Legend />
         </Panel>
         <div className="stack">{data && <Verdict data={data} />}</div>
@@ -109,7 +133,9 @@ function Legend() {
       <span>■ 3/3: vào lệnh</span>
       <span>Đường đứt: EMA khung lớn</span>
       <span>Đường chấm: kênh Donchian</span>
-      <span>Cặp đường đậm: vùng FVG</span>
+      <span>Hộp có viền: vùng FVG còn mở (nhạt: đã lấp)</span>
+      <span>Vùng xanh / đỏ: TP / SL</span>
+      <span>Đường xanh đứt: SL đã dời</span>
     </div>
   );
 }

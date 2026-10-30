@@ -110,9 +110,17 @@ const EXIT_CHIP: Record<NonNullable<Trade["exitReason"]>, { tone: Tone; label: s
   EMERGENCY: { tone: "heart", label: "Đóng khẩn" },
 };
 
-export function ExitChip({ reason }: { reason: Trade["exitReason"] }) {
+/** A stop hit after the bot moved it is a break-even or a locked win, not a loss. */
+function exitChipOf(reason: NonNullable<Trade["exitReason"]>, trade?: Pick<Trade, "slMoves">): { tone: Tone; label: string } {
+  const stage = trade?.slMoves?.at(-1)?.stage;
+  if (reason === "SL" && stage === 1) return { tone: "stone", label: "SL hoà vốn" };
+  if (reason === "SL" && stage === 2) return { tone: "quest", label: "SL khoá lãi" };
+  return EXIT_CHIP[reason];
+}
+
+export function ExitChip({ reason, trade }: { reason: Trade["exitReason"]; trade?: Pick<Trade, "slMoves"> }) {
   if (!reason) return <Chip tone="empty">—</Chip>;
-  const c = EXIT_CHIP[reason];
+  const c = exitChipOf(reason, trade);
   return <Chip tone={c.tone}>{c.label}</Chip>;
 }
 
@@ -128,16 +136,21 @@ export function eventChip(entry: LogEntry): { tone: Tone; label: string } {
       return { tone: "quest", label: "Vào lệnh" };
     case "ENTRY_SKIPPED":
       return { tone: "empty", label: "Bỏ qua" };
-    case "ENTRY_FAILED":
-      return { tone: "heart", label: "Lỗi lệnh" };
+    case "ENTRY_FAILED": {
+      // Refused by the stop-distance rules (see the server's isStopRuleRejection): a skip, not an error.
+      const failed = entry.data as { stage?: string; reason?: string } | null;
+      return failed?.stage === "PLAN" && failed.reason?.startsWith("STOP_") ? { tone: "empty", label: "Bỏ qua" } : { tone: "heart", label: "Lỗi lệnh" };
+    }
     case "TRADE_CLOSED": {
       const reason = data?.trade?.exitReason;
-      return reason ? EXIT_CHIP[reason] : { tone: "stone", label: "Đóng" };
+      return reason ? exitChipOf(reason, data?.trade) : { tone: "stone", label: "Đóng" };
     }
     case "PROTECTION_FAILED":
       return { tone: "heart", label: "SL/TP lỗi" };
     case "PROTECTION_REPAIRED":
       return { tone: "coin", label: "Sửa SL/TP" };
+    case "STOP_MOVED":
+      return { tone: "sky", label: "Dời SL" };
     case "EXCHANGE_STATUS":
       return data?.ok ? { tone: "quest", label: "Binance" } : { tone: "heart", label: "Binance" };
     case "SETTINGS_CHANGED":
