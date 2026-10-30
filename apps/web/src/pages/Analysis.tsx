@@ -121,6 +121,14 @@ function Verdict({ data }: { data: ChartResponse }) {
   const c = a.consensus;
   const best = Math.max(c.longCount, c.shortCount);
   const need = c.level === "ENTER" ? null : best >= data.thresholds.alert ? data.thresholds.entry : data.thresholds.alert;
+  // The page fetches candles itself, so it can show a new close a few seconds before the bot scans it.
+  const scanned = data.lastScanAt !== null && data.lastScanAt >= a.time;
+  const episode = scanned && a.episode && a.episode.direction === c.direction ? a.episode : null;
+  const readyText = !scanned
+    ? `Đủ ${best}/3: bot sẽ báo SẴN SÀNG khi quét nến này (vài giây sau khi nến đóng).`
+    : episode && episode.startedAt < a.time
+      ? `Đủ ${best}/3: đã báo SẴN SÀNG lúc ${clock(episode.startedAt + 1)} (mỗi đợt chỉ báo một lần).`
+      : `Đủ ${best}/3: đã báo SẴN SÀNG.`;
   return (
     <>
       <Panel title="Bot đang thấy gì" sub={`nến đóng ${dateTime(a.time + 1)}`}>
@@ -135,9 +143,11 @@ function Verdict({ data }: { data: ChartResponse }) {
           <Meter label="Đồng thuận" value={best} max={3} tone={c.direction === "SHORT" ? "heart" : "quest"} display={`${best}/3`} />
           <div>
             {c.level === "ENTER"
-              ? "Đủ 3/3 cùng chiều: bot thử vào lệnh (nếu các giới hạn cho phép)."
+              ? scanned
+                ? "Đủ 3/3 cùng chiều: bot thử vào lệnh (nếu các giới hạn cho phép)."
+                : "Đủ 3/3 cùng chiều: bot sẽ thử vào lệnh khi quét nến này (nếu các giới hạn cho phép)."
               : c.level === "READY"
-                ? `Đủ ${best}/3: đã báo SẴN SÀNG. Cần ${data.thresholds.entry}/3 và không có phương pháp ngược chiều để vào lệnh.`
+                ? `${readyText} Cần ${data.thresholds.entry}/3 và không có phương pháp ngược chiều để vào lệnh.`
                 : need
                   ? `Chưa đủ: cần ${need}/3 cùng chiều${need === data.thresholds.alert ? " để báo SẴN SÀNG" : ""}.`
                   : "Chưa có tín hiệu."}
