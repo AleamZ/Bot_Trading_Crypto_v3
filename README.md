@@ -36,7 +36,7 @@ npm test           # test mọi workspace
 npm run typecheck
 npm run build
 npm run smoke:demo -w @bot-v3/server   # kiểm tra kết nối DEMO, chỉ đọc
-npm run hash-password  # tạo ADMIN_PASSWORD_HASH và SESSION_SECRET cho .env
+npm run hash-password -- --write   # đặt mật khẩu web: ghi ADMIN_PASSWORD_HASH và SESSION_SECRET vào .env
 npm run backtest       # chạy lại luật của bot trên nến quá khứ (docs/BACKTEST.md)
 npm run dev            # chạy bot từ mã nguồn (API ở http://127.0.0.1:8787)
 npm run dev:web        # sửa giao diện: Vite ở http://localhost:5173, chuyển /api sang bot đang chạy

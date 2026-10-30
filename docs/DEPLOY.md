@@ -86,13 +86,14 @@ Dòng cuối in `2` là đã có đủ hai khoá. In `0` nghĩa là v2 không đ
 **Mật khẩu web:**
 
 ```bash
-npm run hash-password
+npm run hash-password -- --write
 nano .env
 ```
 
+`hash-password -- --write` hỏi mật khẩu hai lần (gõ sẽ không hiện), rồi tự ghi `ADMIN_PASSWORD_HASH` và `SESSION_SECRET` vào `.env`, không cần dán.
+
 Trong `nano`:
 
-- dán đè hai dòng `ADMIN_PASSWORD_HASH=` và `SESSION_SECRET=` bằng hai dòng lệnh vừa in;
 - điền `TELEGRAM_BOT_TOKEN=` bằng token của **một bot Telegram dành cho VPS**, khác token bạn dùng trên máy (tạo thêm bằng `/newbot` ở @BotFather);
 - để trống `TELEGRAM_CHAT_ID=`.
 
