@@ -1326,3 +1326,182 @@ code,
 .page {
   padding-bottom: 72px;
 }
+
+/* ---------- monthly stats ---------- */
+
+.table.static tbody tr {
+  cursor: default;
+}
+
+.chart-legend,
+.split-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 12px;
+}
+
+.chart-legend {
+  padding: 12px 14px 0;
+}
+
+.swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  border: 2px solid var(--line);
+  vertical-align: -1px;
+}
+
+.swatch.line {
+  height: 4px;
+  width: 14px;
+  border-width: 1px;
+  vertical-align: 2px;
+}
+
+.pnl-chart {
+  position: relative;
+  padding: 4px 0 6px;
+  touch-action: pan-y;
+}
+
+.pnl-chart svg {
+  display: block;
+}
+
+.pnl-chart .grid-line {
+  stroke: var(--text-soft);
+  stroke-opacity: 0.25;
+  stroke-dasharray: 2 4;
+}
+
+.pnl-chart .zero-line {
+  stroke: var(--text);
+  stroke-width: 2;
+}
+
+.pnl-chart .zero-line.soft {
+  stroke: var(--text-soft);
+  stroke-dasharray: 4 4;
+}
+
+.pnl-chart .axis-text {
+  fill: var(--text-soft);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pnl-chart .axis-text.today {
+  fill: var(--text);
+  font-weight: 700;
+}
+
+.pnl-chart .axis-text.future {
+  fill-opacity: 0.45;
+}
+
+.pnl-chart .value-text {
+  fill: var(--text);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.pnl-chart .hover-band {
+  fill: var(--text);
+  fill-opacity: 0.07;
+}
+
+.pnl-chart .cum-line {
+  fill: none;
+  stroke: var(--sky);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.pnl-chart .cum-dot {
+  fill: var(--sky);
+  stroke: var(--panel);
+  stroke-width: 2;
+}
+
+.unit-tabs {
+  flex: 0 1 300px;
+  min-width: 0;
+}
+
+.pnl-tip {
+  position: absolute;
+  z-index: 2;
+  width: 250px;
+  padding: 6px 9px;
+  background: var(--panel);
+  border: 3px solid var(--line);
+  box-shadow: 0 4px 0 var(--drop);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.rate-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.rate-card {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  padding: 12px 14px;
+  background: var(--panel);
+  border: 3px solid var(--line);
+  box-shadow: 0 4px 0 var(--drop);
+}
+
+.rate-value {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.split {
+  display: flex;
+  height: 18px;
+  border: 3px solid var(--line);
+  background: var(--well);
+}
+
+.split > span {
+  min-width: 3px;
+}
+
+.split > span + span {
+  border-left: 2px solid var(--line);
+}
+
+.rate-rows {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.rate-rows div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.rate-rows dt {
+  color: var(--text-soft);
+}
+
+.rate-rows dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}

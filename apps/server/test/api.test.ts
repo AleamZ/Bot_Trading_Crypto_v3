@@ -326,4 +326,20 @@ describe("API AI", () => {
     expect(list.items.map((r: { tradeId: string }) => r.tradeId)).toEqual(["w1"]);
     expect((await h.app.inject({ url: "/api/reviews/insights", headers: { cookie } })).json()).toEqual({ insights: null });
   });
+
+  it("returns a month's day-by-day result and win rates, the current month by default", async () => {
+    const h = await apiHarness();
+    const { cookie } = await h.login();
+    await h.runtime.trades.insert(sampleTrade({ id: "w1", status: "CLOSED", exitReason: "TP", pnlR: 1.8, netPnl: "9", openedAt: h.exchange.clock - 3_600_000, closedAt: h.exchange.clock - 600_000 }));
+    const res = await h.app.inject({ url: "/api/stats", headers: { cookie } });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    // The fake clock is 15/01/2027 in Vietnam time.
+    expect(body).toMatchObject({ month: "2027-01", today: "2027-01-15", firstMonth: "2027-01", totals: { count: 1, wins: 1, winRate: 1 } });
+    expect(body.days).toHaveLength(31);
+    expect(body.days[14]).toMatchObject({ day: "2027-01-15", count: 1, r: 1.8, pnl: 9 });
+    const empty = (await h.app.inject({ url: "/api/stats?month=2026-12", headers: { cookie } })).json();
+    expect(empty).toMatchObject({ month: "2026-12", totals: { count: 0 }, allTime: { count: 1 } });
+    expect((await h.app.inject({ url: "/api/stats?month=2026-13", headers: { cookie } })).statusCode).toBe(400);
+  });
 });

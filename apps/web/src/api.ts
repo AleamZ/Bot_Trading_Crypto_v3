@@ -1,4 +1,4 @@
-import type { AiStatus, ChartResponse, ChatReply, InsightsRecord, JsonObject, ReviewItem, LogEntry, Me, PositionsResponse, ScanReport, SettingsResponse, Status, TelegramInfo, Trade } from "./types";
+import type { AiStatus, ChartResponse, ChatReply, InsightsRecord, JsonObject, ReviewItem, LogEntry, Me, MonthStats, PositionsResponse, ScanReport, SettingsResponse, Status, TelegramInfo, Trade } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -64,6 +64,7 @@ export const api = {
     request<{ trades: Trade[]; total: number }>("GET", `/api/trades${query(params)}`),
   closeTrade: (id: string) => request<Trade>("POST", `/api/trades/${encodeURIComponent(id)}/close`),
   positions: () => request<PositionsResponse>("GET", "/api/positions"),
+  stats: (month?: string) => request<MonthStats>("GET", `/api/stats${query({ month })}`),
   events: (params: { before?: number; limit?: number; level?: string; symbol?: string } = {}) =>
     request<{ items: LogEntry[] }>("GET", `/api/events${query(params)}`),
   telegram: () => request<TelegramInfo>("GET", "/api/telegram"),

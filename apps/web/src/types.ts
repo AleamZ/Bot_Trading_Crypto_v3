@@ -382,3 +382,50 @@ export interface ChatReply {
   model: string;
   tools: string[];
 }
+
+/** One measure (R or USDT) split into what the winners made and what the losers cost. */
+export interface MeasureStats {
+  won: number;
+  lost: number;
+  net: number;
+  winShare: number | null;
+  profitFactor: number | null;
+  avgWin: number | null;
+  avgLoss: number | null;
+  perTrade: number | null;
+  best: number | null;
+  worst: number | null;
+}
+
+export interface PeriodStats {
+  count: number;
+  wins: number;
+  losses: number;
+  flats: number;
+  winRate: number | null;
+  winRateDecided: number | null;
+  longestWinStreak: number;
+  longestLossStreak: number;
+  r: MeasureStats;
+  usd: MeasureStats & { fees: number };
+}
+
+export interface DayStats {
+  day: string;
+  count: number;
+  wins: number;
+  losses: number;
+  flats: number;
+  r: number;
+  pnl: number;
+  fees: number;
+}
+
+export interface MonthStats {
+  month: string;
+  today: string;
+  firstMonth: string | null;
+  days: DayStats[];
+  totals: PeriodStats;
+  allTime: PeriodStats;
+}

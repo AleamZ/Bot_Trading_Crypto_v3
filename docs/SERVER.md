@@ -132,6 +132,7 @@ Mọi route dưới `/api` cần đăng nhập, trừ `/api/health` và `/api/au
 | `POST /api/trades/:id/close` | Đóng lệnh bằng MARKET; watchdog ghi là đóng tay |
 | `GET /api/positions` | Vị thế, lệnh chờ và lệnh algo đang có trên tài khoản |
 | `GET /api/today` | Kết quả hôm nay |
+| `GET /api/stats?month=YYYY-MM` | Lãi/lỗ từng ngày của tháng (mặc định tháng hiện tại, ngày giờ Việt Nam theo lúc đóng lệnh) và winrate tháng đó cùng từ đầu: theo lệnh (thắng / hòa / thua, chuỗi dài nhất), theo R và theo USDT (phần thắng trong tổng, ròng, trung bình mỗi lệnh, TB thắng / thua, hệ số lãi, lệnh tốt / tệ nhất, phí). Hòa: thoát ở SL đã dời về giá vào, hoặc trong ±0.05R |
 | `GET /api/events?before=&limit=&level=error,warn&symbol=` | Nhật ký hoạt động |
 | `GET /api/events/stream` | SSE (xem dưới) |
 | `GET /api/telegram`, `POST /api/telegram/test` | Trạng thái Telegram, chat id tìm được; gửi tin thử |

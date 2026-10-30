@@ -80,6 +80,20 @@ export class SqliteTradeStore implements TradeStore {
     return Number((this.db.prepare("SELECT COUNT(*) AS n FROM trades WHERE opened_at >= ?").get(since) as { n: number }).n);
   }
 
+  /** Trades closed in [from, to), oldest close first. */
+  closedBetween(from: number, to: number): Trade[] {
+    const rows = this.db
+      .prepare("SELECT data FROM trades WHERE status = 'CLOSED' AND closed_at >= ? AND closed_at < ? ORDER BY closed_at")
+      .all(from, to) as { data: string }[];
+    return rows.map((r) => JSON.parse(r.data) as Trade);
+  }
+
+  /** When the first trade was closed, or null. */
+  firstClosedAt(): number | null {
+    const row = this.db.prepare("SELECT MIN(closed_at) AS t FROM trades WHERE status = 'CLOSED'").get() as { t: number | null };
+    return row.t === null ? null : Number(row.t);
+  }
+
   /** Closed trades since `since`: their count, wins, and the summed net result in R and USDT. */
   closedSince(since: number): { count: number; wins: number; r: number; pnl: number } {
     const rows = this.db.prepare("SELECT data FROM trades WHERE status = 'CLOSED' AND closed_at >= ?").all(since) as { data: string }[];

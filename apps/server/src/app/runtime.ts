@@ -31,6 +31,7 @@ import type { TelegramClient } from "../telegram/client.js";
 import { formatPositions, formatStatus, formatToday, type StatusSummary } from "../telegram/format.js";
 import { TelegramService } from "../telegram/service.js";
 import { BotControl, guardStateFor, SettingsService, timeframeMs, todayStats } from "./control.js";
+import { monthOf, monthRange, monthStats, type MonthStats } from "./stats.js";
 import { EventHub, toAnalysisView } from "./events.js";
 import { candleLimits, lastClosedCandleTime, Scanner } from "./scanner.js";
 
@@ -330,6 +331,20 @@ export class BotRuntime {
 
   today() {
     return todayStats(this.trades, this.now());
+  }
+
+  /** Day-by-day result of a month ("YYYY-MM", default the current one) and the win rates. */
+  monthStats(month?: string): MonthStats {
+    const now = this.now();
+    const target = month ?? monthOf(now);
+    const { from, to } = monthRange(target);
+    return monthStats({
+      month: target,
+      monthTrades: this.trades.closedBetween(from, to),
+      allTrades: this.trades.closedBetween(0, Number.MAX_SAFE_INTEGER),
+      now,
+      firstClosedAt: this.trades.firstClosedAt(),
+    });
   }
 
   statusSummary(): StatusSummary {

@@ -73,6 +73,13 @@ const chartQuery = z.object({
   limit: z.coerce.number().int().min(50).max(1000).default(300),
 });
 
+const statsQuery = z.object({
+  month: z
+    .string()
+    .regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Tháng phải có dạng YYYY-MM")
+    .optional(),
+});
+
 const chatBody = z.object({
   messages: z
     .array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().trim().min(1).max(4000) }))
@@ -289,6 +296,8 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
   app.get("/api/positions", async () => runtime.positions());
 
   app.get("/api/today", async () => runtime.today());
+
+  app.get("/api/stats", async (request) => runtime.monthStats(parse(statsQuery, request.query).month));
 
   // --- activity log
   app.get("/api/events", async (request) => {

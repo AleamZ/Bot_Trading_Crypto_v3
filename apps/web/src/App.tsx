@@ -1,5 +1,6 @@
 import {
   BrainIcon,
+  CalendarDotsIcon,
   ChartLineUpIcon,
   CircleHalfIcon,
   GaugeIcon,
@@ -20,6 +21,7 @@ import { Dashboard } from "./pages/Dashboard";
 import { Login } from "./pages/Login";
 import { Reviews } from "./pages/Reviews";
 import { SettingsPage } from "./pages/Settings";
+import { StatsPage } from "./pages/Stats";
 import { TelegramPage } from "./pages/Telegram";
 import { Trades } from "./pages/Trades";
 import type { Me, Status } from "./types";
@@ -54,6 +56,7 @@ const NAV: { id: Route; label: string; icon: ReactNode }[] = [
   { id: "dashboard", label: "Bảng điều khiển", icon: <GaugeIcon size={16} weight="bold" /> },
   { id: "analysis", label: "Phân tích", icon: <ChartLineUpIcon size={16} weight="bold" /> },
   { id: "trades", label: "Lệnh", icon: <ReceiptIcon size={16} weight="bold" /> },
+  { id: "stats", label: "Thống kê", icon: <CalendarDotsIcon size={16} weight="bold" /> },
   { id: "reviews", label: "AI phân tích", icon: <BrainIcon size={16} weight="bold" /> },
   { id: "activity", label: "Nhật ký", icon: <ListBulletsIcon size={16} weight="bold" /> },
   { id: "settings", label: "Cài đặt", icon: <GearSixIcon size={16} weight="bold" /> },
@@ -114,6 +117,8 @@ function Page({ route, live, go, param }: { route: Route; live: Live; go: (r: Ro
       );
     case "trades":
       return <Trades live={live} go={go} />;
+    case "stats":
+      return <StatsPage live={live} month={param} go={go} />;
     case "reviews":
       return <Reviews live={live} focus={param} go={go} />;
     case "activity":

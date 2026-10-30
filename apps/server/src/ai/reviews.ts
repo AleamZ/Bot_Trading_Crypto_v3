@@ -4,7 +4,7 @@ import { candleLimits } from "../app/scanner.js";
 import type { EventHub } from "../app/events.js";
 import { errorText } from "../binance/errors.js";
 import type { KeyValueStore, ReviewOutcome, ReviewRecord, ReviewStore, SqliteTradeStore } from "../db/stores.js";
-import type { Trade } from "../engine/types.js";
+import { tradeOutcome, type Trade } from "../engine/types.js";
 import { silentLogger, type Logger } from "../lib/logger.js";
 import { extractJson, type AiClient } from "./client.js";
 
@@ -76,8 +76,7 @@ Trả về DUY NHẤT một object JSON:
 const INSIGHTS_KEY = "ai.insights";
 
 export function outcomeOf(trade: Trade): ReviewOutcome {
-  const r = trade.pnlR ?? 0;
-  return r > 0.05 ? "WIN" : r < -0.05 ? "LOSS" : "FLAT";
+  return tradeOutcome(trade);
 }
 
 /**

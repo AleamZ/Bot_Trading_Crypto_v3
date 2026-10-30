@@ -74,6 +74,16 @@ export function stopStage(trade: Pick<Trade, "slMoves">): 0 | 1 | 2 {
   return trade.slMoves?.at(-1)?.stage ?? 0;
 }
 
+/**
+ * How a closed trade counts: FLAT (hòa) when it was closed by a stop already moved to the entry,
+ * or ended within ±0.05R; otherwise WIN or LOSS by the sign of its R.
+ */
+export function tradeOutcome(trade: Pick<Trade, "pnlR" | "exitReason" | "slMoves">): "WIN" | "LOSS" | "FLAT" {
+  if (trade.exitReason === "SL" && stopStage(trade) === 1) return "FLAT";
+  const r = trade.pnlR ?? 0;
+  return r > 0.05 ? "WIN" : r < -0.05 ? "LOSS" : "FLAT";
+}
+
 export interface TradeStore {
   insert(trade: Trade): Promise<void>;
   update(trade: Trade): Promise<void>;
