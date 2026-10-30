@@ -66,7 +66,8 @@ Gọi L và S là số phương pháp đang có tín hiệu LONG và SHORT:
 **Chống spam (`advanceEpisode`):**
 
 - Một "đợt" bắt đầu khi lên READY hoặc ENTER, và kết thúc khi về NONE hoặc đổi chiều.
-- Mỗi đợt gửi READY tối đa 1 lần, ENTER tối đa 1 lần.
+- Mỗi đợt gửi READY tối đa 1 lần.
+- ENTER: bot vào lệnh tối đa 1 lần mỗi đợt. Lần thử không vào được (bị giới hạn chặn, SL ngoài giới hạn, sàn từ chối) **coi như chưa vào**: nến sau nếu vẫn đủ 3/3 thì bot thử lại, cho tới khi vào được hoặc hết đợt. Lý do từ chối giống lần trước thì chỉ ghi log, không báo lại.
 - Đi từ 2/3 lên 3/3 thì phát ENTER. Tụt từ 3/3 về 2/3 thì không báo lại.
 
 ## SL, TP và khối lượng

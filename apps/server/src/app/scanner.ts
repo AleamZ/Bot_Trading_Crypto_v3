@@ -2,6 +2,7 @@ import {
   advanceEpisode,
   checkEntryGuards,
   createAnalyzer,
+  markEntered,
   type Candle,
   type Episode,
   type MarketData,
@@ -60,6 +61,8 @@ interface EpisodeRecord {
   episode: Episode;
   /** closeTime of the last candle that continued the episode. */
   lastSeenAt: number;
+  /** Why the last entry attempt of this episode did not fill; a retry failing the same way is not reported again. */
+  lastRefusal?: string;
 }
 
 /** Candles to ask for: enough history for the slowest indicator, at least 499 (Binance weight 2). */
@@ -85,7 +88,8 @@ export function lastClosedCandleTime(now: number, tfMs: number): number {
 /**
  * Runs after every close of the entry timeframe: fetches closed candles, runs the three methods,
  * decides 2/3 (READY alert) or 3/3 (automatic entry) with one alert per episode, and hands 3/3 to
- * the executor once the entry guards pass. Analysis is recomputed from candles every time, so a
+ * the executor once the entry guards pass. An entry that does not fill counts as not entered: the
+ * next candle that is still 3/3 tries again. Analysis is recomputed from candles every time, so a
  * restart gives the same answer; only the episodes are stored, to avoid repeating alerts.
  */
 export class Scanner {
@@ -213,7 +217,8 @@ export class Scanner {
     const tf = timeframeMs(settings);
     const previous = record && analysis.time - record.lastSeenAt <= tf * 1.5 ? record.episode : null;
     const step = advanceEpisode(previous, analysis.consensus, analysis.time);
-    if (step.episode) episodes[symbol] = { episode: step.episode, lastSeenAt: analysis.time };
+    const lastRefusal = previous && step.episode === previous ? record?.lastRefusal : undefined;
+    if (step.episode) episodes[symbol] = { episode: step.episode, lastSeenAt: analysis.time, ...(lastRefusal ? { lastRefusal } : {}) };
     else delete episodes[symbol];
 
     const view = toAnalysisView(symbol, entryTf, analysis, step.episode, this.now());
@@ -222,20 +227,41 @@ export class Scanner {
     scan.emitted = step.emit;
     if (step.emit === "READY") this.deps.hub.emit({ type: "SIGNAL_READY", analysis: view });
     if (step.emit === "ENTER") {
-      this.deps.hub.emit({ type: "SIGNAL_ENTER", analysis: view });
-      scan.entry = await this.tryEnter(symbol, analysis, view, settings);
+      if (!step.retry) this.deps.hub.emit({ type: "SIGNAL_ENTER", analysis: view });
+      const quietReason = step.retry ? lastRefusal : undefined;
+      const result = await this.tryEnter(symbol, analysis, view, settings, quietReason);
+      scan.entry = result.entry;
+      const current = episodes[symbol];
+      if (current) {
+        if (result.entry === "FILLED") episodes[symbol] = { episode: markEntered(current.episode), lastSeenAt: current.lastSeenAt };
+        else episodes[symbol] = { ...current, lastRefusal: result.reason ?? result.entry };
+      }
+      if (step.retry) this.logger.info("Entry retried", { symbol, result: result.entry, reason: result.reason });
     }
   }
 
-  private async tryEnter(symbol: string, analysis: SymbolAnalysis, view: AnalysisView, settings: Settings): Promise<SymbolScan["entry"]> {
+  private async tryEnter(
+    symbol: string,
+    analysis: SymbolAnalysis,
+    view: AnalysisView,
+    settings: Settings,
+    quietReason: string | undefined,
+  ): Promise<{ entry: NonNullable<SymbolScan["entry"]>; reason?: string }> {
     const direction = analysis.consensus.direction!;
     const guard = checkEntryGuards(guardStateFor(symbol, this.deps.store, this.deps.control, settings, this.now()), settings.risk);
     if (!guard.ok) {
-      this.deps.hub.emit({ type: "ENTRY_SKIPPED", symbol, direction, reason: guard.reason, analysis: view });
-      return "SKIPPED";
+      if (guard.reason !== quietReason) this.deps.hub.emit({ type: "ENTRY_SKIPPED", symbol, direction, reason: guard.reason, analysis: view });
+      return { entry: "SKIPPED", reason: guard.reason };
     }
-    const outcome = await this.deps.enter({ symbol, direction, signals: analysis.consensus.agreeing, atr: analysis.atr, settings });
-    return outcome.ok ? "FILLED" : "FAILED";
+    const outcome = await this.deps.enter({
+      symbol,
+      direction,
+      signals: analysis.consensus.agreeing,
+      atr: analysis.atr,
+      settings,
+      ...(quietReason ? { quietReason } : {}),
+    });
+    return outcome.ok ? { entry: "FILLED" } : { entry: "FAILED", reason: outcome.reason };
   }
 
   /** Entry candles that include the candle that just closed (Binance can lag by a moment). */

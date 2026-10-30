@@ -71,6 +71,25 @@ describe("Scanner: 2/3 and 3/3", () => {
     expect(h.entries()).toBe(1);
   });
 
+  it("tries again on the next 3/3 candle after a refused entry, reports the same refusal once, and stops once filled", async () => {
+    const h = scannerHarness();
+    // Stops 2,000 away with ATR 400: 5 ATR, over the 3 ATR limit.
+    const far = (["trendPullback", "donchianBreakout", "smcSweep"] as const).map((m) => signal(m, "LONG", 66_000));
+    h.set(far);
+    expect((await h.scanner.scanNow()).symbols[0]).toMatchObject({ emitted: "ENTER", entry: "FAILED" });
+    h.nextCandle();
+    expect((await h.scanner.scanNow()).symbols[0]).toMatchObject({ emitted: "ENTER", entry: "FAILED" });
+    expect(h.types()).toEqual(["SIGNAL_ENTER", "ENTRY_FAILED"]);
+    // Still the same 3/3 episode, now with stops in range: it enters.
+    h.set(LONG3);
+    h.nextCandle();
+    expect((await h.scanner.scanNow()).symbols[0]).toMatchObject({ emitted: "ENTER", entry: "FILLED" });
+    expect(h.types()).toEqual(["SIGNAL_ENTER", "ENTRY_FAILED", "ENTRY_FILLED"]);
+    h.nextCandle();
+    expect((await h.scanner.scanNow()).symbols[0]!.emitted).toBeNull();
+    expect(h.entries()).toBe(3);
+  });
+
   it("goes from READY to ENTER when the third method agrees", async () => {
     const h = scannerHarness();
     h.set(LONG2);

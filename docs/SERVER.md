@@ -33,7 +33,7 @@ Mỗi database chỉ cho **một bot** chạy: file `bot.db.lock` cạnh databas
    - lấy 499 nến đã đóng của `entryTf` và `trendTf`; tham số chậm hơn (EMA200 dài hơn) thì lấy nhiều hơn, tối đa 1500;
    - nếu Binance chưa trả nến vừa đóng thì thử lại 5 lần, cách nhau 1.5 giây;
    - chạy 3 phương pháp và đồng thuận (xem [STRATEGIES.md](STRATEGIES.md)).
-3. Chống spam theo "đợt" (`advanceEpisode`): mỗi đợt chỉ báo SẴN SÀNG một lần và vào lệnh một lần.
+3. Chống spam theo "đợt" (`advanceEpisode`): mỗi đợt chỉ báo SẴN SÀNG một lần và vào lệnh một lần. Lần vào không thành thì nến 3/3 sau thử lại (lý do từ chối lặp lại không báo lại).
    - Đợt được lưu trong DB nên khởi động lại không báo lặp.
    - Bot nghỉ quá 1 nến thì coi là đợt mới.
 4. Gặp 3/3, bot kiểm tra các giới hạn trước khi gọi executor:

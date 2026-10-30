@@ -164,7 +164,7 @@ export function chartOverlays(market: MarketData, settings: Settings, analyzer: 
     const analysis = analyzer.at(i);
     const step = advanceEpisode(episode, analysis.consensus, analysis.time);
     episode = step.episode;
-    if (step.emit && i >= start && analysis.consensus.direction) {
+    if (step.emit && !step.retry && i >= start && analysis.consensus.direction) {
       episodes.push({ time: time(i), level: step.emit, direction: analysis.consensus.direction });
     }
   }

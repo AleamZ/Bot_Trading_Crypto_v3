@@ -23,6 +23,8 @@ export interface EntryRequest {
   /** ATR of the entry timeframe at the analysed candle. */
   atr: number;
   settings: Settings;
+  /** A retry: a failure for this same reason was already reported, so it is only logged. */
+  quietReason?: string;
 }
 
 export type EntryOutcome =
@@ -66,7 +68,7 @@ export class Executor {
     const { symbol, direction, settings } = request;
     const risk = settings.risk;
     const fail = (stage: EntryStage, reason: string, detail: string, trade: Trade | null = null): EntryOutcome => {
-      this.deps.events.emit({ type: "ENTRY_FAILED", symbol, direction, stage, reason, detail });
+      if (reason !== request.quietReason) this.deps.events.emit({ type: "ENTRY_FAILED", symbol, direction, stage, reason, detail });
       this.logger.warn("Entry failed", { symbol, direction, stage, reason, detail });
       return { ok: false, stage, reason, detail, trade };
     };

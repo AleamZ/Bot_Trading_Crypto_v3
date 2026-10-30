@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { advanceEpisode, decideConsensus, type ConsensusOptions, type Episode } from "../src/consensus/index.js";
+import { advanceEpisode, decideConsensus, markEntered, type ConsensusOptions, type Episode } from "../src/consensus/index.js";
 import { signal } from "./helpers.js";
 
 const defaults: ConsensusOptions = { alertThreshold: 2, autoEntryThreshold: 3, alertWhenOpposed: true };
@@ -66,16 +66,29 @@ describe("advanceEpisode", () => {
     expect(second.episode).toEqual(first.episode);
   });
 
-  it("emits ENTER when an episode goes from 2/3 to 3/3, and only once", () => {
+  it("emits ENTER when an episode goes from 2/3 to 3/3, and no more once the entry filled", () => {
     const first = advanceEpisode(null, ready, 1);
     const upgraded = advanceEpisode(first.episode, enter, 2);
     expect(upgraded.emit).toBe("ENTER");
-    expect(upgraded.episode).toEqual({ direction: "LONG", level: "ENTER", startedAt: 1 });
-    expect(advanceEpisode(upgraded.episode, enter, 3).emit).toBeNull();
+    expect(upgraded.episode).toEqual({ direction: "LONG", level: "ENTER", startedAt: 1, entered: false });
+    const entered = markEntered(upgraded.episode!);
+    expect(advanceEpisode(entered, enter, 3).emit).toBeNull();
     // Dropping back to 2/3 inside the same episode does not send READY again.
-    const dropped = advanceEpisode(upgraded.episode, ready, 4);
+    const dropped = advanceEpisode(entered, ready, 4);
     expect(dropped.emit).toBeNull();
     expect(advanceEpisode(dropped.episode, enter, 5).emit).toBeNull();
+  });
+
+  it("tries again on the next 3/3 candle while the entry has not filled", () => {
+    const upgraded = advanceEpisode(advanceEpisode(null, ready, 1).episode, enter, 2);
+    const again = advanceEpisode(upgraded.episode, enter, 3);
+    expect(again).toMatchObject({ emit: "ENTER", retry: true });
+    // A 2/3 candle in between waits; the next 3/3 tries again.
+    const dropped = advanceEpisode(again.episode, ready, 4);
+    expect(dropped.emit).toBeNull();
+    expect(advanceEpisode(dropped.episode, enter, 5)).toMatchObject({ emit: "ENTER", retry: true });
+    // Episodes stored before retries existed count as entered.
+    expect(advanceEpisode({ direction: "LONG", level: "ENTER", startedAt: 1 }, enter, 6).emit).toBeNull();
   });
 
   it("emits ENTER straight away when 3/3 happens at once", () => {

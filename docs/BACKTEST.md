@@ -21,7 +21,7 @@ Ngoài bảng theo symbol, kết quả còn chia theo:
 
 Code nằm ở `packages/core/src/backtest.ts`. Nó dùng **đúng code của bot live**:
 
-- bộ phân tích 3 phương pháp, đồng thuận và chống báo lặp theo đợt;
+- bộ phân tích 3 phương pháp, đồng thuận và chống báo lặp theo đợt (lần vào bị từ chối thì nến 3/3 sau thử lại; số lần bị từ chối chỉ đếm một lần mỗi đợt);
 - giới hạn vào lệnh: số vị thế mở, số lệnh và mức lỗ trong ngày giờ Việt Nam, thời gian nghỉ;
 - lập kế hoạch SL, khối lượng 1R, SL/TP sau khi khớp.
 

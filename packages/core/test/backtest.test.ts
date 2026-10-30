@@ -145,6 +145,15 @@ describe("runBacktest: live rules", () => {
     expect(r.skipped).toEqual({ DAILY_LOSS_LIMIT: 1 });
   });
 
+  it("tries again on the next 3/3 candle when an entry was refused, counting the refusal once", () => {
+    const far = METHOD_IDS.map((m) => signal(m, "LONG", 90));
+    const entry = series(30);
+    const r = runBacktest([sym("XUSDT", entry)], { settings: defaultSettings(), analyzerFor: scripted({ 10: far, 11: far, 12: THREE_LONG }) });
+    expect(r.trades.map((t) => t.entryTime)).toEqual([entry[12]!.closeTime]);
+    expect(r.enterSignals).toBe(1);
+    expect(r.skipped).toEqual({ STOP_TOO_FAR: 1 });
+  });
+
   it("records plan rejections such as a stop that is too far", () => {
     const far = METHOD_IDS.map((m) => signal(m, "LONG", 90));
     const r = runBacktest([sym("XUSDT", series(30))], { settings: defaultSettings(), analyzerFor: scripted({ 10: far }) });

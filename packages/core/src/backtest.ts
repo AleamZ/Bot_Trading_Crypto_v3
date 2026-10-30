@@ -1,5 +1,5 @@
 import { createAnalyzer, type SymbolAnalysis } from "./analyzer.js";
-import { advanceEpisode, type Episode } from "./consensus/index.js";
+import { advanceEpisode, markEntered, type Episode } from "./consensus/index.js";
 import { finalizeAfterFill } from "./risk/fill.js";
 import type { SymbolFilters } from "./risk/filters.js";
 import { checkEntryGuards, tradingDayKey } from "./risk/guards.js";
@@ -110,7 +110,7 @@ interface Book {
 
 /**
  * Replays the live rules over history, candle by candle and across symbols in time order:
- * the same analyzer, 2/3-3/3 episodes, entry guards (open positions, trades and loss per Vietnam
+ * the same analyzer, 2/3-3/3 episodes (with retries while an episode has not entered), entry guards (open positions, trades and loss per Vietnam
  * day, cooldown), stop plan, 1R sizing and EXACT_1R/TP from the fill. Entries fill at the close of
  * the 3/3 candle; exits at the SL or TP price (or the open when the candle gaps through it). When a
  * candle reaches both SL and TP the trade counts as a loss, since candles do not say which came first.
@@ -138,7 +138,7 @@ export function runBacktest(symbols: readonly BacktestSymbol[], options: Backtes
 
   const trades: BacktestTrade[] = [];
   const skipped: Record<string, number> = {};
-  const skip = (reason: string) => (skipped[reason] = (skipped[reason] ?? 0) + 1);
+  const skipOnce = (reason: string) => (skipped[reason] = (skipped[reason] ?? 0) + 1);
   const opened = new Map<string, number>();
   const realized = new Map<string, number>();
   let readyAlerts = 0;
@@ -179,7 +179,11 @@ export function runBacktest(symbols: readonly BacktestSymbol[], options: Backtes
       if (options.from !== undefined && time < options.from) continue;
       if (step.emit === "READY") readyAlerts++;
       if (step.emit !== "ENTER") continue;
-      enterSignals++;
+      if (!step.retry) enterSignals++;
+      // Refusals are counted once per episode; the live bot also retries silently.
+      const skip = (reason: string) => {
+        if (!step.retry) skipOnce(reason);
+      };
 
       const day = tradingDayKey(time);
       const guard = checkEntryGuards(
@@ -250,6 +254,7 @@ export function runBacktest(symbols: readonly BacktestSymbol[], options: Backtes
       };
       trades.push(trade);
       book.position = { trade, entryIndex: i, stop: trade.stopLoss, best: 0 };
+      book.episode = markEntered(book.episode!);
       opened.set(day, (opened.get(day) ?? 0) + 1);
     }
   }
