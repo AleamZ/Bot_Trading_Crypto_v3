@@ -22,6 +22,17 @@ describe("BotRuntime", () => {
     expect(h.runtime.telegram!.status()).toMatchObject({ chatIdSet: false, lastError: expect.stringContaining("mã của chính bot") });
   });
 
+  it("warns when 1R does not fit the available balance", async () => {
+    const h = runtimeHarness();
+    expect(h.runtime.status().riskCheck).toBeNull();
+    h.exchange.balance = 10;
+    await h.runtime.refreshBalance();
+    expect(h.runtime.status().riskCheck).toMatchObject({ balance: 10, level: "none", message: expect.stringContaining("không vào được lệnh nào") });
+    h.exchange.balance = 4316;
+    await h.runtime.refreshBalance();
+    expect(h.runtime.status().riskCheck).toMatchObject({ level: "ok", message: null });
+  });
+
   it("reports Binance going down once and coming back once", async () => {
     const h = runtimeHarness();
     const original = h.exchange.getPositions.bind(h.exchange);

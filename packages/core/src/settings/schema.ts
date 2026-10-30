@@ -88,7 +88,20 @@ const riskSchema = z
       .default("MARK_PRICE")
       .meta({ title: "Giá kích hoạt SL/TP", description: "MARK_PRICE ít bị râu nến quét hơn CONTRACT_PRICE" }),
     protectionRetries: int(0, 5).default(2).meta({ title: "Số lần thử lại khi đặt SL/TP lỗi" }),
-    leverage: int(1, 125).default(10).meta({ title: "Đòn bẩy", unit: "x" }),
+    leverageMode: z
+      .enum(["AUTO", "FIXED"])
+      .default("AUTO")
+      .meta({
+        title: "Cách chọn đòn bẩy",
+        description: "AUTO: mỗi lệnh dùng đòn bẩy nhỏ nhất đủ ký quỹ, không quá mức tối đa. FIXED: luôn dùng đúng mức đòn bẩy bên dưới",
+      }),
+    leverage: int(1, 125)
+      .default(10)
+      .meta({
+        title: "Đòn bẩy tối đa",
+        unit: "x",
+        description: "AUTO: mức trần. FIXED: mức dùng cho mọi lệnh. Đòn bẩy không đổi số tiền lỗ ở SL, chỉ đổi ký quỹ và giá thanh lý",
+      }),
     marginType: z.enum(["ISOLATED", "CROSSED"]).default("ISOLATED").meta({ title: "Loại ký quỹ" }),
     maxMarginUsagePct: num(1, 100)
       .default(50)

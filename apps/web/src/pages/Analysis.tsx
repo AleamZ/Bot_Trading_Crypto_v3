@@ -227,7 +227,9 @@ function Preview({ preview }: { preview: EntryPreview | null }) {
             <strong>
               {preview.margin.leverage}x · {preview.margin.margin.toFixed(2)}$
             </strong>
-            <span className="soft">thanh lý ~{price(preview.margin.liquidationPrice)}</span>
+            <span className="soft">
+              tối đa {preview.margin.maxLeverage}x · thanh lý ~{price(preview.margin.liquidationPrice)}
+            </span>
           </div>
         )}
       </div>

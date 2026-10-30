@@ -4,6 +4,7 @@ import {
   createAnalyzer,
   GUARD_MESSAGES,
   planTrade,
+  riskAffordability,
   settingsWarnings,
   type MarketData,
   type Settings,
@@ -86,6 +87,8 @@ export class BotRuntime {
   exchangeOk = true;
   exchangeError: string | null = null;
   lastReconcileAt: number | null = null;
+  /** Available USDT, refreshed every minute when there are API keys. */
+  balance: { value: number; at: number } | null = null;
 
   private readonly logger: Logger;
   private readonly now: () => number;
@@ -184,6 +187,8 @@ export class BotRuntime {
       // Protect whatever the last run left before looking for new trades.
       await this.reconcile();
       this.timers.push(setInterval(() => void this.reconcile(), this.options.watchdogIntervalMs ?? 15_000));
+      await this.refreshBalance();
+      this.timers.push(setInterval(() => void this.refreshBalance(), 60_000));
       this.userStream?.start();
     }
     const retention = this.options.eventRetentionMs ?? 60 * 86_400_000;
@@ -225,6 +230,21 @@ export class BotRuntime {
         this.hub.emit({ type: "EXCHANGE_STATUS", ok: false, detail });
       }
     }
+  }
+
+  async refreshBalance(): Promise<void> {
+    if (!this.env.hasBinanceKeys) return;
+    try {
+      this.balance = { value: await this.options.exchange.getAvailableBalance(), at: this.now() };
+    } catch (error) {
+      this.logger.warn("Balance refresh failed", { error: errorText(error) });
+    }
+  }
+
+  /** Whether 1R fits the available balance over the allowed stop range (null until the balance is known). */
+  riskCheck() {
+    if (!this.balance) return null;
+    return { balance: this.balance.value, at: this.balance.at, ...riskAffordability(this.settings.get().risk, this.balance.value) };
   }
 
   /** User-stream events arrive in bursts (order update + account update): reconcile once. */
@@ -273,6 +293,7 @@ export class BotRuntime {
       scanning: this.scanner.scanning,
       lastScan: this.scanner.lastReport,
       warnings: settingsWarnings(this.settings.get()),
+      riskCheck: this.riskCheck(),
       limits: this.limits(),
     };
   }
@@ -285,6 +306,9 @@ export class BotRuntime {
       trendTf: general.trendTf,
       riskUsd: risk.riskUsd,
       rr: risk.rr,
+      leverageMode: risk.leverageMode,
+      leverage: risk.leverage,
+      maxMarginUsagePct: risk.maxMarginUsagePct,
       maxOpenPositions: risk.maxOpenPositions,
       maxTradesPerDay: risk.maxTradesPerDay,
       maxDailyLossR: risk.maxDailyLossR,
@@ -429,6 +453,7 @@ export class BotRuntime {
           entryPrice,
           stopLoss: Number(sizing.stopLoss),
           notional: Number(sizing.notional),
+          riskAtStop: Number(sizing.riskAtStop),
           availableBalance: balance,
           brackets,
           risk,

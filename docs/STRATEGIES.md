@@ -92,9 +92,16 @@ Gọi L và S là số phương pháp đang có tín hiệu LONG và SHORT:
      - Nếu cách này nới SL quá `maxSlWidenPct` (25%) so với SL cấu trúc thì giữ SL cấu trúc và báo R thực tế.
    - `KEEP_STRUCTURE` giữ SL cấu trúc, lỗ ≤ 1R.
    - Giá khớp đã vượt qua SL thì trả lỗi `FILL_BEYOND_STOP`; phía server phải đóng vị thế ngay.
-6. **Ký quỹ:**
-   - margin = notional / đòn bẩy, phải ≤ `maxMarginUsagePct` × số dư khả dụng.
+6. **Đòn bẩy và ký quỹ** (`chooseLeverage`):
+   - Khối lượng đã cố định theo 1R, nên đòn bẩy **không đổi số tiền lỗ ở SL**. Nó chỉ quyết định ký quỹ bị giữ và giá thanh lý gần hay xa.
+   - Hai chế độ (`leverageMode`):
+     - `AUTO` (mặc định): dùng đòn bẩy **nhỏ nhất** sao cho ký quỹ = notional / đòn bẩy ≤ `maxMarginUsagePct` × số dư khả dụng. Không vượt `leverage` (đòn bẩy tối đa), cũng không vượt mức Binance cho phép ở bậc ứng với notional đó.
+     - `FIXED`: luôn dùng `leverage`, cũng giới hạn theo bậc của sàn.
    - Giá thanh lý isolated ước tính phải cách giá vào ≥ `liqBufferMultiple` (1.5) × khoảng SL.
+   - Không thoả thì bỏ lệnh và báo **1R tối đa mà số dư cho phép** với SL đó, cùng số dư cần có cho 1R hiện tại.
+   - Số dư giới hạn 1R: với ký quỹ isolated, lỗ khi bị thanh lý xấp xỉ bằng ký quỹ, nên 1R tối đa ≈ ký quỹ được dùng × khoảng SL / (1.5 × khoảng SL + tỉ lệ ký quỹ duy trì), tức luôn nhỏ hơn ký quỹ được dùng / 1.5.
+   - Ví dụ: số dư 10$, dùng tối đa 50% làm ký quỹ, SL 1.25%: 1R tối đa ≈ 2.97$.
+   - Bot lấy số dư mỗi phút và cảnh báo trên bảng điều khiển và trang Cài đặt khi 1R vượt mức này, với một phần hay toàn bộ khoảng SL từ `minSlPct` tới `maxSlPct` (`riskAffordability`).
 7. **Giới hạn:**
    - tự vào lệnh phải được bật cả trong cài đặt lẫn `TRADING_ENABLED`; bot không bị tạm dừng;
    - symbol không có vị thế hoặc lệnh chờ, không trong thời gian nghỉ;

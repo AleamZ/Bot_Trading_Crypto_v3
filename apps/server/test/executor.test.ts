@@ -12,9 +12,10 @@ describe("Executor: happy path", () => {
     expect(outcome.ok).toBe(true);
     if (!outcome.ok) return;
     const t = outcome.trade;
-    expect(t).toMatchObject({ status: "OPEN", symbol: "BTCUSDT", direction: "LONG", quantity: "0.0057", entryPrice: "68000", leverage: 10, stopMode: "EXACT_1R" });
+    expect(t).toMatchObject({ status: "OPEN", symbol: "BTCUSDT", direction: "LONG", quantity: "0.0057", entryPrice: "68000", leverage: 1, stopMode: "EXACT_1R" });
     expect(h.api.positionAmt()).toBe(0.0057);
-    expect(h.api.settingsBySymbol.get("BTCUSDT")).toEqual({ marginType: "ISOLATED", leverage: 10 });
+    // AUTO leverage: 388$ of position fits in half of a 10,000$ balance at 1x.
+    expect(h.api.settingsBySymbol.get("BTCUSDT")).toEqual({ marginType: "ISOLATED", leverage: 1 });
 
     const [sl, tp] = h.api.openAlgos();
     expect(sl).toMatchObject({ orderType: "STOP_MARKET", side: "SELL", quantity: "0.0057", triggerPrice: t.stopLoss, reduceOnly: true, workingType: "MARK_PRICE", clientAlgoId: "v3s-t1-1" });
@@ -56,12 +57,34 @@ describe("Executor: happy path", () => {
     expect(lossAtStop(outcome.trade.quantity, "68060", outcome.trade.stopLoss!).lte(5)).toBe(true);
   });
 
-  it("caps leverage at the symbol's maximum", async () => {
-    const h = harness();
-    h.api.brackets = [{ bracket: 1, initialLeverage: 5, notionalFloor: 0, notionalCap: 1e15, maintMarginRatio: 0.004 }];
+  it("FIXED uses the leverage setting, capped at the symbol's maximum for the position size", async () => {
+    const h = harness({ risk: { leverageMode: "FIXED" } });
+    h.api.brackets = [
+      { bracket: 1, initialLeverage: 5, notionalFloor: 0, notionalCap: 300, maintMarginRatio: 0.004 },
+      { bracket: 2, initialLeverage: 3, notionalFloor: 300, notionalCap: 1e15, maintMarginRatio: 0.01 },
+    ];
     const outcome = await h.executor.enter(h.request("LONG"));
-    expect(outcome.ok && outcome.trade.leverage).toBe(5);
-    expect(h.api.settingsBySymbol.get("BTCUSDT")?.leverage).toBe(5);
+    // 388$ of position falls in bracket 2.
+    expect(outcome.ok && outcome.trade.leverage).toBe(3);
+    expect(h.api.settingsBySymbol.get("BTCUSDT")?.leverage).toBe(3);
+  });
+
+  it("AUTO raises the leverage just enough for a small balance", async () => {
+    const h = harness({ risk: { leverage: 50 } });
+    h.api.balance = 30;
+    const outcome = await h.executor.enter(h.request("LONG"));
+    // 388$ of position, 15$ of margin allowed (50% of 30$): 26x.
+    expect(outcome.ok && outcome.trade.leverage).toBe(26);
+    expect(h.api.settingsBySymbol.get("BTCUSDT")?.leverage).toBe(26);
+  });
+
+  it("refuses with the largest 1R the balance can carry when no leverage fits", async () => {
+    const h = harness({ risk: { leverage: 125 } });
+    h.api.balance = 10;
+    const outcome = await h.executor.enter(h.request("LONG"));
+    expect(outcome).toMatchObject({ ok: false, stage: "PLAN", reason: "LIQUIDATION_TOO_CLOSE" });
+    expect(outcome.ok ? "" : outcome.detail).toMatch(/chỉ đủ cho 1R ≤ [\d.]+\$; muốn 1R = 5\$ cần số dư ≥ [\d.]+\$/);
+    expect(h.api.calls).not.toContain("placeMarketOrder");
   });
 });
 

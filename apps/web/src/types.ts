@@ -137,17 +137,33 @@ export interface Status {
   scanning: boolean;
   lastScan: ScanReport | null;
   warnings: string[];
+  riskCheck: RiskCheck | null;
   limits: {
     entryTf: string;
     trendTf: string;
     riskUsd: number;
     rr: number;
+    leverageMode: "AUTO" | "FIXED";
+    leverage: number;
+    maxMarginUsagePct: number;
     maxOpenPositions: number;
     maxTradesPerDay: number;
     maxDailyLossR: number;
     alertThreshold: number;
     autoEntryThreshold: number;
   };
+}
+
+/** Whether 1R fits the available balance over the allowed stop range. */
+export interface RiskCheck {
+  balance: number;
+  at: number;
+  level: "ok" | "partial" | "none";
+  maxRiskAtMinSl: number;
+  maxRiskAtMaxSl: number;
+  fitsFrom: number | null;
+  fitsTo: number | null;
+  message: string | null;
 }
 
 export interface Position {

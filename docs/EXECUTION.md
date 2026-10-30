@@ -14,7 +14,7 @@ Mỗi symbol có một khoá (`KeyedLock`), nên executor và watchdog không ba
    - symbol **không có vị thế, lệnh chờ hay lệnh algo nào**, kể cả lệnh không phải của bot.
 2. **Lập kế hoạch theo giá mark hiện tại:**
    - SL gộp, khoảng SL, khối lượng 1R và TP (xem `STRATEGIES.md`);
-   - đòn bẩy = min(cài đặt, mức tối đa của symbol);
+   - đòn bẩy: `AUTO` chọn mức nhỏ nhất đủ ký quỹ, `FIXED` dùng đúng cài đặt; cả hai không vượt mức sàn cho phép ở bậc ứng với giá trị lệnh (xem `STRATEGIES.md` mục 6);
    - kiểm tra ký quỹ và giá thanh lý.
 3. **Ghi lệnh `OPENING` vào DB trước khi gửi bất cứ gì.** Nếu bot chết giữa chừng, watchdog sẽ nhận lại lệnh này.
 4. **Đặt lệnh trên sàn:**

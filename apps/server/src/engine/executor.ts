@@ -109,6 +109,7 @@ export class Executor {
       entryPrice: mark,
       stopLoss: Number(sizing.stopLoss),
       notional: Number(sizing.notional),
+      riskAtStop: Number(sizing.riskAtStop),
       availableBalance: balance,
       brackets,
       risk,

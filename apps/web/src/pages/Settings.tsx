@@ -88,6 +88,11 @@ export function SettingsPage({ live }: { live: Live }) {
       <Notice tone="sky" title="Các cờ an toàn chỉ đổi được trong .env">
         <code>TRADING_ENABLED</code>, khoá API Binance, token Telegram và môi trường DEMO không có ở đây, nên trang này không bật được giao dịch thật.
       </Notice>
+      {live.status?.riskCheck?.message && (
+        <Notice tone={live.status.riskCheck.level === "none" ? "heart" : "coin"} title="1R so với số dư (cập nhật sau khi lưu)">
+          {live.status.riskCheck.message}
+        </Notice>
+      )}
       {data.warnings.length > 0 && (
         <Notice tone="coin" title="Cảnh báo">
           <ul>

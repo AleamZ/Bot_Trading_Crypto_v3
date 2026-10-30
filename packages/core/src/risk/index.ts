@@ -9,7 +9,7 @@ export {
   type GuardReason,
   type GuardState,
 } from "./guards.js";
-export { checkMargin, type MarginInput, type MarginResult } from "./margin.js";
+export { checkMargin, chooseLeverage, maxRiskForBalance, riskAffordability, type AffordInput, type Affordability, type LeverageInput, type LeverageMode, type LeverageResult, type MarginInput, type MarginResult } from "./margin.js";
 export { feeRateOf, planTrade, type PlanInput, type PlanRejectReason, type TradePlan } from "./plan.js";
 export { lossPerUnit, sizePosition, type SizingInput, type SizingRejectReason, type SizingResult } from "./sizing.js";
 export { combineStops, type StopPolicy } from "./stops.js";

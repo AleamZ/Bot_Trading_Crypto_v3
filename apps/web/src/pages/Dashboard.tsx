@@ -55,6 +55,16 @@ function Alerts({ status, go }: { status: Status; go: (route: Route) => void }) 
           {status.exchange.error}. Watchdog vẫn thử lại mỗi 15 giây.
         </Notice>
       )}
+      {status.riskCheck?.message && (
+        <Notice tone={status.riskCheck.level === "none" ? "heart" : "coin"} title={status.riskCheck.level === "none" ? "1R lớn hơn mức số dư cho phép" : "1R chỉ hợp với một phần lệnh"}>
+          {status.riskCheck.message}
+          <div style={{ marginTop: 8 }}>
+            <Button tone="plain" small onClick={() => go("settings")}>
+              Mở cài đặt
+            </Button>
+          </div>
+        </Notice>
+      )}
       {status.autoTradeBlockers.length > 0 && (
         <Notice tone="coin" title="Tự vào lệnh đang tắt: 3/3 chỉ được báo, không đặt lệnh">
           <ul>
