@@ -10,7 +10,8 @@
     "dev": "tsx src/main.ts",
     "start": "node --disable-warning=ExperimentalWarning dist/src/main.js",
     "hash-password": "tsx scripts/hash-password.ts",
-    "smoke:demo": "tsx scripts/smoke-demo.ts"
+    "smoke:demo": "tsx scripts/smoke-demo.ts",
+    "backtest": "tsx scripts/backtest.ts"
   },
   "dependencies": {
     "@bot-v3/core": "0.1.0",

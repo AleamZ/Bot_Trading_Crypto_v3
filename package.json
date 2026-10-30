@@ -15,7 +15,8 @@
     "dev": "npm run dev -w @bot-v3/server",
     "start": "npm run start -w @bot-v3/server",
     "hash-password": "npm run hash-password -w @bot-v3/server",
-    "dev:web": "npm run dev -w @bot-v3/web"
+    "dev:web": "npm run dev -w @bot-v3/web",
+    "backtest": "npm run backtest -w @bot-v3/server --"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",

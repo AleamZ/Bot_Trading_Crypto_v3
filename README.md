@@ -17,7 +17,7 @@ Luật giao dịch chi tiết: [docs/STRATEGIES.md](docs/STRATEGIES.md). Thiết
 | 3b | `apps/server`: Binance client, executor (MARKET + SL/TP, đóng khẩn), watchdog, user stream, smoke test DEMO ([EXECUTION.md](docs/EXECUTION.md)) | xong |
 | 3c | SQLite, quét nến 2/3 · 3/3, Telegram, API + đăng nhập + SSE ([SERVER.md](docs/SERVER.md)) | xong |
 | 3d | Giao diện web pixel (Vite + React): bảng điều khiển, lệnh, nhật ký, cài đặt sinh từ schema, Telegram ([UI_DESIGN.md](docs/UI_DESIGN.md)) | xong |
-| 3e | Backtest, smoke test DEMO, hướng dẫn deploy | chưa |
+| 3e | Backtest ([BACKTEST.md](docs/BACKTEST.md)), pm2 + `deploy.sh`, hướng dẫn VPS ([DEPLOY.md](docs/DEPLOY.md)) | xong; lệnh thử thật trên DEMO chờ bạn đồng ý |
 
 ## Cấu trúc
 
@@ -37,6 +37,7 @@ npm run typecheck
 npm run build
 npm run smoke:demo -w @bot-v3/server   # kiểm tra kết nối DEMO, chỉ đọc
 npm run hash-password  # tạo ADMIN_PASSWORD_HASH và SESSION_SECRET cho .env
+npm run backtest       # chạy lại luật của bot trên nến quá khứ (docs/BACKTEST.md)
 npm run dev            # chạy bot từ mã nguồn (API ở http://127.0.0.1:8787)
 npm run dev:web        # sửa giao diện: Vite ở http://localhost:5173, chuyển /api sang bot đang chạy
 npm start              # chạy bản đã build (npm run build trước): API và giao diện ở http://127.0.0.1:8787

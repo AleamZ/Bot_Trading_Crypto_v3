@@ -65,6 +65,25 @@ export class BinanceFutures implements FuturesApi, MarketApi {
       .slice(-limit);
   }
 
+  /** Closed candles between two times, oldest first, fetched 1500 at a time (backtests). */
+  async getCandlesBetween(symbol: string, interval: string, startTime: number, endTime: number): Promise<Candle[]> {
+    const out: Candle[] = [];
+    let cursor = startTime;
+    const now = this.rest.serverNow();
+    while (cursor < endTime) {
+      const rows = await this.rest.get<unknown[][]>("/fapi/v1/klines", { symbol, interval, startTime: cursor, endTime, limit: 1500 });
+      if (rows.length === 0) break;
+      for (const r of rows) {
+        const candle = { openTime: Number(r[0]), open: Number(r[1]), high: Number(r[2]), low: Number(r[3]), close: Number(r[4]), volume: Number(r[5]), closeTime: Number(r[6]) };
+        if (candle.closeTime < now && candle.closeTime <= endTime && (out.length === 0 || candle.openTime > out.at(-1)!.openTime)) out.push(candle);
+      }
+      const last = Number(rows.at(-1)![0]);
+      if (rows.length < 1500 || last + 1 <= cursor) break;
+      cursor = last + 1;
+    }
+    return out;
+  }
+
   async getMarkPrice(symbol: string): Promise<number> {
     const r = await this.rest.get<{ markPrice: string }>("/fapi/v1/premiumIndex", { symbol });
     return Number(r.markPrice);
