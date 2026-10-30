@@ -1,4 +1,5 @@
-import { closeSync, openSync, readFileSync, unlinkSync, writeSync } from "node:fs";
+import { closeSync, mkdirSync, openSync, readFileSync, unlinkSync, writeSync } from "node:fs";
+import path from "node:path";
 
 const alive = (pid: number) => {
   try {
@@ -15,6 +16,8 @@ const alive = (pid: number) => {
  * Returns the release function.
  */
 export function acquireLock(file: string): () => void {
+  // A fresh install has no data/ folder yet; the database would create it a moment later.
+  mkdirSync(path.dirname(path.resolve(file)), { recursive: true });
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const fd = openSync(file, "wx");
