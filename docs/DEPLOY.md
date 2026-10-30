@@ -6,7 +6,7 @@ Bot v3 thay hẳn v2 trên VPS. **Những gì giữ nguyên:**
 |---|---|
 | Tên miền https://bot-trade.aleam.io.vn, Cloudflare Tunnel, cấu hình nginx | không đụng tới |
 | Cổng API `127.0.0.1:8787` (nginx chuyển `/api` vào đây) | v3 chạy đúng cổng này |
-| Thư mục giao diện `/var/www/bot-trade` (nginx phục vụ `/`) | chép giao diện v3 vào, sao lưu bản v2 trước |
+| Thư mục giao diện `/var/www/bot-trade` (nginx phục vụ `/`) | chép giao diện v3 vào thay giao diện v2 (dựng lại được từ git bất cứ lúc nào) |
 | Khoá Binance DEMO trong `.env` của v2 | chép sang `.env` của v3 ngay trên VPS (khoá không rời máy) |
 | pm2 tự chạy lại khi khởi động VPS | `pm2 save` sau khi đổi app |
 
@@ -19,26 +19,9 @@ Bot v3 thay hẳn v2 trên VPS. **Những gì giữ nguyên:**
 | database Postgres | SQLite trong `data/bot.db` của v3 (Postgres để nguyên, không dùng nữa) |
 | đăng nhập web theo tài khoản v2 | một tài khoản admin trong `.env` của v3 |
 
-Mọi lệnh dưới đây bạn tự chạy sau khi SSH vào VPS (`ssh <user>@<máy-vps> -p <cổng>`, như khi deploy v2). Làm lần lượt; tới trước bước 9 vẫn quay lại v2 được.
+Mọi lệnh dưới đây bạn tự chạy sau khi SSH vào VPS (`ssh <user>@<máy-vps> -p <cổng>`, như khi deploy v2). Làm lần lượt từng bước.
 
-## 1. Sao lưu v2
-
-```bash
-B=/root/backup-v2-$(date +%Y%m%d-%H%M%S) && mkdir -p "$B" && echo "$B" > /root/backup-v2-latest
-cp -a ~/Bot_trade/Bot_Trading_Crypto_v2/.env "$B/env-v2"
-cp -a /var/www/bot-trade "$B/web"
-tar --exclude='*/node_modules' -czf "$B/src-v2.tgz" -C ~/Bot_trade Bot_Trading_Crypto_v2
-pm2 save && cp ~/.pm2/dump.pm2 "$B/pm2-dump.pm2"
-ls -la "$B"
-```
-
-Nếu muốn giữ lịch sử lệnh của v2 trong Postgres (không bắt buộc):
-
-```bash
-command -v pg_dump && pg_dump "$(grep -E '^DATABASE_URL=' ~/Bot_trade/Bot_Trading_Crypto_v2/.env | cut -d= -f2-)" | gzip > "$(cat /root/backup-v2-latest)/db-v2.sql.gz"
-```
-
-## 2. Node 22
+## 1. Node 22
 
 ```bash
 node -v
@@ -56,7 +39,7 @@ node -v
 
 `deploy.sh` tự dùng Node 22 của nvm và báo cho pm2 chạy bot bằng Node đó.
 
-## 3. Lấy code v3
+## 2. Lấy code v3
 
 ```bash
 cd ~/Bot_trade
@@ -66,7 +49,7 @@ source ~/.nvm/nvm.sh 2>/dev/null; nvm use 22 >/dev/null 2>&1; node -v
 npm ci
 ```
 
-## 4. Tạo `.env` cho v3, mang cấu hình cũ sang
+## 3. Tạo `.env` cho v3, mang cấu hình cũ sang
 
 Chép mẫu, lấy khoá Binance từ `.env` của v2, rồi đặt tên miền và nơi chép giao diện:
 
@@ -101,7 +84,7 @@ Trong `nano`:
 
 `TRADING_ENABLED=false` ở lần chạy đầu: bot chỉ báo tín hiệu cho tới khi bạn kiểm tra xong.
 
-## 5. Xem tài khoản trước khi tắt v2
+## 4. Xem tài khoản trước khi tắt v2
 
 ```bash
 npm run smoke:demo -w @bot-v3/server
@@ -110,10 +93,10 @@ npm run smoke:demo -w @bot-v3/server
 Chỉ đọc. Xem dòng `open positions` và `open algo orders`. Vị thế v2 đang mở sẽ **không còn ai quản lý** sau khi tắt v2:
 
 - v3 chỉ báo "vị thế không phải của bot" và không đụng vào;
-- đóng chúng trên https://demo.binance.com, hoặc đặt SL/TP tay, trước hoặc ngay sau bước 6;
+- đóng chúng trên https://demo.binance.com, hoặc đặt SL/TP tay, trước hoặc ngay sau bước 5;
 - vị thế AVAXUSDT −294 thấy ngày 2026-10-30 không có SL/TP nào trên sàn.
 
-## 6. Chuyển sang v3
+## 5. Chuyển sang v3
 
 ```bash
 cd ~/Bot_trade/Bot_Trading_Crypto_v3
@@ -126,25 +109,24 @@ curl -s https://bot-trade.aleam.io.vn/api/health
 
 1. `git pull`, `npm ci`, typecheck, test, build;
 2. khởi động `bot-v3` trên cổng 8787 và chờ `/health/ready`;
-3. sao lưu `/var/www/bot-trade` thêm một lần;
-4. chép giao diện v3 vào đó.
+3. thay giao diện trong `/var/www/bot-trade` bằng giao diện v3.
 
-Mở https://bot-trade.aleam.io.vn và đăng nhập bằng mật khẩu ở bước 4.
+Mở https://bot-trade.aleam.io.vn và đăng nhập bằng mật khẩu ở bước 3.
 
 - Tệp giao diện có hash trong tên, nên không cần `?v=` như v2; `index.html` không bị cache.
 - nginx giữ nguyên: `/api` vẫn sang cổng 8787, kể cả luồng SSE `/api/events/stream`. Bot gửi `x-accel-buffering: no` và cứ 15 giây gửi một nhịp, nên nginx không gom dữ liệu và không cắt kết nối.
 - Nếu trang không lên, xem cấu hình nginx: `nginx -T 2>/dev/null | grep -n "location /api" -A8`. Phải thấy `proxy_pass http://127.0.0.1:8787;`.
 
-## 7. Telegram
+## 6. Telegram
 
 1. Mở bot Telegram dành cho VPS, bấm **Start**. Bot trả lời chat id.
 2. Điền `TELEGRAM_CHAT_ID=` trong `.env` (`nano .env`).
 3. Chạy `pm2 restart bot-v3`.
 4. Telegram nhận "🤖 Bot v3 đã khởi động". Gửi `/status` để thử.
 
-## 8. Bật tự vào lệnh trên DEMO
+## 7. Bật tự vào lệnh trên DEMO
 
-Tài khoản phải ở **One-way mode**. Bước 5 đã in ra chế độ này.
+Tài khoản phải ở **One-way mode**. Bước 4 đã in ra chế độ này.
 
 ```bash
 sed -i 's|^TRADING_ENABLED=.*|TRADING_ENABLED=true|' .env
@@ -159,23 +141,14 @@ Telegram báo "Tự vào lệnh: BẬT". Từ đây, mỗi lần 3/3:
 
 Không đặt được SL/TP thì bot đóng vị thế ngay (xem [EXECUTION.md](EXECUTION.md)).
 
-## 9. Dọn v2
+## 8. Dọn v2
 
-Chỉ làm khi v3 đã chạy ổn (ví dụ sau một hai ngày). Bản sao lưu ở bước 1 vẫn giữ:
+Khi v3 đã chạy ổn, xoá hẳn v2:
 
 ```bash
 pm2 delete smc-futures-api
 pm2 save
 rm -rf ~/Bot_trade/Bot_Trading_Crypto_v2
-```
-
-## Quay lại v2 (trước bước 9)
-
-```bash
-B=$(cat /root/backup-v2-latest)
-pm2 stop bot-v3
-pm2 start smc-futures-api
-rm -rf /var/www/bot-trade/* && cp -r "$B/web/." /var/www/bot-trade/
 ```
 
 ## Hằng ngày
@@ -188,13 +161,6 @@ rm -rf /var/www/bot-trade/* && cp -r "$B/web/." /var/www/bot-trade/
 | Tạm dừng vào lệnh mới | `/pause` trên Telegram, hoặc nút Tạm dừng trên web |
 | Thử một lệnh thật nhỏ (mở rồi tự đóng) | `npm run smoke:demo -w @bot-v3/server -- --trade --symbol LINKUSDT --risk 1 --yes-demo` |
 | Backtest với cài đặt đang dùng | `npm run backtest -- --db --days 90` |
-| Sao lưu database khi bot đang chạy | xem lệnh dưới bảng |
-
-Sao lưu database khi bot đang chạy:
-
-```bash
-node --disable-warning=ExperimentalWarning -e "new (require('node:sqlite').DatabaseSync)('data/bot.db').exec(\"VACUUM INTO 'data/backup-$(date +%F).db'\")"
-```
 
 **Lưu ý:**
 

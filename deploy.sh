@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Updates and restarts bot v3 on the VPS (docs/DEPLOY.md):
 #   bash deploy.sh    pull, install, check, build, restart, wait for /health/ready, then publish the web
-#                     UI to DEPLOY_WEB_ROOT from .env (or WEB_ROOT=...) after a backup
+#                     UI to DEPLOY_WEB_ROOT from .env (or WEB_ROOT=...); it can be rebuilt from git, so no backup
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -69,9 +69,7 @@ if [ -n "${WEB_ROOT:-}" ]; then
     echo "Không có thư mục $WEB_ROOT, không chép giao diện" >&2
     exit 1
   fi
-  backup="/root/bot-trade-web-backup-$(date +%Y%m%d-%H%M%S)"
-  echo "==> sao lưu $WEB_ROOT vào $backup, rồi chép giao diện mới"
-  cp -a "$WEB_ROOT" "$backup"
+  echo "==> chép giao diện mới vào $WEB_ROOT"
   rm -rf "${WEB_ROOT:?}"/*
   cp -r apps/web/dist/. "$WEB_ROOT/"
 fi
