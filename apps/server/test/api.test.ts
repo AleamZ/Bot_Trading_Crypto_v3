@@ -273,7 +273,7 @@ describe("API chart", () => {
     expect(body).toMatchObject({ symbol: "BTCUSDT", timeframe: "15m", trendTimeframe: "1h", inWatchlist: true, preview: null, guard: { ok: true } });
     expect(body.candles.length).toBeGreaterThan(0);
     expect(body.overlays.lines.map((l: { id: string }) => l.id)).toContain("donchianUpper");
-    expect(Object.keys(body.explanation)).toEqual(["trendPullback", "donchianBreakout", "smcSweep"]);
+    expect(Object.keys(body.explanation)).toEqual(["trendPullback", "donchianBreakout", "smcSweep", "boxTheory"]);
     expect(body.explanation.trendPullback.sides.map((s: { direction: string }) => s.direction)).toEqual(["LONG", "SHORT"]);
     expect(body.analysis.consensus.level).toBe("NONE");
   });

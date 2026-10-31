@@ -1,9 +1,9 @@
 # Bot_Trading_Crypto_v3
 
-Bot giao dịch Binance USDT-M Futures. Bot phân tích 3 phương pháp trên mỗi symbol:
+Bot giao dịch Binance USDT-M Futures. Bot phân tích 4 phương pháp trên mỗi symbol: A. xu hướng + hồi EMA, B. phá kênh Donchian, C. SMC quét thanh khoản, D. hộp (đáy/đỉnh khoảng giá hôm trước, mặc định tắt).
 
-- **2/3 cùng chiều:** gửi Telegram "SẴN SÀNG", không vào lệnh.
-- **3/3 cùng chiều:** tự vào lệnh MARKET, kèm đủ SL và TP.
+- **Đủ ngưỡng báo** (mặc định 2 phương pháp cùng chiều): gửi Telegram "SẴN SÀNG", không vào lệnh.
+- **Đủ ngưỡng vào lệnh** (mặc định 3), hoặc khớp một **tổ hợp được chọn** như `B+C` hay `D`: tự vào lệnh MARKET, kèm đủ SL và TP.
 
 Khối lượng được tính theo R: chạm SL thì mất đúng 1R.
 

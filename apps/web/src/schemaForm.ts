@@ -5,7 +5,7 @@ import type { JsonObject, JsonSchema } from "./types";
  * packages/core/src/settings/schema.ts shows up in the UI with its title, unit and limits.
  */
 
-export type FieldKind = "number" | "integer" | "boolean" | "enum" | "symbols" | "text";
+export type FieldKind = "number" | "integer" | "boolean" | "enum" | "multi" | "symbols" | "text";
 
 export interface FieldDef {
   path: string[];
@@ -37,6 +37,7 @@ const GROUP_TITLES: Record<string, string> = {
   trendPullback: "A. Xu hướng + hồi EMA",
   donchianBreakout: "B. Phá kênh Donchian",
   smcSweep: "C. SMC quét thanh khoản",
+  boxTheory: "D. Hộp (Box Theory)",
 };
 
 function fieldOf(path: string[], schema: JsonSchema): FieldDef {
@@ -45,6 +46,7 @@ function fieldOf(path: string[], schema: JsonSchema): FieldDef {
   else if (schema.type === "integer") kind = "integer";
   else if (schema.type === "number") kind = "number";
   else if (schema.enum) kind = "enum";
+  else if (schema.type === "array" && schema.items?.enum) kind = "multi";
   else if (schema.type === "array") kind = "symbols";
   return {
     path,
@@ -55,7 +57,7 @@ function fieldOf(path: string[], schema: JsonSchema): FieldDef {
     kind,
     min: schema.minimum ?? null,
     max: schema.maximum ?? null,
-    options: schema.enum ?? [],
+    options: schema.enum ?? schema.items?.enum ?? [],
     defaultValue: schema.default,
   };
 }

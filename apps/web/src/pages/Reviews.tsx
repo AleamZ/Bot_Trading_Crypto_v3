@@ -17,6 +17,7 @@ const AREA_LABEL: Record<string, string> = {
   trendPullback: "A. Xu hướng + hồi EMA",
   donchianBreakout: "B. Phá kênh Donchian",
   smcSweep: "C. SMC quét thanh khoản",
+  boxTheory: "D. Hộp (Box Theory)",
   risk: "Quản lý vốn",
   consensus: "Đồng thuận",
   general: "Chung",

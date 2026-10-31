@@ -21,13 +21,14 @@ export interface Layers {
   ema: boolean;
   donchian: boolean;
   smc: boolean;
+  box: boolean;
   signals: boolean;
   episodes: boolean;
   trades: boolean;
   volume: boolean;
 }
 
-export const DEFAULT_LAYERS: Layers = { ema: true, donchian: true, smc: true, signals: true, episodes: true, trades: true, volume: true };
+export const DEFAULT_LAYERS: Layers = { ema: true, donchian: true, smc: true, box: true, signals: true, episodes: true, trades: true, volume: true };
 
 /** The chart shows Vietnam time: lightweight-charts draws UTC, so times are shifted by 7 hours. */
 const VN = 7 * 3_600_000;
@@ -126,7 +127,7 @@ export function ChartView({ data, layers, zoneOpacity }: { data: ChartResponse; 
       volume.setData(data.candles.map((k) => ({ time: t(k.openTime), value: k.volume, color: `${k.close >= k.open ? c.tone.quest : c.tone.heart}55` })));
     }
 
-    const showGroup = { A: layers.ema, B: layers.donchian, C: layers.smc };
+    const showGroup = { A: layers.ema, B: layers.donchian, C: layers.smc, D: layers.box };
     for (const line of data.overlays.lines) {
       if (!showGroup[line.group]) continue;
       const series = chart.addSeries(LineSeries, {
@@ -155,6 +156,17 @@ export function ChartView({ data, layers, zoneOpacity }: { data: ChartResponse; 
         const to = indexOf.get(gap.to) ?? lastIndex;
         const color = gap.direction === "LONG" ? c.tone.quest : c.tone.heart;
         zones.push({ from, to, top: gap.top, bottom: gap.bottom, color, alpha: gap.filled ? 0.12 : 0.3, outline: !gap.filled, label: gap.filled ? undefined : "FVG" });
+      }
+    }
+    if (layers.box) {
+      for (const box of data.overlays.boxes) {
+        const from = indexOf.get(box.from);
+        if (from === undefined) continue;
+        const to = indexOf.get(box.to) ?? lastIndex;
+        const zone = ((box.top - box.bottom) * box.zonePct) / 100;
+        zones.push({ from, to, top: box.top, bottom: box.bottom, color: c.tone.stone, alpha: 0.05, outline: true, label: "Hộp" });
+        zones.push({ from, to, top: box.bottom + zone, bottom: box.bottom, color: c.tone.quest, alpha: 0.16 });
+        zones.push({ from, to, top: box.top, bottom: box.top - zone, color: c.tone.heart, alpha: 0.16 });
       }
     }
     if (layers.trades) {
@@ -208,7 +220,7 @@ export function ChartView({ data, layers, zoneOpacity }: { data: ChartResponse; 
           position: e.direction === "LONG" ? "belowBar" : "aboveBar",
           color: e.level === "ENTER" ? c.tone.sky : c.tone.coin,
           shape: e.level === "ENTER" ? "square" : "circle",
-          text: e.level === "ENTER" ? `${data.thresholds.entry}/3` : `${data.thresholds.alert}/3`,
+          text: e.level === "ENTER" ? "Vào" : "Báo",
           size: 1.6,
         });
       }

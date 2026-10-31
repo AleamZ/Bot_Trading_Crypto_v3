@@ -1,4 +1,4 @@
-import type { Direction, MethodId, MethodSignal } from "../types.js";
+import { comboOf, type Direction, type MethodId, type MethodSignal } from "../types.js";
 
 export type ConsensusLevel = "NONE" | "READY" | "ENTER";
 
@@ -11,6 +11,22 @@ export interface ConsensusOptions {
   alertWhenOpposed: boolean;
   /** Enter only when this method is among the agreeing ones; otherwise READY at most. */
   entryRequires?: MethodId | "NONE";
+  /**
+   * Combos that may enter ("B+C", "D"): when set, ENTER needs the agreeing methods to include every
+   * method of one of them (more is fine) instead of reaching `autoEntryThreshold`.
+   */
+  entryCombos?: readonly string[];
+}
+
+/** What it takes to enter: "B+C hoặc D", or "3 phương pháp cùng chiều" without combos. */
+export function entryRuleText(general: { autoEntryThreshold: number; entryCombos?: readonly string[] }): string {
+  return general.entryCombos?.length ? general.entryCombos.join(" hoặc ") : `${general.autoEntryThreshold} phương pháp cùng chiều`;
+}
+
+/** The agreeing methods contain every method of one of the combos. */
+export function matchesCombo(agreeing: readonly MethodId[], combos: readonly string[]): boolean {
+  const have = new Set(comboOf(agreeing).split("+"));
+  return combos.some((combo) => combo.split("+").every((letter) => have.has(letter)));
 }
 
 export interface ConsensusResult {
@@ -25,8 +41,8 @@ export interface ConsensusResult {
 
 /**
  * Combines the active signals of the enabled methods.
- * - ENTER: at least `autoEntryThreshold` methods agree, none points the other way, and the
- *   `entryRequires` method (if any) is one of them.
+ * - ENTER: none points the other way, the `entryRequires` method (if any) agrees, and either the
+ *   agreeing methods cover one of `entryCombos` or, without combos, at least `autoEntryThreshold` agree.
  * - READY: at least `alertThreshold` agree (with an opposing method only if `alertWhenOpposed`).
  */
 export function decideConsensus(signals: readonly MethodSignal[], options: ConsensusOptions): ConsensusResult {
@@ -42,7 +58,9 @@ export function decideConsensus(signals: readonly MethodSignal[], options: Conse
   let level: ConsensusLevel = "NONE";
   const required = options.entryRequires && options.entryRequires !== "NONE" ? options.entryRequires : null;
   const hasRequired = required === null || agreeing.some((s) => s.method === required);
-  if (agreeing.length >= options.autoEntryThreshold && opposing.length === 0 && hasRequired) level = "ENTER";
+  const combos = options.entryCombos ?? [];
+  const enough = combos.length > 0 ? matchesCombo(agreeing.map((s) => s.method), combos) : agreeing.length >= options.autoEntryThreshold;
+  if (enough && opposing.length === 0 && hasRequired) level = "ENTER";
   else if (agreeing.length >= options.alertThreshold && (opposing.length === 0 || options.alertWhenOpposed)) level = "READY";
   return { ...base, level, direction, agreeing, opposing };
 }

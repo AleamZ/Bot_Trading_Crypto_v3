@@ -5,7 +5,9 @@ import type { Candle } from "../src/types.js";
 import { METHOD_IDS } from "../src/types.js";
 import { randomWalk, resample } from "./helpers.js";
 
-const settings = defaultSettings();
+const merged = mergeSettings(defaultSettings(), { methods: { boxTheory: { enabled: true } } });
+if (!merged.ok) throw new Error(JSON.stringify(merged.errors));
+const settings = merged.settings;
 const entry = randomWalk(1600, 2026);
 const trend = resample(entry, 4);
 
@@ -25,7 +27,7 @@ describe("createAnalyzer", () => {
         expect(s.index).toBeGreaterThan(i - settings.general.signalTtlBars);
         expect(s.direction === "LONG" ? s.stopLoss < s.price : s.stopLoss > s.price).toBe(true);
       }
-      if (a.consensus.level === "ENTER") expect(a.consensus.agreeing.length).toBe(3);
+      if (a.consensus.level === "ENTER") expect(a.consensus.agreeing.length).toBeGreaterThanOrEqual(3);
     }
     // The random walk is long enough for every method to fire at least once.
     expect(fired).toBeGreaterThan(0);

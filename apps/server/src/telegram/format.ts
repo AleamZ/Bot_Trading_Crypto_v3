@@ -1,4 +1,4 @@
-import { feeRateOf, GUARD_MESSAGES, METHOD_IDS, METHOD_LABELS, netResultAt, type MethodId, type Settings } from "@bot-v3/core";
+import { comboOf, entryRuleText, feeRateOf, GUARD_MESSAGES, METHOD_IDS, METHOD_LABELS, METHOD_LETTERS, netResultAt, type MethodId, type Settings } from "@bot-v3/core";
 import type { AnalysisView, AppEvent } from "../app/events.js";
 import { isStopRuleRejection, stopStage, type Trade } from "../engine/types.js";
 
@@ -6,8 +6,7 @@ import { isStopRuleRejection, stopStage, type Trade } from "../engine/types.js";
 
 export const escapeHtml = (value: unknown) => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-const LETTER: Record<MethodId, string> = { trendPullback: "A", donchianBreakout: "B", smcSweep: "C" };
-const method = (id: MethodId) => `${LETTER[id]}. ${METHOD_LABELS[id]}`;
+const method = (id: MethodId) => `${METHOD_LETTERS[id]}. ${METHOD_LABELS[id]}`;
 const signed = (value: number, digits = 2) => `${value >= 0 ? "+" : "−"}${Math.abs(value).toFixed(digits)}`;
 const rText = (value: number | null) => (value === null ? "?R" : `${signed(value)}R`);
 const usd = (value: string | number | null) => (value === null ? "?$" : `${signed(Number(value))}$`);
@@ -33,7 +32,8 @@ function methodLines(a: AnalysisView): string[] {
 }
 
 const head = (a: AnalysisView) => `${escapeHtml(a.symbol)} ${a.consensus.direction ?? ""}`.trim();
-const count = (a: AnalysisView) => Math.max(a.consensus.longCount, a.consensus.shortCount);
+/** The agreeing methods: "B+C". */
+const combo = (a: AnalysisView) => comboOf(a.consensus.agreeing);
 
 /** Net result if the position closes at `exit`, fees included: "+4.12$ (+0.82R)". */
 function netAt(t: Trade, exit: string, settings: Settings): string {
@@ -73,21 +73,21 @@ export function formatEvent(event: AppEvent, ctx: FormatContext): string | null 
       if (!n.notifyReady) return null;
       const a = event.analysis;
       return [
-        `🟡 <b>SẴN SÀNG ${count(a)}/3 · ${head(a)}</b>`,
+        `🟡 <b>SẴN SÀNG ${combo(a)} · ${head(a)}</b>`,
         `Giá ${a.price} · nến ${a.timeframe} đóng ${vnTime(a.time + 1)}`,
         ...methodLines(a),
-        `Chưa vào lệnh: cần ${ctx.settings.general.autoEntryThreshold}/3 cùng chiều.`,
+        `Chưa vào lệnh: cần ${entryRuleText(ctx.settings.general)}.`,
       ].join("\n");
     }
     case "ENTRY_SKIPPED": {
       if (!n.notifyEntry) return null;
       const a = event.analysis;
-      return [`⚪ <b>${count(a)}/3 · ${head(a)} nhưng không vào lệnh</b>`, `Lý do: ${GUARD_MESSAGES[event.reason]}`, `Giá ${a.price}`, ...methodLines(a)].join("\n");
+      return [`⚪ <b>${combo(a)} · ${head(a)} nhưng không vào lệnh</b>`, `Lý do: ${GUARD_MESSAGES[event.reason]}`, `Giá ${a.price}`, ...methodLines(a)].join("\n");
     }
     case "ENTRY_FILLED": {
       if (!n.notifyEntry) return null;
       const t = event.trade;
-      return [`🟢 <b>ĐÃ VÀO LỆNH ${t.methods.length}/3 · ${escapeHtml(t.symbol)} ${t.direction}</b>`, ...tradeLines(t), `Phương pháp: ${t.methods.map((m) => LETTER[m]).join(", ")}`].join("\n");
+      return [`🟢 <b>ĐÃ VÀO LỆNH ${comboOf(t.methods)} · ${escapeHtml(t.symbol)} ${t.direction}</b>`, ...tradeLines(t), `Phương pháp: ${t.methods.map(method).join(", ")}`].join("\n");
     }
     case "TRADE_CLOSED": {
       if (!n.notifyExit) return null;
@@ -199,8 +199,7 @@ export interface StatusSummary {
 export function formatStatus(s: StatusSummary): string {
   const signals = s.analysis.map((a) => {
     const c = a.consensus;
-    const best = Math.max(c.longCount, c.shortCount);
-    return `${escapeHtml(a.symbol)}: ${c.direction ? `${c.direction} ${best}/3` : "—"}`;
+    return `${escapeHtml(a.symbol)}: ${c.direction ? `${c.direction} ${comboOf(c.agreeing) || "—"}` : "—"}`;
   });
   return [
     `🤖 <b>Bot v3</b> · Binance ${escapeHtml(s.binanceEnv.toUpperCase())}`,

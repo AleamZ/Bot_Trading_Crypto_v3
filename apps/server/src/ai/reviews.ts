@@ -1,4 +1,4 @@
-import { adx, createAnalyzer, METHOD_IDS, TIMEFRAME_MINUTES, tradePath, type Candle, type MethodId, type Settings } from "@bot-v3/core";
+import { adx, createAnalyzer, entryRuleText, METHOD_IDS, TIMEFRAME_MINUTES, tradePath, type Candle, type MethodId, type Settings } from "@bot-v3/core";
 import { z } from "zod";
 import { candleLimits } from "../app/scanner.js";
 import type { EventHub } from "../app/events.js";
@@ -24,7 +24,7 @@ export interface ReviewDeps {
   now?: () => number;
 }
 
-const AREAS = ["trendPullback", "donchianBreakout", "smcSweep", "risk", "consensus", "general"] as const;
+const AREAS = ["trendPullback", "donchianBreakout", "smcSweep", "boxTheory", "risk", "consensus", "general"] as const;
 const text = z.string().catch("");
 const list = z.array(z.string()).catch([]);
 
@@ -54,10 +54,15 @@ export const insightsSchema = z.object({
 });
 export type Insights = z.output<typeof insightsSchema>;
 
-const LABEL: Record<MethodId, string> = { trendPullback: "A. Xu hướng + hồi EMA", donchianBreakout: "B. Phá kênh Donchian", smcSweep: "C. SMC quét thanh khoản" };
+const LABEL: Record<MethodId, string> = {
+  trendPullback: "A. Xu hướng + hồi EMA",
+  donchianBreakout: "B. Phá kênh Donchian",
+  smcSweep: "C. SMC quét thanh khoản",
+  boxTheory: "D. Hộp (Box Theory)",
+};
 
 const REVIEW_PROMPT = `Bạn là chuyên gia phân tích giao dịch crypto futures, đang rà soát MỘT lệnh do bot tự động đặt trên Binance USDT-M.
-Bot dùng 3 phương pháp: A. Xu hướng + hồi EMA (trendPullback), B. Phá kênh Donchian (donchianBreakout), C. SMC quét thanh khoản (smcSweep). Bot vào lệnh khi đủ số phương pháp cùng chiều, SL gộp từ SL các phương pháp, khối lượng theo 1R, TP = giá vào ± RR × khoảng SL.
+Bot dùng 4 phương pháp: A. Xu hướng + hồi EMA (trendPullback), B. Phá kênh Donchian (donchianBreakout), C. SMC quét thanh khoản (smcSweep), D. Hộp: mua ở đáy / bán ở đỉnh của khoảng giá hôm trước (boxTheory). Bot vào lệnh khi các phương pháp cùng chiều đủ số lượng hoặc khớp một tổ hợp được chọn (rules.entryRule), SL gộp từ SL các phương pháp, khối lượng theo 1R, TP = giá vào ± RR × khoảng SL.
 Dữ kiện JSON do code tính sẵn: lệnh, điều kiện từng phương pháp lúc vào (checks), diễn biến giá trong lệnh (path: MFE/MAE theo R, tiến độ tới TP), bối cảnh (ATR %, ADX, xu hướng khung lớn lúc vào và lúc thoát), và chuỗi nến quanh lệnh.
 Cách đọc dữ kiện (đây là cách bot chạy, không phải lỗi dữ liệu):
 - trade.stopLoss là SL lúc vào lệnh, R và path tính theo SL này. stopMoves là các lần bot dời SL (về giá vào khi giá đi được breakEvenAtTpPct% đường tới TP, khoá lãi khi đi được lockAtTpPct%); finalStopLoss là SL cuối, nằm phía có lãi sau khi dời là bình thường.
@@ -70,13 +75,13 @@ Yêu cầu:
 - Đề xuất thay đổi CỤ THỂ cho logic hoặc tham số (tên tham số, ngưỡng), kèm mức độ tự tin. Một lệnh là mẫu nhỏ: đừng tự tin cao nếu chỉ dựa trên một lệnh.
 - Viết tiếng Việt, ngắn, có số liệu.
 Trả về DUY NHẤT một object JSON:
-{"summary":"1-2 câu kết luận","whyEntered":"vì sao bot vào lệnh","whatHappened":"diễn biến giá sau khi vào","causes":["nguyên nhân chính"],"methodNotes":[{"method":"trendPullback|donchianBreakout|smcSweep","note":"nhận xét"}],"lessons":["bài học"],"suggestions":[{"area":"trendPullback|donchianBreakout|smcSweep|risk|consensus|general","change":"đề xuất cụ thể","confidence":"thấp|vừa|cao"}],"tags":["nhãn ngắn"]}`;
+{"summary":"1-2 câu kết luận","whyEntered":"vì sao bot vào lệnh","whatHappened":"diễn biến giá sau khi vào","causes":["nguyên nhân chính"],"methodNotes":[{"method":"trendPullback|donchianBreakout|smcSweep|boxTheory","note":"nhận xét"}],"lessons":["bài học"],"suggestions":[{"area":"trendPullback|donchianBreakout|smcSweep|boxTheory|risk|consensus|general","change":"đề xuất cụ thể","confidence":"thấp|vừa|cao"}],"tags":["nhãn ngắn"]}`;
 
-const INSIGHTS_PROMPT = `Bạn là chuyên gia tối ưu bot giao dịch. Dưới đây là thống kê và các bài phân tích AI của nhiều lệnh gần đây của cùng một bot (3 phương pháp A/B/C, vào lệnh theo đồng thuận, khối lượng theo 1R).
+const INSIGHTS_PROMPT = `Bạn là chuyên gia tối ưu bot giao dịch. Dưới đây là thống kê và các bài phân tích AI của nhiều lệnh gần đây của cùng một bot (4 phương pháp A/B/C/D, vào lệnh theo đồng thuận hoặc tổ hợp được chọn, khối lượng theo 1R).
 Hãy tìm các mẫu lặp lại (khi nào thắng, khi nào thua), điểm yếu của từng phương pháp và của quản lý vốn, rồi đề xuất thay đổi logic/tham số cụ thể để thử nghiệm (ưu tiên những gì có nhiều lệnh ủng hộ; nói rõ khi mẫu còn ít).
 Chỉ dựa trên dữ liệu được cung cấp. Viết tiếng Việt, ngắn, có số liệu.
 Trả về DUY NHẤT một object JSON:
-{"overview":"tóm tắt","patterns":["mẫu lặp lại"],"weaknesses":["điểm yếu"],"recommendations":[{"area":"trendPullback|donchianBreakout|smcSweep|risk|consensus|general","change":"thay đổi cụ thể","why":"dựa trên bằng chứng nào","confidence":"thấp|vừa|cao"}],"nextExperiments":["thử nghiệm nên chạy, ví dụ backtest với tham số X"]}`;
+{"overview":"tóm tắt","patterns":["mẫu lặp lại"],"weaknesses":["điểm yếu"],"recommendations":[{"area":"trendPullback|donchianBreakout|smcSweep|boxTheory|risk|consensus|general","change":"thay đổi cụ thể","why":"dựa trên bằng chứng nào","confidence":"thấp|vừa|cao"}],"nextExperiments":["thử nghiệm nên chạy, ví dụ backtest với tham số X"]}`;
 
 const INSIGHTS_KEY = "ai.insights";
 
@@ -313,7 +318,8 @@ export class ReviewService {
         slMode: settings.risk.slMode,
         maxSlAtr: settings.risk.maxSlAtr,
         moveSl: settings.risk.moveSl ? `về giá vào ở ${settings.risk.breakEvenAtTpPct}% đường tới TP, khoá ${settings.risk.lockSlAtTpPct}% ở ${settings.risk.lockAtTpPct}%` : "tắt",
-        thresholds: `${settings.general.alertThreshold}/3 báo, ${settings.general.autoEntryThreshold}/3 vào lệnh`,
+        thresholds: `${settings.general.alertThreshold} phương pháp cùng chiều thì báo`,
+        entryRule: entryRuleText(settings.general),
         signalTtlBars: settings.general.signalTtlBars,
         note: "Cài đặt hiện tại; có thể khác lúc vào lệnh nếu đã sửa",
       },

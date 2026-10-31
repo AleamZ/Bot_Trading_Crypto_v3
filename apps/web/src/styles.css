@@ -1565,3 +1565,28 @@ code,
 .clear-bar > .soft {
   flex: 1 1 260px;
 }
+
+/* ---------- multi pick (settings) ---------- */
+
+.multi-pick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.multi-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 2px solid var(--line);
+  background: var(--well);
+  font-weight: 700;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.multi-option.on {
+  background: var(--sky);
+  color: #fff;
+}

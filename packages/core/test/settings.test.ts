@@ -75,3 +75,15 @@ describe("settings", () => {
     expect(schema.properties.risk.properties.slMode).toMatchObject({ default: "EXACT_1R" });
   });
 });
+
+describe("entry combos", () => {
+  it("accepts combos of methods that are on, and refuses a list that can never enter", () => {
+    const ok = mergeSettings(defaultSettings(), { general: { entryCombos: ["B+C", "A+B+C"] } });
+    expect(ok.ok && ok.settings.general.entryCombos).toEqual(["B+C", "A+B+C"]);
+    const onlyOff = mergeSettings(defaultSettings(), { general: { entryCombos: ["D"] } });
+    expect(onlyOff.ok).toBe(false);
+    if (!onlyOff.ok) expect(onlyOff.errors[0]).toMatchObject({ path: "general.entryCombos" });
+    expect(mergeSettings(defaultSettings(), { general: { entryCombos: ["D"] }, methods: { boxTheory: { enabled: true } } }).ok).toBe(true);
+    expect(mergeSettings(defaultSettings(), { general: { entryCombos: ["X"] } }).ok).toBe(false);
+  });
+});

@@ -24,7 +24,7 @@ import { SettingsPage } from "./pages/Settings";
 import { StatsPage } from "./pages/Stats";
 import { TelegramPage } from "./pages/Telegram";
 import { Trades } from "./pages/Trades";
-import type { Me, Status } from "./types";
+import { entryRuleText, type Me, type Status } from "./types";
 import { Button, PixelLogo, ToastProvider } from "./ui";
 
 export function App() {
@@ -144,7 +144,7 @@ function TopBar({ status, connected }: { status: Status | null; connected: boole
           BOT V3
         </div>
         <div className="tagline">
-          Binance USDT-M · 3 phương pháp · {status ? `${status.limits.alertThreshold}/3 báo, ${status.limits.autoEntryThreshold}/3 vào lệnh` : "…"}
+          Binance USDT-M · {status ? `${status.limits.methodCount} phương pháp bật · ${status.limits.alertThreshold} cùng chiều thì báo · vào lệnh khi ${entryRuleText(status.limits)}` : "…"}
           {status && ` · 1R = ${status.limits.riskUsd}$ · RR ${status.limits.rr}`}
         </div>
         <div className="bar-chips">
@@ -152,7 +152,7 @@ function TopBar({ status, connected }: { status: Status | null; connected: boole
             <span className="dot" style={{ ["--c" as string]: "var(--sky)" }} />
             {status?.binanceEnv ?? "…"}
           </span>
-          <span className="bar-chip" title={status?.autoTradeBlockers.join("\n") || (status?.paused ? "Đang tạm dừng" : `Tự vào lệnh khi ${status?.limits.autoEntryThreshold ?? 3}/3`)}>
+          <span className="bar-chip" title={status?.autoTradeBlockers.join("\n") || (status?.paused ? "Đang tạm dừng" : `Tự vào lệnh khi ${status ? entryRuleText(status.limits) : "…"}`)}>
             <span className="dot" style={{ ["--c" as string]: auto ? "var(--quest)" : status?.paused ? "var(--coin)" : "var(--heart)" }} />
             Auto {auto ? "on" : status?.paused ? "pause" : "off"}
           </span>

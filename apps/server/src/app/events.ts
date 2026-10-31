@@ -1,4 +1,4 @@
-import { GUARD_MESSAGES, METHOD_LABELS, type ConsensusLevel, type Direction, type Episode, type GuardReason, type MethodId, type SymbolAnalysis } from "@bot-v3/core";
+import { comboOf, GUARD_MESSAGES, METHOD_LABELS, type ConsensusLevel, type Direction, type Episode, type GuardReason, type MethodId, type SymbolAnalysis } from "@bot-v3/core";
 import type { EventLog, LogEntry, LogLevelName } from "../db/stores.js";
 import { isStopRuleRejection, stopStage, type BotEvent, type EventSink, type Trade } from "../engine/types.js";
 import { silentLogger, type Logger } from "../lib/logger.js";
@@ -117,14 +117,14 @@ export function describeEvent(event: AppEvent): { level: LogLevelName; symbol: s
       return {
         level: "info",
         symbol: a.symbol,
-        title: `SẴN SÀNG ${Math.max(c.longCount, c.shortCount)}/3 ${a.symbol} ${side(c.direction)}`,
+        title: `SẴN SÀNG ${comboOf(c.agreeing)} ${a.symbol} ${side(c.direction)}`,
         message: `${methodsOf(c.agreeing)} cùng chiều tại ${a.price}`,
       };
     }
     case "SIGNAL_ENTER": {
       const a = event.analysis;
-      const n = a.consensus.agreeing.length;
-      return { level: "info", symbol: a.symbol, title: `VÀO LỆNH ${n}/3 ${a.symbol} ${side(a.consensus.direction)}`, message: `Đủ ${n} phương pháp, thử vào lệnh` };
+      const combo = comboOf(a.consensus.agreeing);
+      return { level: "info", symbol: a.symbol, title: `VÀO LỆNH ${combo} ${a.symbol} ${side(a.consensus.direction)}`, message: `${combo} cùng chiều, thử vào lệnh` };
     }
     case "ENTRY_SKIPPED":
       return { level: "warn", symbol: event.symbol, title: `Không vào lệnh ${event.symbol} ${event.direction}`, message: GUARD_MESSAGES[event.reason] };

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { advanceEpisode, decideConsensus, markEntered, type ConsensusOptions, type Episode } from "../src/consensus/index.js";
+import { advanceEpisode, decideConsensus, markEntered, matchesCombo, type ConsensusOptions, type Episode } from "../src/consensus/index.js";
+import { METHOD_COMBOS } from "../src/types.js";
 import { signal } from "./helpers.js";
 
 const defaults: ConsensusOptions = { alertThreshold: 2, autoEntryThreshold: 3, alertWhenOpposed: true };
@@ -110,5 +111,31 @@ describe("advanceEpisode", () => {
     expect(advanceEpisode(reset.episode, ready, 3).emit).toBe("READY");
     const flipped = advanceEpisode(first.episode as Episode, shortReady, 4);
     expect(flipped).toEqual({ episode: { direction: "SHORT", level: "READY", startedAt: 4 }, emit: "READY" });
+  });
+});
+
+describe("entry combos", () => {
+  const D = (dir: "LONG" | "SHORT") => signal("boxTheory", dir, dir === "LONG" ? 94 : 106);
+  const withCombos = (entryCombos: string[]) => ({ ...defaults, entryCombos });
+
+  it("enters when the agreeing methods cover one of the chosen combos", () => {
+    expect(decideConsensus([A("LONG"), B("LONG")], withCombos(["B+C"])).level).toBe("READY");
+    expect(decideConsensus([B("LONG"), C("LONG")], withCombos(["B+C"])).level).toBe("ENTER");
+    expect(decideConsensus([A("LONG"), B("LONG"), C("LONG")], withCombos(["B+C"])).level).toBe("ENTER");
+    // One method alone, below the alert threshold, still enters when chosen.
+    expect(decideConsensus([D("SHORT")], withCombos(["D", "B+C"]))).toMatchObject({ level: "ENTER", direction: "SHORT" });
+    expect(decideConsensus([A("SHORT")], withCombos(["D"])).level).toBe("NONE");
+    // Never against an opposing method.
+    expect(decideConsensus([B("LONG"), C("LONG"), D("SHORT")], withCombos(["B+C"])).level).toBe("READY");
+    // Without combos the threshold counts.
+    expect(decideConsensus([A("LONG"), B("LONG"), C("LONG")], withCombos([])).level).toBe("ENTER");
+  });
+
+  it("matches combos by letters, whatever the order of the signals", () => {
+    expect(matchesCombo(["smcSweep", "donchianBreakout"], ["B+C"])).toBe(true);
+    expect(matchesCombo(["smcSweep"], ["B+C", "A+C"])).toBe(false);
+    expect(METHOD_COMBOS).toHaveLength(15);
+    expect(METHOD_COMBOS.slice(0, 5)).toEqual(["A", "B", "C", "D", "A+B"]);
+    expect(METHOD_COMBOS.at(-1)).toBe("A+B+C+D");
   });
 });

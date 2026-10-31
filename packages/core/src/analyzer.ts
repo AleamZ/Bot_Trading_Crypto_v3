@@ -2,6 +2,7 @@ import { decideConsensus, type ConsensusResult } from "./consensus/index.js";
 import { atr } from "./indicators/oscillators.js";
 import type { Settings } from "./settings/schema.js";
 import { activeSignalAt } from "./strategies/active.js";
+import { prepareBoxTheory } from "./strategies/boxTheory.js";
 import { prepareDonchianBreakout } from "./strategies/donchianBreakout.js";
 import { prepareSmcSweep } from "./strategies/smcSweep.js";
 import { prepareTrendPullback } from "./strategies/trendPullback.js";
@@ -49,6 +50,7 @@ export function createAnalyzer(market: MarketData, settings: Settings): Analyzer
     trendPullback: methods.trendPullback.enabled ? prepareTrendPullback(market, methods.trendPullback, shared) : null,
     donchianBreakout: methods.donchianBreakout.enabled ? prepareDonchianBreakout(market, methods.donchianBreakout, shared) : null,
     smcSweep: methods.smcSweep.enabled ? prepareSmcSweep(market, methods.smcSweep, shared) : null,
+    boxTheory: methods.boxTheory.enabled ? prepareBoxTheory(market, methods.boxTheory, shared) : null,
   };
 
   function at(index: number): SymbolAnalysis {

@@ -179,7 +179,7 @@ function Field(props: FieldProps) {
   const { field, value, saved, defaultValue, error } = props;
   const changed = JSON.stringify(value) !== JSON.stringify(saved);
   const id = `f-${field.key}`;
-  const defaultText = Array.isArray(defaultValue) ? defaultValue.join(", ") : typeof defaultValue === "boolean" ? (defaultValue ? "bật" : "tắt") : String(defaultValue);
+  const defaultText = Array.isArray(defaultValue) ? defaultValue.join(", ") || "trống" : typeof defaultValue === "boolean" ? (defaultValue ? "bật" : "tắt") : String(defaultValue);
 
   if (field.kind === "boolean") {
     return (
@@ -214,6 +214,8 @@ function Field(props: FieldProps) {
             </option>
           ))}
         </select>
+      ) : field.kind === "multi" ? (
+        <MultiPick id={id} options={field.options} value={Array.isArray(value) ? (value as string[]) : []} onChange={props.onChange} />
       ) : field.kind === "symbols" ? (
         <SymbolsInput id={id} value={Array.isArray(value) ? (value as string[]) : []} onChange={props.onChange} />
       ) : field.kind === "number" || field.kind === "integer" ? (
@@ -223,6 +225,23 @@ function Field(props: FieldProps) {
       )}
       {field.description && <span className="field-desc">{field.description}</span>}
       {error && field.kind !== "number" && field.kind !== "integer" && <span className="field-error">{error}</span>}
+    </div>
+  );
+}
+
+/** Pick any number of options (method combos), kept in the order the options come in. */
+function MultiPick({ id, options, value, onChange }: { id: string; options: string[]; value: string[]; onChange: (v: string[]) => void }) {
+  return (
+    <div id={id} className="multi-pick" role="group">
+      {options.map((o) => {
+        const on = value.includes(o);
+        return (
+          <label key={o} className={`multi-option${on ? " on" : ""}`}>
+            <input type="checkbox" className="check small" checked={on} onChange={(e) => onChange(options.filter((x) => (x === o ? e.target.checked : value.includes(x))))} />
+            {o}
+          </label>
+        );
+      })}
     </div>
   );
 }

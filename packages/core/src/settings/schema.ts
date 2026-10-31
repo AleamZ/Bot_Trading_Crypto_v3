@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { METHOD_COMBOS, METHOD_IDS, METHOD_LETTERS } from "../types.js";
 
 /**
  * The single source of truth for every setting the UI can change. Titles, descriptions and units
@@ -7,10 +8,12 @@ import { z } from "zod";
  * deliberately not part of this schema.
  */
 
-export const TIMEFRAMES = ["5m", "15m", "30m", "1h", "2h", "4h"] as const;
+export const TIMEFRAMES = ["1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h"] as const;
 export type Timeframe = (typeof TIMEFRAMES)[number];
 
 export const TIMEFRAME_MINUTES: Record<Timeframe, number> = {
+  "1m": 1,
+  "3m": 3,
   "5m": 5,
   "15m": 15,
   "30m": 30,
@@ -45,13 +48,22 @@ const generalSchema = z
       .meta({ title: "Ngưỡng báo SẴN SÀNG", description: "Số phương pháp cùng chiều để gửi Telegram, không vào lệnh" }),
     autoEntryThreshold: int(1, 3)
       .default(3)
-      .meta({ title: "Ngưỡng tự vào lệnh", description: "Số phương pháp cùng chiều để bot tự vào lệnh" }),
+      .meta({ title: "Ngưỡng tự vào lệnh", description: "Số phương pháp cùng chiều để bot tự vào lệnh. Không dùng khi đã chọn tổ hợp bên dưới" }),
     alertWhenOpposed: z
       .boolean()
       .default(true)
       .meta({ title: "Vẫn báo khi có phương pháp ngược chiều" }),
+    entryCombos: z
+      .array(z.enum(METHOD_COMBOS as [string, ...string[]]))
+      .default([])
+      .refine((list) => new Set(list).size === list.length, "Có tổ hợp bị trùng")
+      .meta({
+        title: "Tổ hợp được tự vào lệnh",
+        description:
+          "Chọn các tổ hợp phương pháp cùng chiều được vào lệnh (A: xu hướng + hồi EMA, B: phá kênh Donchian, C: SMC, D: hộp). Có thêm phương pháp khác cùng chiều vẫn tính. Để trống thì dùng ngưỡng số phương pháp bên trên",
+      }),
     entryRequires: z
-      .enum(["NONE", "trendPullback", "donchianBreakout", "smcSweep"])
+      .enum(["NONE", "trendPullback", "donchianBreakout", "smcSweep", "boxTheory"])
       .default("NONE")
       .meta({
         title: "Phương pháp bắt buộc khi vào lệnh",
@@ -179,11 +191,29 @@ const smcSweepSchema = z
   })
   .meta({ title: "C. SMC quét thanh khoản" });
 
+const boxTheorySchema = z
+  .object({
+    enabled: z.boolean().default(false).meta({ title: "Bật" }),
+    zonePct: int(5, 45)
+      .default(20)
+      .meta({ title: "Vùng mua / bán", unit: "% chiều cao hộp", description: "Mua khi nến chạm phần dưới cùng này của hộp hôm trước, bán khi chạm phần trên cùng" }),
+    maxEntryPct: int(5, 50)
+      .default(35)
+      .meta({ title: "Giá vào cách cạnh hộp tối đa", unit: "% chiều cao hộp", description: "Không vào khi nến đóng cửa đã đi quá xa đáy (LONG) hoặc đỉnh (SHORT), tức là gần giữa hộp" }),
+    minBoxAtr: num(1, 200).default(6).meta({ title: "Chiều cao hộp tối thiểu", unit: "× ATR", description: "Hộp hẹp quá thì bỏ qua" }),
+    rejectRatio: num(0, 1)
+      .default(0.5)
+      .meta({ title: "Nến từ chối", unit: "× biên độ", description: "LONG: nến tăng, đóng cửa cách đáy nến ít nhất phần này của biên độ (SHORT ngược lại)" }),
+    slBufferAtr: num(0, 5).default(0.3).meta({ title: "SL ngoài hộp", unit: "× ATR" }),
+  })
+  .meta({ title: "D. Hộp (Box Theory)" });
+
 const methodsSchema = z
   .object({
     trendPullback: trendPullbackSchema.prefault({}),
     donchianBreakout: donchianBreakoutSchema.prefault({}),
     smcSweep: smcSweepSchema.prefault({}),
+    boxTheory: boxTheorySchema.prefault({}),
   })
   .meta({ title: "Phương pháp" });
 
@@ -237,8 +267,14 @@ export const settingsSchema = z
       issue(["methods", "trendPullback", "emaFast"], "Cần EMA nhanh < EMA giữa < EMA chậm");
     }
     if (tp.rsiMin >= tp.rsiMax) issue(["methods", "trendPullback", "rsiMin"], "RSI tối thiểu phải nhỏ hơn RSI tối đa");
-    if (!s.methods.trendPullback.enabled && !s.methods.donchianBreakout.enabled && !s.methods.smcSweep.enabled) {
+    const m = s.methods;
+    if (!m.trendPullback.enabled && !m.donchianBreakout.enabled && !m.smcSweep.enabled && !m.boxTheory.enabled) {
       issue(["methods"], "Cần bật ít nhất một phương pháp");
+    }
+    const enabledLetters = new Set(METHOD_IDS.filter((id) => m[id].enabled).map((id) => METHOD_LETTERS[id]));
+    const usable = s.general.entryCombos.filter((combo) => combo.split("+").every((letter) => enabledLetters.has(letter)));
+    if (s.general.entryCombos.length > 0 && usable.length === 0) {
+      issue(["general", "entryCombos"], "Không tổ hợp nào chỉ gồm các phương pháp đang bật: bot sẽ không bao giờ vào lệnh");
     }
   });
 
@@ -250,3 +286,4 @@ export type AiSettings = Settings["ai"];
 export type TrendPullbackParams = Settings["methods"]["trendPullback"];
 export type DonchianBreakoutParams = Settings["methods"]["donchianBreakout"];
 export type SmcSweepParams = Settings["methods"]["smcSweep"];
+export type BoxTheoryParams = Settings["methods"]["boxTheory"];

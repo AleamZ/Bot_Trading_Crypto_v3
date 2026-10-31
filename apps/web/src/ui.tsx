@@ -1,6 +1,6 @@
 import { ArrowDownIcon, ArrowUpIcon } from "@phosphor-icons/react";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
-import type { ConsensusLevel, Direction, LogEntry, Trade } from "./types";
+import { comboOf, type ConsensusLevel, type Direction, type LogEntry, type MethodId, type Trade } from "./types";
 
 /** The pixel UI kit (docs/UI_DESIGN.md). Styles live in styles.css. */
 
@@ -131,9 +131,9 @@ export function eventChip(entry: LogEntry): { tone: Tone; label: string } {
     case "SIGNAL_READY":
       return { tone: "coin", label: "Ready" };
     case "SIGNAL_ENTER": {
-      // How many methods agreed: 2/3 when the entry threshold is 2.
-      const agreeing = (entry.data as { analysis?: { consensus?: { agreeing?: unknown[] } } } | null)?.analysis?.consensus?.agreeing?.length;
-      return { tone: "sky", label: agreeing ? `${agreeing}/3` : "Vào" };
+      // Which methods agreed: "B+C".
+      const agreeing = (entry.data as { analysis?: { consensus?: { agreeing?: MethodId[] } } } | null)?.analysis?.consensus?.agreeing;
+      return { tone: "sky", label: agreeing?.length ? comboOf(agreeing) : "Vào" };
     }
     case "ENTRY_FILLED":
       return { tone: "quest", label: "Vào lệnh" };

@@ -43,6 +43,23 @@ LONG (SHORT là ảnh gương):
 5. **SL** = low[w] − 0.2 × ATR.
 6. **Huỷ tín hiệu:** giá chạm low[w].
 
+## D. Hộp (`boxTheory`, mặc định tắt)
+
+Theo "Box Theory": hộp là giá cao nhất và thấp nhất của **ngày hôm trước** (ngày giờ Việt Nam, 00:00–24:00). Mua ở đáy hộp, bán ở đỉnh hộp, không vào lệnh khi giá ở giữa hộp.
+
+- Hộp lấy từ nến khung vào lệnh nếu có đủ cả ngày hôm trước, không thì lấy từ nến khung xu hướng (khung đó phải chia đều ngày từ 00:00 giờ Việt Nam, ví dụ 1h; 4h thì không dùng được).
+- LONG khi đủ cả 6 điều kiện:
+  1. có hộp của hôm trước;
+  2. hộp cao ít nhất `minBoxAtr` (6) ATR;
+  3. nến chạm vùng mua, tức `zonePct` (20)% dưới cùng của hộp;
+  4. nến đóng cửa vẫn trong hộp;
+  5. nến tăng và đóng cửa cách đáy nến ít nhất `rejectRatio` (0.5) biên độ, tức là nến từ chối giá thấp;
+  6. giá đóng cửa còn trong `maxEntryPct` (35)% gần đáy hộp.
+- SHORT là phản chiếu ở đỉnh hộp.
+- SL đặt dưới đáy hộp (hoặc dưới râu nến nếu râu thủng hộp) thêm `slBufferAtr` (0.3) ATR. TP vẫn theo RR như các phương pháp khác.
+- Tín hiệu hết hiệu lực khi giá đóng cửa ra ngoài hộp ở phía sai, hoặc đã về tới giữa hộp.
+- Trên chart: hộp có viền, vùng mua tô xanh, vùng bán tô đỏ (lớp "D · Hộp hôm trước").
+
 ## Tín hiệu còn hiệu lực
 
 Tín hiệu của một phương pháp được tính vào đồng thuận nếu:
@@ -59,7 +76,7 @@ Gọi L và S là số phương pháp đang có tín hiệu LONG và SHORT:
 | Điều kiện | Kết quả |
 |---|---|
 | L = S | NONE (không chiều) |
-| phía đông hơn ≥ `autoEntryThreshold` (3), phía kia = 0, và có phương pháp `entryRequires` nếu đã chọn | **ENTER**: tự vào lệnh. `entryRequires` (mặc định NONE) bắt buộc một phương pháp, ví dụ `smcSweep` để không vào khi chỉ có A+B; thiếu thì chỉ READY |
+| phía kia = 0, có phương pháp `entryRequires` nếu đã chọn, và: phía đông hơn khớp một tổ hợp trong `entryCombos`, hoặc (khi không chọn tổ hợp nào) có ≥ `autoEntryThreshold` (3) phương pháp | **ENTER**: tự vào lệnh. `entryCombos` (Cài đặt → Chung → "Tổ hợp được tự vào lệnh") là danh sách như `B+C`, `D`, `A+B+C`; có thêm phương pháp khác cùng chiều vẫn tính. `entryRequires` (mặc định NONE) bắt buộc một phương pháp; thiếu thì chỉ READY |
 | phía đông hơn ≥ `alertThreshold` (2) | **READY**: báo Telegram. Nếu có phương pháp ngược chiều thì chỉ báo khi `alertWhenOpposed` bật |
 | còn lại | NONE |
 

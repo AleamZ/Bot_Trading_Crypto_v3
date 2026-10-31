@@ -1,14 +1,27 @@
 /** Shapes of the server's JSON (apps/server/src/api/server.ts), only the parts the UI reads. */
 
 export type Direction = "LONG" | "SHORT";
-export type MethodId = "trendPullback" | "donchianBreakout" | "smcSweep";
+export type MethodId = "trendPullback" | "donchianBreakout" | "smcSweep" | "boxTheory";
 export type ConsensusLevel = "NONE" | "READY" | "ENTER";
 
 export const METHODS: { id: MethodId; letter: string; label: string }[] = [
   { id: "trendPullback", letter: "A", label: "Xu hướng + hồi EMA" },
   { id: "donchianBreakout", letter: "B", label: "Phá kênh Donchian" },
   { id: "smcSweep", letter: "C", label: "SMC quét thanh khoản" },
+  { id: "boxTheory", letter: "D", label: "Hộp (Box Theory)" },
 ];
+
+/** "B+C" for a set of methods, in A-B-C-D order. */
+export function comboOf(methods: readonly MethodId[]): string {
+  return METHODS.filter((m) => methods.includes(m.id))
+    .map((m) => m.letter)
+    .join("+");
+}
+
+/** What it takes to enter: "B+C hoặc D", or "3 phương pháp cùng chiều". */
+export function entryRuleText(rule: { autoEntryThreshold: number; entryCombos?: readonly string[] }): string {
+  return rule.entryCombos?.length ? rule.entryCombos.join(" hoặc ") : `${rule.autoEntryThreshold} phương pháp cùng chiều`;
+}
 
 export interface SignalView {
   direction: Direction;
@@ -165,6 +178,9 @@ export interface Status {
     maxDailyLossR: number;
     alertThreshold: number;
     autoEntryThreshold: number;
+    entryCombos: string[];
+    /** Methods turned on. */
+    methodCount: number;
   };
 }
 
@@ -269,7 +285,7 @@ export type Tone = "sky" | "coin" | "stone" | "ink" | "quest" | "heart";
 export interface ChartLine {
   id: string;
   label: string;
-  group: "A" | "B" | "C";
+  group: "A" | "B" | "C" | "D";
   tone: Tone;
   style: "solid" | "dashed" | "dotted";
   points: { time: number; value: number }[];
@@ -279,6 +295,8 @@ export interface ChartOverlays {
   lines: ChartLine[];
   swings: { time: number; kind: "high" | "low"; price: number }[];
   fvgs: { from: number; to: number; top: number; bottom: number; direction: Direction; filled: boolean }[];
+  /** Method D: yesterday's box over each shown day. */
+  boxes: { from: number; to: number; top: number; bottom: number; zonePct: number }[];
   signals: (SignalView & { method: MethodId; index: number; openTime: number })[];
   episodes: { time: number; level: "READY" | "ENTER"; direction: Direction }[];
 }
@@ -318,7 +336,7 @@ export interface ChartResponse {
   explanation: Record<MethodId, StrategyExplanation | null>;
   preview: EntryPreview | null;
   guard: { ok: boolean; reason: string | null; message: string | null };
-  thresholds: { alert: number; entry: number };
+  thresholds: { alert: number; entry: number; combos: string[]; methods: number };
   trades: Trade[];
   lastScanAt: number | null;
   nextScanAt: number | null;

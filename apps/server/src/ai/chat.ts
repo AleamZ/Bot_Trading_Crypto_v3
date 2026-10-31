@@ -85,7 +85,7 @@ const TOOLS: ToolSpec[] = [
   },
   {
     name: "bot_rules",
-    description: "Tài liệu luật giao dịch của bot: 3 phương pháp, đồng thuận, cách tính SL/TP/khối lượng/đòn bẩy, giới hạn, cách đặt lệnh và giữ SL/TP.",
+    description: "Tài liệu luật giao dịch của bot: 4 phương pháp, đồng thuận, cách tính SL/TP/khối lượng/đòn bẩy, giới hạn, cách đặt lệnh và giữ SL/TP.",
     parameters: { type: "object", properties: {} },
   },
 ];
@@ -96,7 +96,7 @@ const MAX_ROUNDS = 6;
 function systemPrompt(now: number): string {
   const today = new Date(now + 7 * 3_600_000).toISOString().slice(0, 16).replace("T", " ");
   return `Bạn là trợ lý của bot giao dịch v3 (Binance USDT-M Futures). Bây giờ là ${today} giờ Việt Nam.
-Bot phân tích 3 phương pháp (A. Xu hướng + hồi EMA, B. Phá kênh Donchian, C. SMC quét thanh khoản) trên mỗi symbol sau mỗi nến đóng: đủ ngưỡng báo thì gửi Telegram SẴN SÀNG, đủ ngưỡng vào lệnh thì tự vào lệnh MARKET với SL và TP, khối lượng theo 1R.
+Bot phân tích 4 phương pháp (A. Xu hướng + hồi EMA, B. Phá kênh Donchian, C. SMC quét thanh khoản, D. Hộp: đáy/đỉnh khoảng giá hôm trước) trên mỗi symbol sau mỗi nến đóng: đủ ngưỡng báo thì gửi Telegram SẴN SÀNG, đủ ngưỡng hoặc khớp tổ hợp được chọn thì tự vào lệnh MARKET với SL và TP, khối lượng theo 1R.
 Cách trả lời:
 - Luôn dùng công cụ để lấy dữ liệu thật trước khi trả lời về trạng thái, tín hiệu, lệnh, kết quả hay cài đặt. Không đoán, không bịa số.
 - Tiếng Việt, ngắn gọn, đi thẳng vào câu hỏi, có số liệu và giờ Việt Nam.

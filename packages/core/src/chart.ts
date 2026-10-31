@@ -3,6 +3,7 @@ import { advanceEpisode, type Episode } from "./consensus/index.js";
 import { ema, highestBefore, lowestBefore } from "./indicators/moving.js";
 import { alignHigherTimeframe, bearishFvgAt, bullishFvgAt, swings } from "./indicators/structure.js";
 import type { Settings } from "./settings/schema.js";
+import { dailyRanges } from "./strategies/boxTheory.js";
 import type { MarketData } from "./strategies/types.js";
 import { METHOD_IDS, type Direction, type MethodSignal } from "./types.js";
 
@@ -12,7 +13,7 @@ export interface ChartPoint {
   value: number;
 }
 
-export type OverlayGroup = "A" | "B" | "C";
+export type OverlayGroup = "A" | "B" | "C" | "D";
 
 export interface ChartLine {
   id: string;
@@ -39,6 +40,17 @@ export interface ChartGap {
   filled: boolean;
 }
 
+/** Method D: yesterday's box drawn over one day of candles, with its buy and sell zones. */
+export interface ChartBox {
+  /** openTime of the first and last shown candle of the day. */
+  from: number;
+  to: number;
+  top: number;
+  bottom: number;
+  /** Height of the buy (bottom) and sell (top) zones, in % of the box. */
+  zonePct: number;
+}
+
 export interface ChartSignal extends MethodSignal {
   openTime: number;
 }
@@ -53,6 +65,7 @@ export interface ChartOverlays {
   lines: ChartLine[];
   swings: ChartSwing[];
   fvgs: ChartGap[];
+  boxes: ChartBox[];
   /** Every trigger of every enabled method on the shown candles. */
   signals: ChartSignal[];
   /** READY / ENTER moments, replayed the way the live bot sends them. */
@@ -150,6 +163,22 @@ export function chartOverlays(market: MarketData, settings: Settings, analyzer: 
     }
   }
 
+  const boxes: ChartBox[] = [];
+  if (m.boxTheory.enabled) {
+    const days = dailyRanges(trend);
+    for (const [day, r] of dailyRanges(entry)) days.set(day, r);
+    const dayMs = 86_400_000;
+    const dayOf = (t: number) => Math.floor((t + 7 * 3_600_000) / dayMs) * dayMs - 7 * 3_600_000;
+    for (let i = start; i <= end; i++) {
+      const day = dayOf(time(i));
+      const box = days.get(day - dayMs);
+      if (!box) continue;
+      const last = boxes.at(-1);
+      if (last && dayOf(last.from) === day) last.to = time(i);
+      else boxes.push({ from: time(i), to: time(i), top: box.top, bottom: box.bottom, zonePct: m.boxTheory.zonePct });
+    }
+  }
+
   const signals: ChartSignal[] = [];
   for (let i = start; i <= end; i++) {
     for (const id of METHOD_IDS) {
@@ -169,5 +198,5 @@ export function chartOverlays(market: MarketData, settings: Settings, analyzer: 
     }
   }
 
-  return { lines, swings: swingList, fvgs: gaps.slice(-MAX_GAPS), signals, episodes };
+  return { lines, swings: swingList, fvgs: gaps.slice(-MAX_GAPS), boxes, signals, episodes };
 }

@@ -1,4 +1,4 @@
-import { TRADING_DAY_OFFSET_MINUTES, tradingDayKey } from "@bot-v3/core";
+import { comboOf, TRADING_DAY_OFFSET_MINUTES, tradingDayKey } from "@bot-v3/core";
 import { tradeOutcome, type Trade } from "../engine/types.js";
 
 const DAY_MS = 86_400_000;
@@ -211,8 +211,6 @@ export interface AllStats {
   byMethods: GroupStats[];
 }
 
-const LETTER: Record<string, string> = { trendPullback: "A", donchianBreakout: "B", smcSweep: "C" };
-
 /** How the trade ended, with stops split by where they had been moved. */
 function exitLabel(trade: Trade): string {
   if (trade.exitReason === "SL") {
@@ -248,7 +246,7 @@ export function allStats(trades: readonly Trade[]): AllStats {
     symbol: t.symbol,
     direction: t.direction,
     closedAt: t.closedAt!,
-    methods: t.methods.map((m) => LETTER[m] ?? m).join("+"),
+    methods: comboOf(t.methods),
     exit: exitLabel(t),
     outcome: tradeOutcome(t),
     r: t.pnlR ?? 0,

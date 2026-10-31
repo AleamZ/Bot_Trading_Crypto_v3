@@ -14,7 +14,10 @@
  */
 import { writeFileSync } from "node:fs";
 import {
+  comboOf,
   defaultSettings,
+  entryRuleText,
+  METHOD_LETTERS,
   mergeSettings,
   runBacktest,
   signalSequence,
@@ -138,10 +141,9 @@ console.log(`\n${header("Symbol")}`);
 for (const [symbol, summary] of Object.entries(result.bySymbol)) console.log(row(symbol, summary));
 console.log(row("TỔNG", result.total));
 
-const LETTER: Record<MethodId, string> = { trendPullback: "A", donchianBreakout: "B", smcSweep: "C" };
-const letters = (key: string) => key.split("+").map((m) => LETTER[m as MethodId]).join("+");
+const letters = (key: string) => comboOf(key.split("+") as MethodId[]);
 // "A=B": both fired on the same candle (likely one move); "A→B": A first, B later.
-const sequence = (t: BacktestTrade) => signalSequence(t.signalTimes).map((group) => group.map((m) => LETTER[m]).join("=")).join("→");
+const sequence = (t: BacktestTrade) => signalSequence(t.signalTimes).map((group) => group.map((m) => METHOD_LETTERS[m]).join("=")).join("→");
 const closed = result.trades.filter((t) => t.exitReason !== "OPEN");
 if (closed.length) {
   console.log(`\n${header("Đồng thuận")}`);
@@ -152,11 +154,10 @@ if (closed.length) {
   for (const key of [...bySequence.keys()].sort()) console.log(row(key, summarize(bySequence.get(key)!)));
   console.log("Thứ tự: A=B là hai phương pháp kích hoạt cùng một nến, A→B là A trước, B ở nến sau.");
 }
-const { alertThreshold, autoEntryThreshold } = settings.general;
-const readyLabel = alertThreshold < autoEntryThreshold ? `Báo SẴN SÀNG (${alertThreshold}/3): ${result.readyAlerts} lần · ` : "";
-console.log(`\n${readyLabel}Đủ ${autoEntryThreshold}/3: ${result.enterSignals} lần · vào lệnh: ${result.trades.length}`);
+const rule = entryRuleText(settings.general);
+console.log(`\nBáo SẴN SÀNG (${settings.general.alertThreshold} phương pháp): ${result.readyAlerts} lần · đủ điều kiện vào (${rule}): ${result.enterSignals} lần · vào lệnh: ${result.trades.length}`);
 const skipped = Object.entries(result.skipped);
-if (skipped.length) console.log(`${autoEntryThreshold}/3 không vào được: ${skipped.map(([k, v]) => `${k} ${v}`).join(", ")}`);
+if (skipped.length) console.log(`Đủ điều kiện mà không vào được: ${skipped.map(([k, v]) => `${k} ${v}`).join(", ")}`);
 if (settings.risk.moveSl) {
   const stopped = (stage: number) => closed.filter((t) => t.exitReason === "SL" && t.stopStage === stage).length;
   const { breakEvenAtTpPct, lockAtTpPct, lockSlAtTpPct } = settings.risk;

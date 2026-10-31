@@ -4,7 +4,7 @@ import { api, errorMessage } from "../api";
 import { clock, dateTime, duration, money, price, progress, rMultiple, signed, usd } from "../format";
 import { useLoad, useNow, type Live, type Route } from "../hooks";
 import { Feed } from "../parts";
-import { METHODS, type AnalysisView, type Position, type Status, type Trade } from "../types";
+import { entryRuleText, METHODS, type AnalysisView, type Position, type Status, type Trade } from "../types";
 import { Button, Chip, ConfirmButton, DirectionChip, LevelChip, Mascot, Meter, Notice, Panel, Stat, type Mood } from "../ui";
 import { useToast } from "../ui";
 
@@ -66,7 +66,7 @@ function Alerts({ status, go }: { status: Status; go: (route: Route) => void }) 
         </Notice>
       )}
       {status.autoTradeBlockers.length > 0 && (
-        <Notice tone="coin" title={`Tự vào lệnh đang tắt: ${status.limits.autoEntryThreshold}/3 chỉ được báo, không đặt lệnh`}>
+        <Notice tone="coin" title={`Tự vào lệnh đang tắt: ${entryRuleText(status.limits)} chỉ được báo, không đặt lệnh`}>
           <ul>
             {status.autoTradeBlockers.map((b) => (
               <li key={b}>{b}</li>
@@ -93,6 +93,7 @@ function Alerts({ status, go }: { status: Status; go: (route: Route) => void }) 
 function SignalBoard({ rows, go }: { rows: AnalysisView[]; go: (route: Route, param?: string) => void }) {
   const [open, setOpen] = useState<string | null>(null);
   if (rows.length === 0) return <div className="empty-state">Chưa có lượt quét nào. Bot quét ngay khi khởi động, rồi sau mỗi nến đóng.</div>;
+  const methodCount = Math.max(1, METHODS.filter((m) => rows[0]!.methods[m.id]?.enabled).length);
   return (
     <div className="scroll-x">
       <table className="board">
@@ -129,7 +130,7 @@ function SignalBoard({ rows, go }: { rows: AnalysisView[]; go: (route: Route, pa
                     return <td key={m.id}>{s ? <DirectionChip direction={s.direction} title={`${s.reason} · SL ${price(s.stopLoss)}`} /> : <Chip tone="empty">—</Chip>}</td>;
                   })}
                   <td>
-                    <Meter label={c.direction ?? "—"} value={best} max={3} tone={c.direction === "SHORT" ? "heart" : "quest"} display={`${best}/3`} />
+                    <Meter label={c.direction ?? "—"} value={best} max={methodCount} tone={c.direction === "SHORT" ? "heart" : "quest"} display={`${best}/${methodCount}`} />
                   </td>
                   <td>
                     <LevelChip level={c.level} />
@@ -137,7 +138,7 @@ function SignalBoard({ rows, go }: { rows: AnalysisView[]; go: (route: Route, pa
                 </tr>
                 {expanded && (
                   <tr>
-                    <td colSpan={6} style={{ background: "var(--well)" }}>
+                    <td colSpan={METHODS.length + 3} style={{ background: "var(--well)" }}>
                       <div style={{ display: "grid", gap: 6 }}>
                         {METHODS.map((m) => {
                           const s = a.methods[m.id].signal;
@@ -181,7 +182,7 @@ function moodOf(status: Status): Mood {
 
 const moodText = (mood: Mood, status: Status): string =>
   ({
-    running: `Đang chạy: ${status.limits.autoEntryThreshold}/3 sẽ tự vào lệnh`,
+    running: `Đang chạy: tự vào lệnh khi ${entryRuleText(status.limits)}`,
     paused: "Tạm dừng: không vào lệnh mới",
     error: "Đang gặp lỗi kết nối",
     off: "Chỉ báo tín hiệu, không tự vào lệnh",

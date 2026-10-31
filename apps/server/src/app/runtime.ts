@@ -3,6 +3,7 @@ import {
   checkEntryGuards,
   createAnalyzer,
   GUARD_MESSAGES,
+  METHOD_IDS,
   planTrade,
   riskAffordability,
   settingsWarnings,
@@ -420,7 +421,7 @@ export class BotRuntime {
 
   /** The settings the dashboard meters and labels need. */
   private limits() {
-    const { general, risk } = this.settings.get();
+    const { general, risk, methods } = this.settings.get();
     return {
       entryTf: general.entryTf,
       trendTf: general.trendTf,
@@ -434,6 +435,9 @@ export class BotRuntime {
       maxDailyLossR: risk.maxDailyLossR,
       alertThreshold: general.alertThreshold,
       autoEntryThreshold: general.autoEntryThreshold,
+      entryCombos: general.entryCombos,
+      /** Methods turned on, the denominator of "2/3". */
+      methodCount: METHOD_IDS.filter((id) => methods[id].enabled).length,
     };
   }
 
@@ -503,7 +507,12 @@ export class BotRuntime {
       explanation: analyzer.explain(last),
       preview: await this.entryPreview(symbol, analysis, settings),
       guard: guard.ok ? { ok: true as const, reason: null, message: null } : { ok: false as const, reason: guard.reason, message: GUARD_MESSAGES[guard.reason] },
-      thresholds: { alert: settings.general.alertThreshold, entry: settings.general.autoEntryThreshold },
+      thresholds: {
+        alert: settings.general.alertThreshold,
+        entry: settings.general.autoEntryThreshold,
+        combos: settings.general.entryCombos,
+        methods: METHOD_IDS.filter((id) => settings.methods[id].enabled).length,
+      },
       trades: this.trades.list({ symbol, limit: 30 }).trades,
       lastScanAt: this.scanner.lastReport?.finishedAt ?? null,
       nextScanAt: this.scanner.nextScanAt,

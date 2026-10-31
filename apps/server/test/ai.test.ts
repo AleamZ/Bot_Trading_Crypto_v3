@@ -80,7 +80,7 @@ describe("AI trade reviews", () => {
     const facts = record.facts as { trade: { exitReason: string; resultR: number }; atEntry: { methods: Record<string, unknown> }; candles: { rows: unknown[] } };
     expect(facts.trade.exitReason).toBe("SL");
     expect(facts.trade.resultR).toBeLessThan(-0.9);
-    expect(Object.keys(facts.atEntry.methods)).toEqual(["trendPullback", "donchianBreakout", "smcSweep"]);
+    expect(Object.keys(facts.atEntry.methods)).toEqual(["trendPullback", "donchianBreakout", "smcSweep", "boxTheory"]);
     expect(facts.candles.rows.length).toBeGreaterThan(0);
     // The AI got those facts, as JSON, after the system prompt.
     const messages = ai.bodies[0]!.messages as { role: string; content: string }[];

@@ -12,6 +12,7 @@ function loose(): Settings {
       trendPullback: { rsiMin: 1, rsiMax: 99, slopeLookback: 2, pullbackLookback: 8 },
       donchianBreakout: { channelLength: 10, volumeMultiplier: 0.5, adxMin: 0, minBodyRatio: 0.1, closeZoneRatio: 0.6, maxChaseAtr: 5 },
       smcSweep: { swingStrength: 2, minFvgAtr: 0, maxDistanceFromFvgAtr: 10, sweepLookback: 20 },
+      boxTheory: { enabled: true, minBoxAtr: 1, zonePct: 45, maxEntryPct: 50, rejectRatio: 0 },
     },
   });
   if (!merged.ok) throw new Error(JSON.stringify(merged.errors));
@@ -50,7 +51,7 @@ describe("explain matches evaluate", () => {
 
   it("reports missing data as unknown, not as failed", () => {
     const entry = randomWalk(30, 5);
-    const analyzer = createAnalyzer({ entry, trend: [] }, defaultSettings());
+    const analyzer = createAnalyzer({ entry, trend: [] }, loose());
     const first = analyzer.explain(0);
     for (const id of METHOD_IDS) {
       for (const s of first[id]!.sides) expect(s.checks.every((c) => c.pass === null)).toBe(true);

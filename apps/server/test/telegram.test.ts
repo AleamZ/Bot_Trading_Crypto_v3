@@ -16,16 +16,16 @@ const view = (signals = LONG2) => toAnalysisView("BTCUSDT", "15m", analysisOf(si
 describe("Telegram messages", () => {
   it("READY lists every method with its side, stop and reason", () => {
     const text = formatEvent({ type: "SIGNAL_READY", analysis: view() }, ctx)!;
-    expect(text).toContain("🟡 <b>SẴN SÀNG 2/3 · BTCUSDT LONG</b>");
+    expect(text).toContain("🟡 <b>SẴN SÀNG A+B · BTCUSDT LONG</b>");
     expect(text).toContain("✅ A. Xu hướng + hồi EMA: LONG · SL 67500 · trendPullback test");
     expect(text).toContain("▫️ C. SMC quét thanh khoản: chưa có tín hiệu");
-    expect(text).toContain("Chưa vào lệnh: cần 3/3 cùng chiều.");
+    expect(text).toContain("Chưa vào lệnh: cần 3 phương pháp cùng chiều.");
     expect(text).toContain(`nến 15m đóng ${vnTime(1_800_000_000_000)}`);
   });
 
   it("an entry shows volume, SL and TP with what each is worth after fees", () => {
     const text = formatEvent({ type: "ENTRY_FILLED", trade: sampleTrade() }, ctx)!;
-    expect(text).toContain("🟢 <b>ĐÃ VÀO LỆNH 3/3 · BTCUSDT LONG</b>");
+    expect(text).toContain("🟢 <b>ĐÃ VÀO LỆNH A+B+C · BTCUSDT LONG</b>");
     expect(text).toContain("Khối lượng <b>0.005</b> @ 68000 · 10x");
     expect(text).toContain("🛑 SL 67067.6 · lỗ 4.9997$ (−1.00R)");
     expect(text).toContain("🎯 TP 69864.8 · lãi ròng 8.9793$ (+1.80R)");

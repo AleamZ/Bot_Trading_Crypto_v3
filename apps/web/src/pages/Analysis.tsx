@@ -4,15 +4,16 @@ import { api } from "../api";
 import { ChartView, DEFAULT_LAYERS, type Layers } from "../ChartView";
 import { clock, dateTime, duration, price, rMultiple, usd } from "../format";
 import { useLoad, useNow, type Live, type Route } from "../hooks";
-import { METHODS, type ChartResponse, type Check, type EntryPreview, type MethodId, type SideExplanation } from "../types";
+import { comboOf, entryRuleText, METHODS, type ChartResponse, type Check, type EntryPreview, type MethodId, type SideExplanation } from "../types";
 import { Button, Chip, DirectionChip, LevelChip, Meter, Notice, Panel, Tabs } from "../ui";
 
 const LAYER_LABELS: [keyof Layers, string][] = [
   ["ema", "A · EMA"],
   ["donchian", "B · Kênh Donchian"],
   ["smc", "C · Swing + FVG"],
-  ["signals", "Tín hiệu A/B/C"],
-  ["episodes", "2/3 · 3/3"],
+  ["box", "D · Hộp hôm trước"],
+  ["signals", "Tín hiệu A/B/C/D"],
+  ["episodes", "Báo · Vào"],
   ["trades", "Lệnh của bot"],
   ["volume", "Volume"],
 ];
@@ -109,7 +110,7 @@ export function Analysis({ live, symbol, go }: { live: Live; symbol: string | nu
             </label>
           </div>
           {data ? <ChartView data={data} layers={layers} zoneOpacity={opacity / 100} /> : <div className="chart-host empty-state">{chart.loading ? "Đang tải nến…" : "Chưa có dữ liệu"}</div>}
-          <Legend alert={live.status?.limits.alertThreshold ?? 2} entry={live.status?.limits.autoEntryThreshold ?? 3} />
+          <Legend alert={live.status?.limits.alertThreshold ?? 2} entry={live.status ? entryRuleText(live.status.limits) : "…"} />
         </Panel>
         <div className="stack">{data && <Verdict data={data} />}</div>
       </div>
@@ -125,12 +126,13 @@ export function Analysis({ live, symbol, go }: { live: Live; symbol: string | nu
   );
 }
 
-function Legend({ alert, entry }: { alert: number; entry: number }) {
+function Legend({ alert, entry }: { alert: number; entry: string }) {
   return (
     <div className="legend soft">
-      <span>▲▼ A/B/C: lần phương pháp kích hoạt</span>
-      <span>● {alert}/3: báo SẴN SÀNG</span>
-      <span>■ {entry}/3: vào lệnh</span>
+      <span>▲▼ A/B/C/D: lần phương pháp kích hoạt</span>
+      <span>● Báo: {alert} phương pháp cùng chiều, báo SẴN SÀNG</span>
+      <span>■ Vào: {entry}</span>
+      <span>Hộp: khoảng giá hôm trước, xanh là vùng mua, đỏ là vùng bán</span>
       <span>Đường đứt: EMA khung lớn</span>
       <span>Đường chấm: kênh Donchian</span>
       <span>Hộp có viền: vùng FVG còn mở (nhạt: đã lấp)</span>
@@ -146,15 +148,17 @@ function Verdict({ data }: { data: ChartResponse }) {
   const a = data.analysis;
   const c = a.consensus;
   const best = Math.max(c.longCount, c.shortCount);
-  const need = c.level === "ENTER" ? null : best >= data.thresholds.alert ? data.thresholds.entry : data.thresholds.alert;
+  const total = data.thresholds.methods;
+  const rule = entryRuleText({ autoEntryThreshold: data.thresholds.entry, entryCombos: data.thresholds.combos });
+  const combo = comboOf(c.agreeing);
   // The page fetches candles itself, so it can show a new close a few seconds before the bot scans it.
   const scanned = data.lastScanAt !== null && data.lastScanAt >= a.time;
   const episode = scanned && a.episode && a.episode.direction === c.direction ? a.episode : null;
   const readyText = !scanned
-    ? `Đủ ${best}/3: bot sẽ báo SẴN SÀNG khi quét nến này (vài giây sau khi nến đóng).`
+    ? `${combo} cùng chiều: bot sẽ báo SẴN SÀNG khi quét nến này (vài giây sau khi nến đóng).`
     : episode && episode.startedAt < a.time
-      ? `Đủ ${best}/3: đã báo SẴN SÀNG lúc ${clock(episode.startedAt + 1)} (mỗi đợt chỉ báo một lần).`
-      : `Đủ ${best}/3: đã báo SẴN SÀNG.`;
+      ? `${combo} cùng chiều: đã báo SẴN SÀNG lúc ${clock(episode.startedAt + 1)} (mỗi đợt chỉ báo một lần).`
+      : `${combo} cùng chiều: đã báo SẴN SÀNG.`;
   return (
     <>
       <Panel title="Bot đang thấy gì" sub={`nến đóng ${dateTime(a.time + 1)}`}>
@@ -166,16 +170,16 @@ function Verdict({ data }: { data: ChartResponse }) {
               LONG {c.longCount} · SHORT {c.shortCount}
             </span>
           </div>
-          <Meter label="Đồng thuận" value={best} max={3} tone={c.direction === "SHORT" ? "heart" : "quest"} display={`${best}/3`} />
+          <Meter label="Đồng thuận" value={best} max={total} tone={c.direction === "SHORT" ? "heart" : "quest"} display={`${best}/${total}`} />
           <div>
             {c.level === "ENTER"
               ? scanned
-                ? `Đủ ${best}/3 cùng chiều: bot thử vào lệnh (nếu các giới hạn cho phép).`
-                : `Đủ ${best}/3 cùng chiều: bot sẽ thử vào lệnh khi quét nến này (nếu các giới hạn cho phép).`
+                ? `${combo} cùng chiều: bot thử vào lệnh (nếu các giới hạn cho phép).`
+                : `${combo} cùng chiều: bot sẽ thử vào lệnh khi quét nến này (nếu các giới hạn cho phép).`
               : c.level === "READY"
-                ? `${readyText} Cần ${data.thresholds.entry}/3 và không có phương pháp ngược chiều để vào lệnh.`
-                : need
-                  ? `Chưa đủ: cần ${need}/3 cùng chiều${need === data.thresholds.alert ? " để báo SẴN SÀNG" : ""}.`
+                ? `${readyText} Vào lệnh cần ${rule}, không có phương pháp ngược chiều.`
+                : best > 0
+                  ? `Chưa đủ: ${combo || "chưa phương pháp nào"} cùng chiều. Báo SẴN SÀNG cần ${data.thresholds.alert} phương pháp, vào lệnh cần ${rule}.`
                   : "Chưa có tín hiệu."}
           </div>
           {METHODS.map((m) => {
