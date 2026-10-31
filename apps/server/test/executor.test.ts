@@ -13,6 +13,8 @@ describe("Executor: happy path", () => {
     if (!outcome.ok) return;
     const t = outcome.trade;
     expect(t).toMatchObject({ status: "OPEN", symbol: "BTCUSDT", direction: "LONG", quantity: "0.0057", entryPrice: "68000", leverage: 1, stopMode: "EXACT_1R" });
+    // What the bot saw, kept for the AI review.
+    expect(t.entrySignals).toEqual(h.request("LONG").signals.map(({ method, direction, time, price, stopLoss, reason }) => ({ method, direction, time, price, stopLoss, reason })));
     expect(h.api.positionAmt()).toBe(0.0057);
     // AUTO leverage: 388$ of position fits in half of a 10,000$ balance at 1x.
     expect(h.api.settingsBySymbol.get("BTCUSDT")).toEqual({ marginType: "ISOLATED", leverage: 1 });

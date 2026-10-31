@@ -35,8 +35,8 @@ Trong **Cài đặt → AI**:
 
 Khi lệnh đóng, bot tính **dữ kiện bằng code** rồi mới đưa cho AI, để AI không phải tự đoán số:
 
-- **Lệnh:** chiều, giá vào/thoát, SL/TP, khoảng SL theo % và theo ATR, R thực tế, thời gian giữ lệnh.
-- **Lúc vào:** từng điều kiện ✓/✗ của 3 phương pháp trên nến vào lệnh (giống trang Phân tích), ATR %, ADX, xu hướng khung lớn, đồng thuận.
+- **Lệnh:** chiều, giá dự kiến và giá vào/thoát, SL lúc vào lệnh (SL gộp trước và sau khi tính lại theo giá khớp), các lần dời SL và SL cuối, TP, khoảng SL theo % và theo ATR (tính theo SL lúc vào), giá kích hoạt SL/TP (mark), R thực tế, thời gian giữ lệnh.
+- **Lúc vào:** các tín hiệu bot đã dùng (lưu ngay khi vào lệnh: phương pháp, nến kích hoạt, cách nến vào bao nhiêu nến, SL, lý do); từng điều kiện ✓/✗ của 3 phương pháp trên nến vào lệnh (giống trang Phân tích), ATR %, ADX, xu hướng khung lớn, đồng thuận. Prompt giải thích cho AI rằng tín hiệu còn hiệu lực `signalTtlBars` nến, SL đã dời nằm phía có lãi, và TP/SL kích hoạt theo giá mark, để AI không coi đó là lỗi dữ liệu.
 - **Lúc thoát:** xu hướng khung lớn.
 - **Diễn biến trong lệnh:** đi có lợi nhất và bất lợi nhất (theo R), đã đi được bao nhiêu % tới TP, số nến.
 - **Nến quanh lệnh:** tối đa 80 nến, giờ Việt Nam.

@@ -11,6 +11,17 @@ export interface StopMove {
   progress: number;
 }
 
+/** A method's signal the bot entered on, as the bot saw it at the entry. */
+export interface EntrySignal {
+  method: MethodId;
+  direction: Direction;
+  /** closeTime of the candle the method fired on (it counts for signalTtlBars candles). */
+  time: number;
+  price: number;
+  stopLoss: number;
+  reason: string;
+}
+
 export type TradeStatus = "OPENING" | "OPEN" | "CLOSED" | "FAILED";
 export type ExitReason = "TP" | "SL" | "EMERGENCY" | "MANUAL";
 
@@ -21,6 +32,8 @@ export interface Trade {
   direction: Direction;
   status: TradeStatus;
   methods: MethodId[];
+  /** The agreeing signals at the entry. Missing on trades from before it was recorded. */
+  entrySignals?: EntrySignal[];
   createdAt: number;
   openedAt: number | null;
   closedAt: number | null;
@@ -67,6 +80,11 @@ export interface Trade {
  */
 export function isStopRuleRejection(event: { stage: EntryStage; reason: string }): boolean {
   return event.stage === "PLAN" && ["STOP_TOO_CLOSE", "STOP_TOO_FAR", "STOP_TOO_FAR_ATR", "STOP_WRONG_SIDE"].includes(event.reason);
+}
+
+/** The stop the trade opened with, before any move. */
+export function initialStop(trade: Pick<Trade, "slMoves" | "stopLoss">): string | null {
+  return trade.slMoves?.[0]?.from ?? trade.stopLoss;
 }
 
 /** 0: the stop the trade opened with; 1: at the entry; 2: in profit. */

@@ -127,6 +127,7 @@ export class Executor {
       direction,
       status: "OPENING",
       methods: request.signals.map((s) => s.method),
+      entrySignals: request.signals.map((s) => ({ method: s.method, direction: s.direction, time: s.time, price: s.price, stopLoss: s.stopLoss, reason: s.reason })),
       createdAt: this.now(),
       openedAt: null,
       closedAt: null,

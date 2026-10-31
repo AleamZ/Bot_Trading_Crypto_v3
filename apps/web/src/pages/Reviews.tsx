@@ -206,8 +206,9 @@ function ReviewCard({ item, focused, busy, canRun, onRerun, go }: { item: Review
             <div>
               <span className="label">SL / TP</span>
               <strong>
-                {price(t.stopLoss)} / {price(t.takeProfit)}
+                {price(t.slMoves?.[0]?.from ?? t.stopLoss)} / {price(t.takeProfit)}
               </strong>
+              {t.slMoves?.length ? <span className="soft">SL dời tới {price(t.stopLoss)}</span> : null}
               {item.facts?.trade?.stopDistancePct !== undefined && (
                 <span className="soft">
                   SL {item.facts.trade.stopDistancePct}% · {item.facts.trade.stopDistanceAtr} ATR

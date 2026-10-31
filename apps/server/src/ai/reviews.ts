@@ -4,7 +4,7 @@ import { candleLimits } from "../app/scanner.js";
 import type { EventHub } from "../app/events.js";
 import { errorText } from "../binance/errors.js";
 import type { KeyValueStore, ReviewOutcome, ReviewRecord, ReviewStore, SqliteTradeStore } from "../db/stores.js";
-import { tradeOutcome, type Trade } from "../engine/types.js";
+import { initialStop, tradeOutcome, type Trade } from "../engine/types.js";
 import { silentLogger, type Logger } from "../lib/logger.js";
 import { extractJson, type AiClient } from "./client.js";
 
@@ -59,6 +59,11 @@ const LABEL: Record<MethodId, string> = { trendPullback: "A. Xu hướng + hồi
 const REVIEW_PROMPT = `Bạn là chuyên gia phân tích giao dịch crypto futures, đang rà soát MỘT lệnh do bot tự động đặt trên Binance USDT-M.
 Bot dùng 3 phương pháp: A. Xu hướng + hồi EMA (trendPullback), B. Phá kênh Donchian (donchianBreakout), C. SMC quét thanh khoản (smcSweep). Bot vào lệnh khi đủ số phương pháp cùng chiều, SL gộp từ SL các phương pháp, khối lượng theo 1R, TP = giá vào ± RR × khoảng SL.
 Dữ kiện JSON do code tính sẵn: lệnh, điều kiện từng phương pháp lúc vào (checks), diễn biến giá trong lệnh (path: MFE/MAE theo R, tiến độ tới TP), bối cảnh (ATR %, ADX, xu hướng khung lớn lúc vào và lúc thoát), và chuỗi nến quanh lệnh.
+Cách đọc dữ kiện (đây là cách bot chạy, không phải lỗi dữ liệu):
+- trade.stopLoss là SL lúc vào lệnh, R và path tính theo SL này. stopMoves là các lần bot dời SL (về giá vào khi giá đi được breakEvenAtTpPct% đường tới TP, khoá lãi khi đi được lockAtTpPct%); finalStopLoss là SL cuối, nằm phía có lãi sau khi dời là bình thường.
+- Tín hiệu của một phương pháp còn được tính vào đồng thuận trong signalTtlBars nến sau nến kích hoạt. signalsUsed là các tín hiệu bot đã dùng, kèm nến kích hoạt và candlesBeforeEntry. checks và consensus trong atEntry được tính lại trên nến ngay trước lúc vào, nên một phương pháp có thể không đạt đủ checks ở nến này vì tín hiệu của nó đến từ nến trước. Hãy đánh giá việc tín hiệu đã cũ thay vì coi là mâu thuẫn.
+- SL/TP kích hoạt theo trade.triggerPrice (MARK_PRICE là giá mark) còn nến là giá giao dịch, nên lệnh có thể chạm TP/SL khi nến chưa chạm, và giá khớp có thể lệch mức đặt.
+- slMode EXACT_1R: sau khi khớp, SL được tính lại theo giá khớp thật để lỗ đúng 1R kể cả phí; structuralStop là SL gộp trước khi tính lại, plannedEntry là giá lúc quyết định vào.
 Yêu cầu:
 - Chỉ dựa trên dữ kiện được cung cấp. Không bịa tin tức, sự kiện hay số liệu ngoài.
 - Giải thích VÌ SAO lệnh thắng hoặc thua, nêu rõ vai trò của từng phương pháp và của SL/TP (ví dụ: SL quá sát so với ATR, vào khi xu hướng khung lớn đã yếu, giá đã đi +0.8R rồi quay đầu...).
@@ -208,7 +213,9 @@ export class ReviewService {
       return up ? "tăng" : down ? "giảm" : "không rõ xu hướng";
     };
     const entryPrice = Number(trade.entryPrice);
-    const path = tradePath(trade.direction, entryPrice, Number(trade.stopLoss), Number(trade.takeProfit), entry.slice(entryIdx + 1, exitIdx + 1));
+    // R and distances use the stop the trade opened with; a moved stop is listed apart.
+    const firstStop = Number(initialStop(trade));
+    const path = tradePath(trade.direction, entryPrice, firstStop, Number(trade.takeProfit), entry.slice(entryIdx + 1, exitIdx + 1));
     const round = (x: number, digits = 4) => (Number.isFinite(x) ? Number(x.toFixed(digits)) : null);
     const vn = (ms: number) => new Date(ms + 7 * 3_600_000).toISOString().slice(5, 16).replace("T", " ");
 
@@ -242,9 +249,18 @@ export class ReviewService {
         openedAt: vn(openedAt),
         closedAt: vn(closedAt),
         heldMinutes: Math.round((closedAt - openedAt) / 60_000),
+        plannedEntry: trade.plannedEntry,
+        structuralStop: trade.structuralStop,
         entry: trade.entryPrice,
-        stopLoss: trade.stopLoss,
+        stopLoss: initialStop(trade),
         takeProfit: trade.takeProfit,
+        ...(trade.slMoves?.length
+          ? {
+              stopMoves: trade.slMoves.map((m) => ({ at: vn(m.at), to: m.to, kind: m.stage === 1 ? "về giá vào" : "khoá lãi", progressToTp: round(m.progress, 2) })),
+              finalStopLoss: trade.stopLoss,
+            }
+          : {}),
+        triggerPrice: settings.risk.triggerPrice,
         exit: trade.exitPrice,
         exitReason: trade.exitReason,
         netPnlUsd: trade.netPnl,
@@ -253,8 +269,8 @@ export class ReviewService {
         winAtTpR: trade.rewardAtTpR,
         stopMode: trade.stopMode,
         leverage: trade.leverage,
-        stopDistancePct: round((Math.abs(entryPrice - Number(trade.stopLoss)) / entryPrice) * 100, 3),
-        stopDistanceAtr: round(Math.abs(entryPrice - Number(trade.stopLoss)) / atEntry.atr, 2),
+        stopDistancePct: round((Math.abs(entryPrice - firstStop) / entryPrice) * 100, 3),
+        stopDistanceAtr: round(Math.abs(entryPrice - firstStop) / atEntry.atr, 2),
       },
       atEntry: {
         signalCandleClosed: vn(atEntry.time + 1),
@@ -264,6 +280,16 @@ export class ReviewService {
         adx: round(adxSeries[entryIdx] ?? Number.NaN, 1),
         trendTimeframe: trendTf,
         higherTimeframeTrend: trendSide(entryIdx),
+        signalsUsed:
+          trade.entrySignals?.map((s) => ({
+            method: LABEL[s.method],
+            direction: s.direction,
+            signalCandleClosed: vn(s.time + 1),
+            candlesBeforeEntry: Math.round((atEntry.time - s.time) / tfMs),
+            price: s.price,
+            stopLoss: round(s.stopLoss, 8),
+            reason: s.reason,
+          })) ?? "không có: lệnh vào trước khi bot lưu tín hiệu lúc vào",
         consensus: { level: atEntry.consensus.level, direction: atEntry.consensus.direction, long: atEntry.consensus.longCount, short: atEntry.consensus.shortCount },
         methods,
       },
@@ -285,6 +311,8 @@ export class ReviewService {
         rr: settings.risk.rr,
         slPolicy: settings.risk.slPolicy,
         slMode: settings.risk.slMode,
+        maxSlAtr: settings.risk.maxSlAtr,
+        moveSl: settings.risk.moveSl ? `về giá vào ở ${settings.risk.breakEvenAtTpPct}% đường tới TP, khoá ${settings.risk.lockSlAtTpPct}% ở ${settings.risk.lockAtTpPct}%` : "tắt",
         thresholds: `${settings.general.alertThreshold}/3 báo, ${settings.general.autoEntryThreshold}/3 vào lệnh`,
         signalTtlBars: settings.general.signalTtlBars,
         note: "Cài đặt hiện tại; có thể khác lúc vào lệnh nếu đã sửa",

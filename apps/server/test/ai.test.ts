@@ -90,6 +90,21 @@ describe("AI trade reviews", () => {
     await h.runtime.stop();
   });
 
+  it("gives the AI the stop the trade opened with, its moves, and the signals the bot used", async () => {
+    const h = runtimeHarness({ ai: fakeAi() });
+    const id = await closedLoss(h);
+    const trade = h.runtime.trades.getSync(id)!;
+    expect(trade.entrySignals?.map((s) => s.method)).toEqual(["trendPullback", "donchianBreakout", "smcSweep"]);
+    const first = trade.stopLoss!;
+    const moved = { ...trade, stopLoss: trade.entryPrice, slMoves: [{ at: trade.openedAt! + 60_000, stage: 1 as const, from: first, to: trade.entryPrice!, progress: 0.5 }] };
+    const plain = (await h.runtime.reviews.buildFacts(trade, h.runtime.settings.get())) as { trade: Record<string, unknown> };
+    const facts = (await h.runtime.reviews.buildFacts(moved, h.runtime.settings.get())) as { trade: Record<string, unknown>; atEntry: { signalsUsed: unknown } };
+    expect(facts.trade).toMatchObject({ stopLoss: first, finalStopLoss: trade.entryPrice, stopMoves: [{ to: trade.entryPrice, kind: "về giá vào" }], triggerPrice: "MARK_PRICE" });
+    expect(facts.trade.stopDistanceAtr).toBe(plain.trade.stopDistanceAtr);
+    expect(plain.trade).not.toHaveProperty("stopMoves");
+    expect(facts.atEntry.signalsUsed).toEqual(LONG3.map((s) => expect.objectContaining({ direction: s.direction, stopLoss: s.stopLoss, reason: s.reason, candlesBeforeEntry: expect.any(Number) })));
+  });
+
   it("keeps a failed review, which can be run again", async () => {
     const ai = fakeAi();
     ai.replies.push({ content: "xin lỗi, không có JSON" });
