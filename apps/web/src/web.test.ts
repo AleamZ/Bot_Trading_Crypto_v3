@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { clock, dateTime, duration, price, progress, rMultiple, signed, usd } from "./format";
+import { collapseRepeats } from "./parts";
 import { changedPaths, diffPatch, getAt, parseNumber, parseSymbols, sectionsFromSchema, setAt } from "./schemaForm";
-import type { JsonSchema } from "./types";
+import type { JsonSchema, LogEntry } from "./types";
 
 const schema: JsonSchema = {
   type: "object",
@@ -90,5 +91,22 @@ describe("format", () => {
     expect(duration(3_900_000)).toBe("1 giờ 5 phút");
     expect(progress(5, 0, 10)).toBe(0.5);
     expect(progress(15, 10, 0)).toBe(0);
+  });
+});
+
+describe("collapseRepeats", () => {
+  const log = (id: number, title: string, message = ""): LogEntry => ({ id, time: id * 60_000, type: "ERROR", level: "error", symbol: null, title, message, data: null });
+
+  it("folds the same event in a row into one line with its count and first time, and keeps the order", () => {
+    const out = collapseRepeats([log(5, "Không gọi được Binance"), log(4, "Không gọi được Binance"), log(3, "Không gọi được Binance"), log(2, "Đã kết nối lại"), log(1, "Không gọi được Binance")]);
+    expect(out.map((g) => [g.entry.id, g.count, g.since])).toEqual([
+      [5, 3, 180_000],
+      [2, 1, 120_000],
+      [1, 1, 60_000],
+    ]);
+  });
+
+  it("keeps events apart when the message differs", () => {
+    expect(collapseRepeats([log(2, "Lỗi", "a"), log(1, "Lỗi", "b")])).toHaveLength(2);
   });
 });

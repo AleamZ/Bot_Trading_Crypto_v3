@@ -84,20 +84,26 @@ function Shell({ me, onLogout }: { me: Me; onLogout: () => void }) {
           </a>
         ))}
         <span className="nav-spacer" />
-        <Button tone="plain" small onClick={nextTheme} icon={theme === "dark" ? <MoonIcon size={14} /> : theme === "light" ? <SunIcon size={14} /> : <CircleHalfIcon size={14} />} title="Đổi giao diện sáng / tối">
-          {theme === "auto" ? "Tự động" : theme === "dark" ? "Tối" : "Sáng"}
-        </Button>
+        {/* Icons only, so the whole menu fits on one row on a laptop screen. */}
+        <Button
+          tone="plain"
+          small
+          onClick={nextTheme}
+          icon={theme === "dark" ? <MoonIcon size={14} /> : theme === "light" ? <SunIcon size={14} /> : <CircleHalfIcon size={14} />}
+          title={`Giao diện: ${theme === "auto" ? "tự động" : theme === "dark" ? "tối" : "sáng"} (bấm để đổi)`}
+          aria-label="Đổi giao diện sáng / tối"
+        />
         <Button
           tone="plain"
           small
           icon={<SignOutIcon size={14} />}
+          title={`Đăng xuất${me.username ? ` (${me.username})` : ""}`}
+          aria-label="Đăng xuất"
           onClick={async () => {
             await api.logout().catch(() => undefined);
             onLogout();
           }}
-        >
-          {me.username ?? "Thoát"}
-        </Button>
+        />
       </nav>
       <main className="page">
         <Page route={route} live={live} go={go} param={param} />

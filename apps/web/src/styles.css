@@ -153,7 +153,7 @@ a {
 }
 
 .topbar-inner {
-  max-width: 1320px;
+  max-width: 1480px;
   margin: 0 auto;
   padding: 12px 16px;
   display: flex;
@@ -210,11 +210,11 @@ a {
 /* ---------- navigation ---------- */
 
 .nav {
-  max-width: 1320px;
+  max-width: 1480px;
   margin: 0 auto;
   padding: 16px 16px 0;
   display: flex;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
   align-items: center;
 }
@@ -223,7 +223,7 @@ a {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 12px 6px 6px;
+  padding: 5px 10px 5px 5px;
   background: var(--panel);
   border: 3px solid var(--line);
   box-shadow: 0 4px 0 var(--line);
@@ -231,7 +231,7 @@ a {
   color: var(--text);
   font-weight: 700;
   font-size: 12px;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   cursor: pointer;
   transition: transform var(--step), box-shadow var(--step);
@@ -270,7 +270,7 @@ a {
 /* ---------- layout ---------- */
 
 .page {
-  max-width: 1320px;
+  max-width: 1480px;
   margin: 0 auto;
   padding: 20px 16px 48px;
   display: grid;
@@ -293,6 +293,14 @@ a {
 
 .span2 {
   grid-column: span 2;
+}
+
+/* Dashboard: positions and signals on the left, the bot and the news on the right. */
+.dash {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr);
+  gap: 22px;
+  align-items: start;
 }
 
 .span3 {
@@ -334,7 +342,8 @@ a {
 }
 
 @media (max-width: 980px) {
-  .grid3 {
+  .grid3,
+  .dash {
     grid-template-columns: minmax(0, 1fr);
   }
   .span2 {
@@ -625,6 +634,11 @@ textarea.input {
   border-right: 0;
 }
 
+.tabs.small .tab {
+  padding: 4px 10px;
+  font-size: 11px;
+}
+
 .tab[aria-selected="true"] {
   background: var(--quest);
   color: #fff;
@@ -775,7 +789,7 @@ textarea.input {
 
 .board th,
 .board td {
-  padding: 9px 10px;
+  padding: 7px 10px;
   border-bottom: 2px dashed var(--line);
   text-align: left;
   vertical-align: middle;
@@ -794,6 +808,54 @@ textarea.input {
 
 .board .sym {
   font-weight: 700;
+}
+
+.board td {
+  white-space: nowrap;
+}
+
+.board .num {
+  font-size: 12px;
+}
+
+.board tbody tr {
+  cursor: pointer;
+}
+
+.board tbody tr:hover,
+.board tbody tr.open {
+  background: var(--well);
+}
+
+/* Agreement: one small cell per method, coloured by the direction. */
+.agree {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.agree .cell {
+  width: 12px;
+  height: 12px;
+}
+
+.agree.heart .cell {
+  --c: var(--heart);
+  --hi: var(--heart-hi);
+}
+
+/* Phones: arrows instead of LONG / SHORT and the price under the symbol, so the board fits the width. */
+@media (max-width: 640px) {
+  .board th,
+  .board td {
+    padding: 6px 8px;
+  }
+  .board .price {
+    display: block;
+  }
+  .board .dir-text {
+    display: none;
+  }
 }
 
 .scroll-x {
@@ -864,6 +926,11 @@ textarea.input {
 
 .feed li > .chip {
   justify-self: start;
+}
+
+.feed .repeat {
+  color: var(--coin);
+  font-weight: 700;
 }
 
 .feed .when {

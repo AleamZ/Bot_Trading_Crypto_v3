@@ -1,11 +1,11 @@
 import { ArrowClockwiseIcon, PauseIcon, PlayIcon, XIcon } from "@phosphor-icons/react";
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { api, errorMessage } from "../api";
 import { clock, dateTime, duration, money, price, progress, rMultiple, signed, usd } from "../format";
 import { useLoad, useNow, type Live, type Route } from "../hooks";
 import { Feed } from "../parts";
 import { entryRuleText, METHODS, type AnalysisView, type Position, type Status, type Trade } from "../types";
-import { Button, Chip, ConfirmButton, DirectionChip, LevelChip, Mascot, Meter, Notice, Panel, Stat, type Mood } from "../ui";
+import { Button, Chip, ConfirmButton, DirectionChip, LevelChip, Mascot, Meter, Notice, Panel, Stat, Tabs, type Mood } from "../ui";
 import { useToast } from "../ui";
 
 export function Dashboard({ live, go }: { live: Live; go: (route: Route, param?: string) => void }) {
@@ -26,22 +26,22 @@ export function Dashboard({ live, go }: { live: Live; go: (route: Route, param?:
         <Stat label="Lệnh hôm nay" value={`${status.today.opened} / ${status.limits.maxTradesPerDay}`} hint={`Đóng ${status.today.closed.count}, thắng ${status.today.closed.wins}`} />
         <Stat label="Vị thế mở" value={`${status.openTrades} / ${status.limits.maxOpenPositions}`} />
       </div>
-      <div className="grid3">
-        <Panel
-          className="span2"
-          title="Tín hiệu"
-          sub={status.lastScan ? `nến ${status.limits.entryTf} đóng ${clock(status.lastScan.expectedClose + 1)} · quét ${clock(status.lastScan.finishedAt)}` : "chưa quét"}
-          flush
-        >
-          <SignalBoard rows={live.analysis} go={go} />
-        </Panel>
-        <BotPanel status={status} />
-        <Panel className="span2" title="Vị thế đang mở" sub={trades.data ? `${openCount} lệnh` : undefined} flush>
-          <OpenTrades trades={trades.data?.trades ?? []} positions={positions.data?.positions ?? []} onClosed={() => void trades.reload()} />
-        </Panel>
-        <Panel title="Tin gần đây" sub={<a href="#/activity">xem hết</a>} flush>
-          <Feed entries={live.logs.slice(0, 12)} />
-        </Panel>
+      <div className="dash">
+        <div className="stack">
+          {/* Open positions first: they matter more than signals, and the board can be 20 rows long. */}
+          {openCount > 0 && (
+            <Panel title="Vị thế đang mở" sub={`${openCount} lệnh`} flush>
+              <OpenTrades trades={trades.data?.trades ?? []} positions={positions.data?.positions ?? []} onClosed={() => void trades.reload()} />
+            </Panel>
+          )}
+          <SignalPanel status={status} rows={live.analysis} go={go} />
+        </div>
+        <div className="stack">
+          <BotPanel status={status} />
+          <Panel title="Tin gần đây" sub={<a href="#/activity">xem hết</a>} flush>
+            <Feed entries={live.logs.slice(0, 40)} collapse limit={10} />
+          </Panel>
+        </div>
       </div>
     </>
   );
@@ -90,17 +90,87 @@ function Alerts({ status, go }: { status: Status; go: (route: Route) => void }) 
   );
 }
 
+type BoardFilter = "active" | "all";
+const BOARD_FILTER_KEY = "bot3.boardFilter";
+
+function readBoardFilter(): BoardFilter {
+  try {
+    return localStorage.getItem(BOARD_FILTER_KEY) === "all" ? "all" : "active";
+  } catch {
+    return "active";
+  }
+}
+
+const agreeCount = (a: AnalysisView) => Math.max(a.consensus.longCount, a.consensus.shortCount);
+const LEVEL_RANK = { ENTER: 2, READY: 1, NONE: 0 } as const;
+
+/** Strongest first: ENTER, READY, then by how many methods agree; ties keep the watchlist order. */
+function byStrength(rows: AnalysisView[]): AnalysisView[] {
+  return rows
+    .map((a, i) => ({ a, i }))
+    .sort((x, y) => LEVEL_RANK[y.a.consensus.level] - LEVEL_RANK[x.a.consensus.level] || agreeCount(y.a) - agreeCount(x.a) || x.i - y.i)
+    .map((x) => x.a);
+}
+
+function SignalPanel({ status, rows, go }: { status: Status; rows: AnalysisView[]; go: (route: Route, param?: string) => void }) {
+  const [filter, setFilter] = useState<BoardFilter>(readBoardFilter);
+  useEffect(() => {
+    try {
+      localStorage.setItem(BOARD_FILTER_KEY, filter);
+    } catch {
+      // storage blocked: the choice lasts until reload
+    }
+  }, [filter]);
+  const active = rows.filter((a) => agreeCount(a) > 0);
+  const off = rows[0] ? METHODS.filter((m) => !rows[0]!.methods[m.id]?.enabled).map((m) => m.letter) : [];
+  const scan = status.lastScan ? `nến ${status.limits.entryTf} đóng ${clock(status.lastScan.expectedClose + 1)} · quét ${clock(status.lastScan.finishedAt)}` : "chưa quét";
+  return (
+    <Panel
+      title="Tín hiệu"
+      sub={off.length ? `${scan} · ${off.join(", ")} tắt` : scan}
+      actions={
+        rows.length > 0 && (
+          <Tabs
+            small
+            label="Lọc tín hiệu"
+            value={filter}
+            onChange={setFilter}
+            items={[
+              { id: "active", label: `Có tín hiệu ${active.length}` },
+              { id: "all", label: `Tất cả ${rows.length}` },
+            ]}
+          />
+        )
+      }
+      flush
+    >
+      {filter === "active" && rows.length > 0 && active.length === 0 ? (
+        <div className="empty-state">
+          Chưa mã nào có tín hiệu ở nến này.{" "}
+          <Button tone="plain" small onClick={() => setFilter("all")}>
+            Xem cả {rows.length} mã
+          </Button>
+        </div>
+      ) : (
+        <SignalBoard rows={byStrength(filter === "active" ? active : rows)} go={go} />
+      )}
+    </Panel>
+  );
+}
+
 function SignalBoard({ rows, go }: { rows: AnalysisView[]; go: (route: Route, param?: string) => void }) {
   const [open, setOpen] = useState<string | null>(null);
   if (rows.length === 0) return <div className="empty-state">Chưa có lượt quét nào. Bot quét ngay khi khởi động, rồi sau mỗi nến đóng.</div>;
-  const methodCount = Math.max(1, METHODS.filter((m) => rows[0]!.methods[m.id]?.enabled).length);
+  // Methods turned off get no column: a column of "Tắt" on every row says nothing.
+  const methods = METHODS.filter((m) => rows[0]!.methods[m.id]?.enabled);
+  const methodCount = Math.max(1, methods.length);
   return (
     <div className="scroll-x">
       <table className="board">
         <thead>
           <tr>
             <th>Symbol</th>
-            {METHODS.map((m) => (
+            {methods.map((m) => (
               <th key={m.id} title={m.label}>
                 {m.letter}
               </th>
@@ -112,33 +182,35 @@ function SignalBoard({ rows, go }: { rows: AnalysisView[]; go: (route: Route, pa
         <tbody>
           {rows.map((a) => {
             const c = a.consensus;
-            const best = Math.max(c.longCount, c.shortCount);
+            const best = agreeCount(a);
             const expanded = open === a.symbol;
             return (
               <Fragment key={a.symbol}>
-                <tr onClick={() => setOpen(expanded ? null : a.symbol)} style={{ cursor: "pointer" }} aria-expanded={expanded}>
+                <tr className={expanded ? "open" : undefined} onClick={() => setOpen(expanded ? null : a.symbol)} aria-expanded={expanded}>
                   <td>
-                    <div className="sym">{a.symbol}</div>
-                    <div className="soft num" style={{ fontSize: 12 }}>
-                      {price(a.price)}
-                    </div>
+                    <span className="sym">{a.symbol}</span> <span className="soft num price">{price(a.price)}</span>
                   </td>
-                  {METHODS.map((m) => {
-                    const state = a.methods[m.id];
-                    if (!state.enabled) return <td key={m.id}><Chip tone="empty">Tắt</Chip></td>;
-                    const s = state.signal;
-                    return <td key={m.id}>{s ? <DirectionChip direction={s.direction} title={`${s.reason} · SL ${price(s.stopLoss)}`} /> : <Chip tone="empty">—</Chip>}</td>;
+                  {methods.map((m) => {
+                    const s = a.methods[m.id].signal;
+                    return <td key={m.id}>{s ? <DirectionChip direction={s.direction} title={`${s.reason} · SL ${price(s.stopLoss)}`} /> : <span className="soft">·</span>}</td>;
                   })}
                   <td>
-                    <Meter label={c.direction ?? "—"} value={best} max={methodCount} tone={c.direction === "SHORT" ? "heart" : "quest"} display={`${best}/${methodCount}`} />
+                    <span className={`agree ${c.direction === "SHORT" ? "heart" : "quest"}`} title={best ? `${best}/${methodCount} phương pháp ${c.direction}` : "Chưa phương pháp nào có tín hiệu"}>
+                      <span className="meter-cells">
+                        {Array.from({ length: methodCount }, (_, i) => (
+                          <span key={i} className={`cell${i < best ? " on" : ""}`} />
+                        ))}
+                      </span>
+                      <span className="num">
+                        {best}/{methodCount}
+                      </span>
+                    </span>
                   </td>
-                  <td>
-                    <LevelChip level={c.level} />
-                  </td>
+                  <td>{c.level === "NONE" ? <span className="soft">chờ</span> : <LevelChip level={c.level} />}</td>
                 </tr>
                 {expanded && (
                   <tr>
-                    <td colSpan={METHODS.length + 3} style={{ background: "var(--well)" }}>
+                    <td colSpan={methods.length + 3} style={{ background: "var(--well)" }}>
                       <div style={{ display: "grid", gap: 6 }}>
                         {METHODS.map((m) => {
                           const s = a.methods[m.id].signal;

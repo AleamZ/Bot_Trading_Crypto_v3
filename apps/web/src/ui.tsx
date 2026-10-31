@@ -76,11 +76,11 @@ export function DirectionChip({ direction, title }: { direction: Direction | nul
   if (!direction) return <Chip tone="empty">—</Chip>;
   return direction === "LONG" ? (
     <Chip tone="quest" icon={<ArrowUpIcon weight="bold" size={12} />} {...(title ? { title } : {})}>
-      LONG
+      <span className="dir-text">LONG</span>
     </Chip>
   ) : (
     <Chip tone="heart" icon={<ArrowDownIcon weight="bold" size={12} />} {...(title ? { title } : {})}>
-      SHORT
+      <span className="dir-text">SHORT</span>
     </Chip>
   );
 }
@@ -200,9 +200,9 @@ export function Stat({ label, value, tone, hint }: { label: string; value: React
   );
 }
 
-export function Tabs<T extends string>({ items, value, onChange, label }: { items: { id: T; label: ReactNode }[]; value: T; onChange: (id: T) => void; label: string }) {
+export function Tabs<T extends string>({ items, value, onChange, label, small }: { items: { id: T; label: ReactNode }[]; value: T; onChange: (id: T) => void; label: string; small?: boolean }) {
   return (
-    <div className="tabs" role="tablist" aria-label={label}>
+    <div className={`tabs${small ? " small" : ""}`} role="tablist" aria-label={label}>
       {items.map((item) => (
         <button key={item.id} type="button" role="tab" className="tab" aria-selected={item.id === value} onClick={() => onChange(item.id)}>
           {item.label}
