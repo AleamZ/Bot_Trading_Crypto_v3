@@ -23,6 +23,7 @@ import {
   signalSequence,
   summarize,
   TIMEFRAME_MINUTES,
+  tradingDayKey,
   type BacktestSummary,
   type BacktestSymbol,
   type BacktestTrade,
@@ -175,7 +176,8 @@ if (compared) {
 const sweeps = args.flatMap((a, i) => (a === "--sweep" && args[i + 1] ? [args[i + 1]!] : [])).map((s) => {
   const [path, values = ""] = s.split("=");
   if (/^general\.(entryTf|trendTf|watchlist)$/.test(path!)) throw new Error(`--sweep ${path}: cần tải nến khác, dùng --set cho từng lần chạy`);
-  return values.split(",").map((v) => `${path}=${v}`);
+  // Commas inside a JSON list belong to the value: --sweep general.entryCombos=["B+C","C+D"],["D"]
+  return values.split(/,(?![^[]*])/).map((v) => `${path}=${v}`);
 });
 if (sweeps.length) {
   const combos = sweeps.reduce<string[][]>((acc, list) => acc.flatMap((combo) => list.map((v) => [...combo, v])), [[]]);
@@ -183,8 +185,13 @@ if (sweeps.length) {
   const minWin = Number(option("min-win") ?? Number.NaN);
   const minLabel = Number.isFinite(minWin) ? `≥${minWin}R` : "";
   console.log(`\nQuét ${combos.length} tổ hợp trên cùng nến (Thắng* = bỏ lệnh hoà vốn, tức chạm SL đã dời về giá vào${minLabel ? `; ${minLabel} = lệnh thắng ít nhất ${minWin}R` : ""})`);
+  // --day-target 0.5 --month-target 20: how often a day / a calendar month (Vietnam time) reached that much.
+  const dayTarget = Number(option("day-target") ?? 0.5);
+  const monthTarget = Number(option("month-target") ?? 20);
+  const days = (end + 1 - from) / 86_400_000;
+  console.log(`R/30n = tổng R chia đều mỗi 30 ngày; Ngày≥${dayTarget}R = phần trăm số ngày lãi ít nhất ${dayTarget}R; Tháng≥${monthTarget}R = số tháng lãi ít nhất ${monthTarget}R / số tháng`);
   console.log(
-    `${"Tổ hợp".padEnd(48)} ${"Lệnh".padStart(5)} ${"Thắng".padStart(6)} ${"Thắng*".padStart(6)}${minLabel ? ` ${minLabel.padStart(7)}` : ""} ${"Tổng R".padStart(8)} ${"TB R".padStart(7)} ${"PF".padStart(5)} ${"DD R".padStart(6)}`,
+    `${"Tổ hợp".padEnd(48)} ${"Lệnh".padStart(5)} ${"Thắng".padStart(6)} ${"Thắng*".padStart(6)}${minLabel ? ` ${minLabel.padStart(7)}` : ""} ${"Tổng R".padStart(8)} ${"TB R".padStart(7)} ${"PF".padStart(5)} ${"DD R".padStart(6)} ${"R/30n".padStart(6)} ${`Ngày≥${dayTarget}R`.padStart(9)} ${`Tháng≥${monthTarget}R`.padStart(10)}`,
   );
   for (const combo of combos) {
     const variant = combo.reduce((s, assignment) => withSetting(s, assignment, "sweep"), settings);
@@ -193,6 +200,14 @@ if (sweeps.length) {
     const breakEven = done.filter((t) => t.exitReason === "SL" && t.stopStage === 1).length;
     const s = run.total;
     const decided = s.trades - breakEven;
+    const byDay = new Map<string, number>();
+    for (const t of done) if (t.exitTime) byDay.set(tradingDayKey(t.exitTime), (byDay.get(tradingDayKey(t.exitTime)) ?? 0) + t.r);
+    const byMonth = new Map<string, number>();
+    for (const [day, r] of byDay) byMonth.set(day.slice(0, 7), (byMonth.get(day.slice(0, 7)) ?? 0) + r);
+    const months = new Set<string>();
+    for (let t = from; t <= end; t += 86_400_000) months.add(tradingDayKey(t).slice(0, 7));
+    const goodDays = [...byDay.values()].filter((r) => r >= dayTarget).length;
+    const goodMonths = [...byMonth.values()].filter((r) => r >= monthTarget).length;
     console.log(
       [
         combo.map((c) => c.replace(/^[a-zA-Z]+\./, "")).join(" ").padEnd(48),
@@ -204,6 +219,9 @@ if (sweeps.length) {
         num(s.avgR, 3).padStart(7),
         (s.profitFactor === null ? "—" : s.profitFactor.toFixed(2)).padStart(5),
         s.maxDrawdownR.toFixed(1).padStart(6),
+        num((s.totalR / days) * 30, 1).padStart(6),
+        pct(goodDays / days).padStart(9),
+        `${goodMonths}/${months.size}`.padStart(10),
       ].join(" "),
     );
   }

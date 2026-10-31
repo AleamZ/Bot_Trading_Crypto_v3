@@ -43,10 +43,10 @@ const generalSchema = z
     signalTtlBars: int(1, 20)
       .default(4)
       .meta({ title: "Hiệu lực tín hiệu (nến)", description: "Một tín hiệu được tính vào đồng thuận trong bấy nhiêu nến" }),
-    alertThreshold: int(1, 3)
+    alertThreshold: int(1, 4)
       .default(2)
       .meta({ title: "Ngưỡng báo SẴN SÀNG", description: "Số phương pháp cùng chiều để gửi Telegram, không vào lệnh" }),
-    autoEntryThreshold: int(1, 3)
+    autoEntryThreshold: int(1, 4)
       .default(3)
       .meta({ title: "Ngưỡng tự vào lệnh", description: "Số phương pháp cùng chiều để bot tự vào lệnh. Không dùng khi đã chọn tổ hợp bên dưới" }),
     alertWhenOpposed: z
