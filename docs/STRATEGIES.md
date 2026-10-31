@@ -133,7 +133,7 @@ Gọi L và S là số phương pháp đang có tín hiệu LONG và SHORT:
    - tự vào lệnh phải được bật cả trong cài đặt lẫn `TRADING_ENABLED`; bot không bị tạm dừng;
    - symbol không có vị thế hoặc lệnh chờ, không trong thời gian nghỉ;
    - số vị thế < `maxOpenPositions`, số lệnh trong ngày < `maxTradesPerDay`;
-   - R đã lỗ trong ngày > −`maxDailyLossR`. Ngày giao dịch bắt đầu lúc 00:00 giờ Việt Nam.
+   - R đã lỗ trong ngày > −`maxDailyLossR`. Ngày giao dịch bắt đầu lúc 00:00 giờ Việt Nam, hoặc lúc bấm "Xoá số liệu lãi/lỗ" ở trang Thống kê nếu bấm trong hôm nay.
 
 **Ví dụ** BTCUSDT LONG, 1R = 5$, giá vào 68,000, SL 67,200, step 0.001, tick 0.1:
 

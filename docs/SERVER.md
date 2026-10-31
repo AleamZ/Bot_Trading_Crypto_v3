@@ -133,7 +133,7 @@ Mọi route dưới `/api` cần đăng nhập, trừ `/api/health` và `/api/au
 | `GET /api/positions` | Vị thế, lệnh chờ và lệnh algo đang có trên tài khoản |
 | `GET /api/today` | Kết quả hôm nay |
 | `GET /api/stats?month=YYYY-MM` | Lãi/lỗ từng ngày của tháng (mặc định tháng hiện tại, ngày giờ Việt Nam theo lúc đóng lệnh) và winrate tháng đó cùng từ đầu: theo lệnh (thắng / hòa / thua, chuỗi dài nhất), theo R và theo USDT (phần thắng trong tổng, ròng, trung bình mỗi lệnh, TB thắng / thua, hệ số lãi, lệnh tốt / tệ nhất, phí). Hòa: thoát ở SL đã dời về giá vào, hoặc trong ±0.05R |
-| `POST /api/stats/reset`, `POST /api/stats/restore` | Xoá số liệu lãi/lỗ: thống kê và danh sách lệnh chỉ tính lệnh xong từ lúc này (mốc lưu ở `kv` `stats.since`, `/api/status` trả `statsSince`); không xoá gì trong DB, bài AI phân tích giữ nguyên, lệnh đang mở vẫn hiện. Giới hạn lỗ trong ngày vẫn tính mọi lệnh. Khôi phục: bỏ mốc |
+| `POST /api/stats/reset`, `POST /api/stats/restore` | Xoá số liệu lãi/lỗ: thống kê và danh sách lệnh chỉ tính lệnh xong từ lúc này (mốc lưu ở `kv` `stats.since`, `/api/status` trả `statsSince`); không xoá gì trong DB, bài AI phân tích giữ nguyên, lệnh đang mở vẫn hiện. Giới hạn hôm nay (lỗ trong ngày, số lệnh trong ngày) và ô "R hôm nay" / "Lệnh hôm nay" cũng tính từ mốc này nếu mốc rơi vào hôm nay, nên xoá cũng mở lại bot đã chạm giới hạn. Khôi phục: bỏ mốc |
 | `GET /api/stats/all` | Mọi lệnh đã đóng từ đầu: từng lệnh (để vẽ đường vốn), từng tháng, winrate, và chia theo symbol, chiều, kiểu thoát (TP, SL, SL ở giá vào, SL khoá lãi, đóng tay, khẩn cấp), phương pháp đồng thuận |
 | `GET /api/events?before=&limit=&level=error,warn&symbol=&from=&to=` | Nhật ký hoạt động |
 | `GET /api/events/stream` | SSE (xem dưới) |

@@ -95,8 +95,8 @@ function ClearBar({ since }: { since: number | null }) {
     <div className="row between clear-bar">
       <span className="soft">
         {since
-          ? `Đang tính từ ${dateTime(since)}: lệnh xong trước đó không còn trong thống kê và trang Lệnh. Bài AI phân tích vẫn giữ.`
-          : "Xoá số liệu lãi/lỗ để thống kê và trang Lệnh bắt đầu lại từ lúc này. Bài AI phân tích được giữ nguyên, lệnh đang mở vẫn được theo dõi."}
+          ? `Đang tính từ ${dateTime(since)}: lệnh xong trước đó không còn trong thống kê, trang Lệnh và giới hạn lỗ / số lệnh hôm nay. Bài AI phân tích vẫn giữ.`
+          : "Xoá số liệu lãi/lỗ để thống kê, trang Lệnh và giới hạn lỗ / số lệnh hôm nay bắt đầu lại từ lúc này. Bài AI phân tích được giữ nguyên, lệnh đang mở vẫn được theo dõi."}
       </span>
       <div className="row">
         {since && (

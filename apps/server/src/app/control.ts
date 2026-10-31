@@ -20,6 +20,7 @@ export interface SettingsUpdate {
   changed: string[];
 }
 const PAUSED_KEY = "paused";
+const STATS_SINCE_KEY = "stats.since";
 
 /**
  * The settings the UI edits, stored in the database. They only hold what the schema allows, so
@@ -117,6 +118,24 @@ export class BotControl {
     return true;
   }
 
+  /** When the P&L figures were last cleared, or null: stats, the trade list and today's limits start there. */
+  get statsSince(): number | null {
+    return this.kv.get<number | null>(STATS_SINCE_KEY, null);
+  }
+
+  /** Clears the P&L figures from `now` on. Trades and AI reviews stay in the database. */
+  resetStats(by: string, now: number): number {
+    this.kv.set(STATS_SINCE_KEY, now);
+    this.hub.emit({ type: "STATS_RESET", by, since: now });
+    return now;
+  }
+
+  /** Counts every trade again. */
+  restoreStats(by: string): void {
+    this.kv.delete(STATS_SINCE_KEY);
+    this.hub.emit({ type: "STATS_RESET", by, since: null });
+  }
+
   /** What keeps automatic entries off, in Vietnamese; empty when they are allowed (pausing aside). */
   autoTradeBlockers(): string[] {
     const blockers: string[] = [];
@@ -146,20 +165,26 @@ export function timeframeMs(settings: Settings): number {
 export function guardStateFor(symbol: string, store: SqliteTradeStore, control: BotControl, settings: Settings, now: number): GuardState {
   const lastExit = store.lastExitAt(symbol);
   const cooldownMs = settings.general.cooldownBars * timeframeMs(settings);
-  const dayStart = tradingDayStart(now);
+  const from = limitsStart(now, control.statsSince);
   return {
     autoTradeAllowed: control.autoTradeAllowed(),
     paused: control.paused,
     openPositions: store.openCount(),
-    tradesToday: store.openedSince(dayStart),
-    realizedRToday: store.closedSince(dayStart).r,
+    tradesToday: store.openedSince(from),
+    realizedRToday: store.closedSince(from).r,
     symbolBusy: store.hasOpen(symbol),
     cooldownUntil: lastExit !== null && cooldownMs > 0 ? lastExit + cooldownMs : null,
     now,
   };
 }
 
-export function todayStats(store: SqliteTradeStore, now: number) {
+/** Where today's counts start: 00:00 Vietnam time, or the last clear of the P&L figures if later. */
+export function limitsStart(now: number, statsSince: number | null): number {
+  return Math.max(tradingDayStart(now), statsSince ?? 0);
+}
+
+export function todayStats(store: SqliteTradeStore, now: number, statsSince: number | null = null) {
   const dayStart = tradingDayStart(now);
-  return { dayStart, opened: store.openedSince(dayStart), closed: store.closedSince(dayStart), open: store.openCount() };
+  const from = limitsStart(now, statsSince);
+  return { dayStart, from, opened: store.openedSince(from), closed: store.closedSince(from), open: store.openCount() };
 }

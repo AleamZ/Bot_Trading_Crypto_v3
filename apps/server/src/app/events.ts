@@ -208,7 +208,7 @@ export function describeEvent(event: AppEvent): { level: LogLevelName; symbol: s
     case "STATS_RESET":
       return event.since === null
         ? { level: "info", symbol: null, title: "Đã khôi phục số liệu lãi/lỗ", message: `Bởi ${event.by}: thống kê lại tính mọi lệnh` }
-        : { level: "warn", symbol: null, title: "Đã xoá số liệu lãi/lỗ", message: `Bởi ${event.by}: thống kê và danh sách lệnh tính từ lúc này; bài AI phân tích được giữ nguyên` };
+        : { level: "warn", symbol: null, title: "Đã xoá số liệu lãi/lỗ", message: `Bởi ${event.by}: thống kê, danh sách lệnh và giới hạn lỗ / số lệnh hôm nay tính từ lúc này; bài AI phân tích được giữ nguyên` };
     case "EXCHANGE_STATUS":
       return { level: event.ok ? "info" : "error", symbol: null, title: event.ok ? "Đã kết nối lại Binance" : "Không gọi được Binance", message: event.detail };
     case "REVIEW_DONE": {

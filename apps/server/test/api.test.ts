@@ -6,6 +6,7 @@ import type { FastifyInstance } from "fastify";
 import { afterEach, describe, expect, it } from "vitest";
 import { hashPassword } from "../src/api/auth.js";
 import { buildServer, SESSION_COOKIE } from "../src/api/server.js";
+import { guardStateFor } from "../src/app/control.js";
 import { sampleTrade } from "./fixtures.js";
 import { fakeAi, LONG3, runtimeHarness, type RuntimeHarnessOptions } from "./runtimeHarness.js";
 
@@ -370,6 +371,30 @@ describe("API AI", () => {
     await h.app.inject({ method: "POST", url: "/api/stats/restore", headers: { cookie } });
     expect((await get("/api/stats/all")).trades.map((t: { id: string }) => t.id)).toEqual(["old", "new"]);
     expect((await get("/api/trades")).total).toBe(3);
+  });
+
+  it("restarts today's loss and trade limits when the P&L figures are cleared", async () => {
+    const h = await apiHarness();
+    const { cookie } = await h.login();
+    const old = h.exchange.clock - 3_600_000;
+    for (const id of ["l1", "l2"]) {
+      await h.runtime.trades.insert(sampleTrade({ id, status: "CLOSED", createdAt: old, openedAt: old, closedAt: old + 60_000, exitReason: "SL", pnlR: -2, netPnl: "-10" }));
+    }
+    const guard = () => guardStateFor("ETHUSDT", h.runtime.trades, h.runtime.control, h.runtime.settings.get(), h.exchange.clock);
+    expect(guard()).toMatchObject({ tradesToday: 2, realizedRToday: -4 });
+    expect((await h.app.inject({ url: "/api/today", headers: { cookie } })).json()).toMatchObject({ opened: 2, closed: { count: 2, r: -4 } });
+
+    await h.app.inject({ method: "POST", url: "/api/stats/reset", headers: { cookie } });
+    expect(guard()).toMatchObject({ tradesToday: 0, realizedRToday: 0 });
+    expect((await h.app.inject({ url: "/api/today", headers: { cookie } })).json()).toMatchObject({ opened: 0, closed: { count: 0, r: 0 } });
+
+    // A clear from an earlier day does not reach into today.
+    h.exchange.clock += 86_400_000;
+    await h.runtime.trades.insert(sampleTrade({ id: "l3", status: "CLOSED", createdAt: h.exchange.clock - 1000, openedAt: h.exchange.clock - 1000, closedAt: h.exchange.clock - 500, exitReason: "SL", pnlR: -1, netPnl: "-5" }));
+    expect(guard()).toMatchObject({ tradesToday: 1, realizedRToday: -1 });
+
+    await h.app.inject({ method: "POST", url: "/api/stats/restore", headers: { cookie } });
+    expect(guard()).toMatchObject({ tradesToday: 1, realizedRToday: -1 });
   });
 
   it("returns a month's day-by-day result and win rates, the current month by default", async () => {

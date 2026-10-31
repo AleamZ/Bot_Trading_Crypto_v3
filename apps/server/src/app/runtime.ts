@@ -33,8 +33,6 @@ import { formatPositions, formatStatus, formatToday, type StatusSummary } from "
 import { TelegramService } from "../telegram/service.js";
 import { BotControl, guardStateFor, SettingsService, timeframeMs, todayStats } from "./control.js";
 import { allStats, monthOf, monthRange, monthStats, type AllStats, type MonthStats } from "./stats.js";
-
-const STATS_SINCE_KEY = "stats.since";
 import { EventHub, toAnalysisView } from "./events.js";
 import { candleLimits, lastClosedCandleTime, Scanner } from "./scanner.js";
 
@@ -334,27 +332,24 @@ export class BotRuntime {
     }, 300);
   }
 
+  /** Today's counts, from the last clear of the P&L figures if that was today. */
   today() {
-    return todayStats(this.trades, this.now());
+    return todayStats(this.trades, this.now(), this.statsSince());
   }
 
-  /** When the P&L figures were last cleared, or null: stats and the trade list start there. */
+  /** When the P&L figures were last cleared, or null: stats, the trade list and today's limits start there. */
   statsSince(): number | null {
-    return this.kv.get<number | null>(STATS_SINCE_KEY, null);
+    return this.control.statsSince;
   }
 
-  /** Clears the P&L figures from now on. Trades and AI reviews stay in the database. */
+  /** Clears the P&L figures from now on, today's loss and trade limits included. Trades and AI reviews stay. */
   resetStats(by: string): number {
-    const since = this.now();
-    this.kv.set(STATS_SINCE_KEY, since);
-    this.hub.emit({ type: "STATS_RESET", by, since });
-    return since;
+    return this.control.resetStats(by, this.now());
   }
 
   /** Counts every trade again. */
   restoreStats(by: string): void {
-    this.kv.delete(STATS_SINCE_KEY);
-    this.hub.emit({ type: "STATS_RESET", by, since: null });
+    this.control.restoreStats(by);
   }
 
   /** Every closed trade since the start (or the last clear): equity curve, months, breakdowns. */
