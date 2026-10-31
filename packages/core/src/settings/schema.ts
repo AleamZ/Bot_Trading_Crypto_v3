@@ -50,6 +50,13 @@ const generalSchema = z
       .boolean()
       .default(true)
       .meta({ title: "Vẫn báo khi có phương pháp ngược chiều" }),
+    entryRequires: z
+      .enum(["NONE", "trendPullback", "donchianBreakout", "smcSweep"])
+      .default("NONE")
+      .meta({
+        title: "Phương pháp bắt buộc khi vào lệnh",
+        description: "Chỉ tự vào lệnh khi phương pháp này nằm trong nhóm đồng thuận; thiếu thì chỉ báo SẴN SÀNG. NONE: không bắt buộc",
+      }),
     autoTrade: z
       .boolean()
       .default(true)

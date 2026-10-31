@@ -1,4 +1,4 @@
-import type { Direction, MethodSignal } from "../types.js";
+import type { Direction, MethodId, MethodSignal } from "../types.js";
 
 export type ConsensusLevel = "NONE" | "READY" | "ENTER";
 
@@ -9,6 +9,8 @@ export interface ConsensusOptions {
   autoEntryThreshold: number;
   /** Still send READY when another method points the other way. */
   alertWhenOpposed: boolean;
+  /** Enter only when this method is among the agreeing ones; otherwise READY at most. */
+  entryRequires?: MethodId | "NONE";
 }
 
 export interface ConsensusResult {
@@ -23,7 +25,8 @@ export interface ConsensusResult {
 
 /**
  * Combines the active signals of the enabled methods.
- * - ENTER: at least `autoEntryThreshold` methods agree and none points the other way.
+ * - ENTER: at least `autoEntryThreshold` methods agree, none points the other way, and the
+ *   `entryRequires` method (if any) is one of them.
  * - READY: at least `alertThreshold` agree (with an opposing method only if `alertWhenOpposed`).
  */
 export function decideConsensus(signals: readonly MethodSignal[], options: ConsensusOptions): ConsensusResult {
@@ -37,7 +40,9 @@ export function decideConsensus(signals: readonly MethodSignal[], options: Conse
   const agreeing = direction === "LONG" ? long : short;
   const opposing = direction === "LONG" ? short : long;
   let level: ConsensusLevel = "NONE";
-  if (agreeing.length >= options.autoEntryThreshold && opposing.length === 0) level = "ENTER";
+  const required = options.entryRequires && options.entryRequires !== "NONE" ? options.entryRequires : null;
+  const hasRequired = required === null || agreeing.some((s) => s.method === required);
+  if (agreeing.length >= options.autoEntryThreshold && opposing.length === 0 && hasRequired) level = "ENTER";
   else if (agreeing.length >= options.alertThreshold && (opposing.length === 0 || options.alertWhenOpposed)) level = "READY";
   return { ...base, level, direction, agreeing, opposing };
 }

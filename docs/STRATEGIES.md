@@ -59,7 +59,7 @@ Gọi L và S là số phương pháp đang có tín hiệu LONG và SHORT:
 | Điều kiện | Kết quả |
 |---|---|
 | L = S | NONE (không chiều) |
-| phía đông hơn ≥ `autoEntryThreshold` (3) và phía kia = 0 | **ENTER**: tự vào lệnh |
+| phía đông hơn ≥ `autoEntryThreshold` (3), phía kia = 0, và có phương pháp `entryRequires` nếu đã chọn | **ENTER**: tự vào lệnh. `entryRequires` (mặc định NONE) bắt buộc một phương pháp, ví dụ `smcSweep` để không vào khi chỉ có A+B; thiếu thì chỉ READY |
 | phía đông hơn ≥ `alertThreshold` (2) | **READY**: báo Telegram. Nếu có phương pháp ngược chiều thì chỉ báo khi `alertWhenOpposed` bật |
 | còn lại | NONE |
 

@@ -45,6 +45,14 @@ describe("decideConsensus", () => {
     expect(r.level).toBe("READY");
   });
 
+  it("enters only with the required method among the agreeing ones", () => {
+    const twoOfThree = { ...defaults, autoEntryThreshold: 2, entryRequires: "smcSweep" as const };
+    expect(decideConsensus([A("LONG"), B("LONG")], twoOfThree).level).toBe("READY");
+    expect(decideConsensus([A("LONG"), C("LONG")], twoOfThree).level).toBe("ENTER");
+    expect(decideConsensus([B("SHORT"), C("SHORT")], twoOfThree).level).toBe("ENTER");
+    expect(decideConsensus([A("LONG"), B("LONG")], { ...twoOfThree, entryRequires: "NONE" }).level).toBe("ENTER");
+  });
+
   it("follows lower thresholds (2/2 when one method is disabled)", () => {
     const options = { ...defaults, alertThreshold: 1, autoEntryThreshold: 2 };
     expect(decideConsensus([A("LONG"), B("LONG")], options).level).toBe("ENTER");
