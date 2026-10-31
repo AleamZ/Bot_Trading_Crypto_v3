@@ -110,8 +110,12 @@ Nến Binance thật, 6 symbol `BTCUSDT,SOLUSDT,BNBUSDT,XRPUSDT,LINKUSDT,NEARUSD
 | `entryRequires=smcSweep`, `signalTtlBars=4` | 90 | 112 | 35% | −10.0 | −0.09 | 0.84 | 16.8R |
 | (gốc) | 180 | 762 | 34% | −83.7 | −0.11 | 0.79 | 92.7R |
 | `entryRequires=smcSweep` | 180 | 344 | 35% | −25.1 | −0.07 | 0.86 | 41.1R |
+| `trendPullback.enabled=false` (chỉ B+C) | 180 | 189 | 39% | −2.0 | −0.01 | 0.98 | 24.5R |
+| chỉ B+C, `signalTtlBars=4` | 180 | 90 | 42% | +4.8 | +0.05 | 1.11 | 14.2R |
+| chỉ B+C, `signalTtlBars=4`, `maxSlAtr=3` | 180 | 30 | 30% | −2.3 | −0.08 | 0.84 | 10.6R |
 
 Ở bản gốc 180 ngày, theo cặp: A+B 474 lệnh −74.9R, A+C 155 lệnh −18.0R, B+C 124 lệnh +2.1R, A+B+C 9 lệnh +7.1R.
 
 - Rút ngắn hiệu lực tín hiệu hay siết SL theo ATR chỉ làm ít lệnh hơn; mỗi lệnh lỗ nhiều hơn.
 - Bỏ A+B giảm lỗ khoảng 2/3 nhưng vẫn âm. A+C vẫn lỗ; chỉ B+C và A+B+C quanh hoà hoặc dương, mẫu còn nhỏ.
+- Tắt A (chỉ vào khi B+C) đưa kết quả về quanh hoà; thêm hiệu lực 4 nến là phương án đầu tiên dương (+4.8R qua 90 lệnh), nhưng +0.05R mỗi lệnh vẫn nằm trong sai số của mẫu này.
