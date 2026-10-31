@@ -164,3 +164,17 @@ Nến Binance thật, `signalTtlBars=4`, không dời SL trừ khi ghi khác. "R
 - Dời SL về giá vào ở +0.5R (`breakEvenAtTpPct=25`, RR 2) trên 1h: +13.6R/năm, PF 2.0, sụt giảm 4.5R (không dời: +8.3R, PF 1.25, sụt giảm 9.1R). Trên 15m thì kém hơn không dời.
 
 Không phương án nào đạt 20R/tháng; tháng tốt nhất ở phương án phí maker trên 15m có một tháng vượt 20R trong 6 tháng.
+
+## Preset 15m với lệnh vào LIMIT (2026-10-31)
+
+`config/presets/15m-abc-2of3-20sym.json`, 20 symbol, 180 ngày, nến Binance thật. LIMIT mô phỏng như mục "Cách mô phỏng": vào phí maker 0.02%, SL/TP phí taker 0.05%, lệnh không khớp thì bỏ.
+
+| Lệnh vào | RR | Lệnh | Thắng | Tổng R | R/30n | Sụt giảm |
+|---|---|---|---|---|---|---|
+| MARKET | 1.2 | 622 | 50% | +6.1 | +1.0 | 44.0R |
+| **LIMIT** | **1.2** | **616** | **50%** | **+21.0** | **+3.5** | **39.2R** |
+| MARKET | 1.5 | 599 | 44% | +2.8 | +0.5 | 40.9R |
+| LIMIT | 1.5 | 594 | 43% | +12.2 | +2.0 | 37.7R |
+
+- Mô hình cho lệnh chờ suốt một nến 15m nên gần như lệnh nào cũng khớp. Bot thật chỉ chờ `limitWaitSec` (120 giây, có đặt lại khi giá chạy), nên số lệnh khớp thật có thể ít hơn.
+- Dòng phí 0% ở bảng trước (+59R) là trần lý thuyết: SL luôn là lệnh market, phí taker.
