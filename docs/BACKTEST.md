@@ -95,3 +95,23 @@ Cùng 7 symbol, 180 ngày, nến Binance thật, vào lệnh khi 2/3, `maxSlAtr=
 - Dời SL tốt hơn ở cả hai khung, nhưng chênh lệch (+6.6R trên khoảng 230 lệnh ở 15m) vẫn nằm trong mức dao động ngẫu nhiên.
 - Có nhiều lệnh hơn vì lệnh đóng sớm hơn, bot rảnh để vào lệnh tiếp.
 - Không làm khung 5m có lãi.
+
+## Hiệu lực tín hiệu và bỏ cặp A+B (2026-10-31, khung 5m)
+
+Nến Binance thật, 6 symbol `BTCUSDT,SOLUSDT,BNBUSDT,XRPUSDT,LINKUSDT,NEARUSDT`. Cài đặt gốc giống bot trên VPS lúc đó: `entryTf=5m`, `autoEntryThreshold=2`, `signalTtlBars=20`, `maxSlAtr=6`; còn lại mặc định (dời SL bật).
+
+| Thay đổi so với gốc | Ngày | Lệnh | Thắng | Tổng R | TB R | PF | Sụt giảm tối đa |
+|---|---|---|---|---|---|---|---|
+| (gốc) | 90 | 379 | 34% | −47.1 | −0.12 | 0.77 | 53.9R |
+| `signalTtlBars=4` | 90 | 254 | 32% | −44.0 | −0.17 | 0.70 | 47.0R |
+| `signalTtlBars=4`, `maxSlAtr=3` | 90 | 152 | 28% | −41.9 | −0.28 | 0.55 | 45.8R |
+| `signalTtlBars=2`, `maxSlAtr=3` | 90 | 116 | 27% | −35.6 | −0.31 | 0.51 | 38.1R |
+| `entryRequires=smcSweep` (không vào khi chỉ có A+B) | 90 | 163 | 35% | −15.4 | −0.09 | 0.83 | 21.7R |
+| `entryRequires=smcSweep`, `signalTtlBars=4` | 90 | 112 | 35% | −10.0 | −0.09 | 0.84 | 16.8R |
+| (gốc) | 180 | 762 | 34% | −83.7 | −0.11 | 0.79 | 92.7R |
+| `entryRequires=smcSweep` | 180 | 344 | 35% | −25.1 | −0.07 | 0.86 | 41.1R |
+
+Ở bản gốc 180 ngày, theo cặp: A+B 474 lệnh −74.9R, A+C 155 lệnh −18.0R, B+C 124 lệnh +2.1R, A+B+C 9 lệnh +7.1R.
+
+- Rút ngắn hiệu lực tín hiệu hay siết SL theo ATR chỉ làm ít lệnh hơn; mỗi lệnh lỗ nhiều hơn.
+- Bỏ A+B giảm lỗ khoảng 2/3 nhưng vẫn âm. A+C vẫn lỗ; chỉ B+C và A+B+C quanh hoà hoặc dương, mẫu còn nhỏ.
