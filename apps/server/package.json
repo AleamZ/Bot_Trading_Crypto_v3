@@ -11,7 +11,8 @@
     "start": "node --disable-warning=ExperimentalWarning dist/src/main.js",
     "hash-password": "tsx scripts/hash-password.ts",
     "smoke:demo": "tsx scripts/smoke-demo.ts",
-    "backtest": "tsx scripts/backtest.ts"
+    "backtest": "tsx scripts/backtest.ts",
+    "settings": "tsx scripts/settings.ts"
   },
   "dependencies": {
     "@bot-v3/core": "0.1.0",

@@ -1,0 +1,29 @@
+{
+  "general": {
+    "watchlist": [
+      "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT",
+      "DOGEUSDT", "ADAUSDT", "AVAXUSDT", "LINKUSDT", "DOTUSDT",
+      "TRXUSDT", "LTCUSDT", "BCHUSDT", "NEARUSDT", "APTUSDT",
+      "ARBUSDT", "OPUSDT", "SUIUSDT", "INJUSDT", "ATOMUSDT"
+    ],
+    "entryTf": "15m",
+    "trendTf": "1h",
+    "signalTtlBars": 4,
+    "alertThreshold": 2,
+    "autoEntryThreshold": 2,
+    "entryCombos": [],
+    "entryRequires": "NONE"
+  },
+  "risk": {
+    "rr": 1.2,
+    "maxSlAtr": 6,
+    "moveSl": false,
+    "maxOpenPositions": 5
+  },
+  "methods": {
+    "trendPullback": { "enabled": true },
+    "donchianBreakout": { "enabled": true },
+    "smcSweep": { "enabled": true },
+    "boxTheory": { "enabled": false }
+  }
+}

@@ -206,6 +206,21 @@ pm2 logs bot-v3 --lines 30 --nostream | grep '"AI '
 - Dòng log `AI on` là đã bật. Router cần key thì thêm `AI_API_KEY=` vào `.env` bằng `nano .env`.
 - Chi tiết: [AI.md](AI.md).
 
+## Áp dụng một bộ cài đặt có sẵn (preset)
+
+Preset nằm trong `config/presets/`, mỗi tệp là một phần cài đặt (như body của `PUT /api/settings`): mục nào không có trong tệp thì giữ nguyên. Bot giữ cài đặt trong bộ nhớ, nên phải dừng bot trước khi áp:
+
+```bash
+cd ~/Bot_trade/Bot_Trading_Crypto_v3
+pm2 stop bot-v3
+npm run settings -- apply config/presets/15m-abc-2of3-20sym.json
+pm2 start bot-v3 && pm2 save
+```
+
+- `npm run settings` (không có `apply`) in cài đặt đang lưu. Preset sai thì báo lỗi từng mục và không lưu gì. Bot đang chạy thì lệnh từ chối và nhắc dừng bot trước.
+- Dừng bot không đóng vị thế: SL/TP vẫn trên Binance, watchdog tiếp tục quản lý khi bot chạy lại.
+- `15m-abc-2of3-20sym.json`: khung 15m (xu hướng 1h), A+B+C vào lệnh khi 2/3 cùng chiều, hiệu lực tín hiệu 4 nến, RR 1.2, SL tối đa 6 ATR, không dời SL, tối đa 5 vị thế, 20 symbol, D tắt. Kết quả backtest ở [BACKTEST.md](BACKTEST.md), mục "Phương pháp D, cả 4 phương pháp, 20 symbol, phí". Với lệnh MARKET (phí taker 0.05%) như bot đang đặt, 180 ngày được khoảng +6R; con số +38R cần phí maker 0.02%, tức là vào lệnh bằng lệnh limit, bot chưa có.
+
 ## Hằng ngày
 
 | Việc | Lệnh |
@@ -216,6 +231,7 @@ pm2 logs bot-v3 --lines 30 --nostream | grep '"AI '
 | Tạm dừng vào lệnh mới | `/pause` trên Telegram, hoặc nút Tạm dừng trên web |
 | Thử một lệnh thật nhỏ (mở rồi tự đóng) | `npm run smoke:demo -w @bot-v3/server -- --trade --symbol LINKUSDT --risk 1 --yes-demo` |
 | Backtest với cài đặt đang dùng | `npm run backtest -- --db --days 90` |
+| Xem / áp preset cài đặt | `npm run settings`, `npm run settings -- apply config/presets/<tệp>.json` (dừng bot trước) |
 
 **Lưu ý:**
 
