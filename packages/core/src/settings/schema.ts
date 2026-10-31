@@ -85,6 +85,19 @@ const riskSchema = z
     rr: num(0.5, 10).default(2).meta({ title: "R:R mục tiêu", description: "TP = giá vào ± RR × khoảng SL" }),
     includeFees: z.boolean().default(true).meta({ title: "Tính phí vào 1R" }),
     feeRatePct: num(0, 1).default(0.05).meta({ title: "Phí taker mỗi chiều", unit: "%" }),
+    makerFeePct: num(0, 1).default(0.02).meta({ title: "Phí maker mỗi chiều", unit: "%", description: "Dùng cho lệnh vào khi kiểu lệnh vào là LIMIT" }),
+    entryOrder: z
+      .enum(["MARKET", "LIMIT"])
+      .default("MARKET")
+      .meta({
+        title: "Kiểu lệnh vào",
+        description:
+          "MARKET: khớp ngay, phí taker. LIMIT: lệnh post-only ở giá mua (LONG) hoặc bán (SHORT) tốt nhất, phí maker; đặt lại khi giá chạy, không khớp trong thời gian chờ thì coi như chưa vào và thử lại ở nến sau. SL vẫn là lệnh market",
+      }),
+    limitWaitSec: int(5, 600).default(120).meta({ title: "Chờ lệnh limit khớp tối đa", unit: "giây" }),
+    limitMaxChaseAtr: num(0, 5)
+      .default(0.3)
+      .meta({ title: "Đuổi giá tối đa (lệnh limit)", unit: "× ATR", description: "Giá đã chạy xa hơn mức này khỏi giá lúc quyết định thì thôi, không đặt lại" }),
     slPolicy: z
       .enum(["WIDEST", "MEDIAN", "TIGHTEST"])
       .default("WIDEST")

@@ -4,9 +4,11 @@ import { toOrderResult } from "../src/binance/futures.js";
 import type {
   AlgoOrder,
   AlgoOrderRequest,
+  BookTicker,
   ExchangeSymbol,
   FuturesApi,
   LeverageBracket,
+  LimitOrderRequest,
   MarginType,
   MarketOrderRequest,
   OpenOrder,
@@ -53,6 +55,13 @@ export class FakeBinance implements FuturesApi {
   /** Answer MARKET orders without avgPrice, like Binance DEMO does (seen live on 2026-10-30). */
   omitAvgPrice = false;
   clock = 1_800_000_000_000;
+  /** Half the bid/ask spread around the mark price. */
+  spread = 0.5;
+  makerFee = 0.0002;
+  /** Called on every getOrder, so a test can move the price while the bot waits on a LIMIT entry. */
+  onPoll: ((poll: number) => void) | null = null;
+  private polls = 0;
+  private readonly resting = new Map<string, { symbol: string; side: OrderSide; price: number; qty: number }>();
   readonly marks = new Map<string, number>();
   readonly symbols = new Map<string, ExchangeSymbol>([["BTCUSDT", { symbol: "BTCUSDT", status: "TRADING", contractType: "PERPETUAL", filters: BTC_FILTERS }]]);
   brackets: LeverageBracket[] = [{ bracket: 1, initialLeverage: 125, notionalFloor: 0, notionalCap: 1e15, maintMarginRatio: 0.004 }];
@@ -108,6 +117,30 @@ export class FakeBinance implements FuturesApi {
       algo.actualPrice = String(fillPrice);
       algo.updateTime = this.clock;
     }
+    // Resting LIMIT orders fill when the price trades through them.
+    for (const [id, order] of [...this.resting]) {
+      if (order.symbol !== symbol) continue;
+      if (order.side === "BUY" ? price < order.price : price > order.price) this.fillLimit(id);
+    }
+  }
+
+  /** Fills a resting LIMIT order at its price, all of it or `qty`, with the maker fee. */
+  fillLimit(clientOrderId: string, qty?: number) {
+    const order = this.resting.get(clientOrderId);
+    const result = this.orders.get(clientOrderId);
+    if (!order || !result) throw new Error(`No resting order ${clientOrderId}`);
+    const amount = Math.min(qty ?? order.qty, order.qty);
+    this.fill(order.symbol, order.side, amount, order.price, result.orderId, false, this.makerFee);
+    order.qty = round(order.qty - amount);
+    const executed = round(Number(result.executedQty) + amount);
+    result.executedQty = String(executed);
+    result.avgPrice = String(order.price);
+    result.updateTime = this.clock;
+    result.status = order.qty > 0 ? "PARTIALLY_FILLED" : "FILLED";
+    if (order.qty <= 0) {
+      this.resting.delete(clientOrderId);
+      this.openOrders = this.openOrders.filter((o) => o.clientOrderId !== clientOrderId);
+    }
   }
 
   private crosses(algo: Pick<AlgoOrder, "orderType" | "side" | "triggerPrice">, price: number): boolean {
@@ -118,7 +151,7 @@ export class FakeBinance implements FuturesApi {
     return down ? price <= trigger : price >= trigger;
   }
 
-  private fill(symbol: string, side: OrderSide, qty: number, price: number, orderId: number, reduceOnly = false): number {
+  private fill(symbol: string, side: OrderSide, qty: number, price: number, orderId: number, reduceOnly = false, fee = this.takerFee): number {
     const position = this.positions.get(symbol) ?? { amt: 0, entry: 0, updateTime: this.clock };
     const signed = side === "BUY" ? qty : -qty;
     if (reduceOnly) {
@@ -146,7 +179,7 @@ export class FakeBinance implements FuturesApi {
       price: String(price),
       qty: String(qty),
       realizedPnl: String(round(realized)),
-      commission: String(round(qty * price * this.takerFee)),
+      commission: String(round(qty * price * fee)),
       commissionAsset: "USDT",
       time: this.clock,
     });
@@ -254,8 +287,58 @@ export class FakeBinance implements FuturesApi {
     return { ...result };
   }
 
+  async placeLimitOrder(request: LimitOrderRequest): Promise<OrderResult> {
+    const after = this.check("placeLimitOrder", request);
+    if (this.orders.has(request.clientOrderId)) throw rejected(-4116, "ClientOrderId is duplicated.");
+    const mark = this.marks.get(request.symbol) ?? 0;
+    const price = Number(request.price);
+    // Post-only: an order that would take liquidity expires instead.
+    const crosses = request.side === "BUY" ? price >= mark + this.spread : price <= mark - this.spread;
+    const result: OrderResult = {
+      symbol: request.symbol,
+      orderId: this.nextId++,
+      clientOrderId: request.clientOrderId,
+      side: request.side,
+      type: "LIMIT",
+      status: crosses ? "EXPIRED" : "NEW",
+      origQty: request.quantity,
+      executedQty: "0",
+      avgPrice: "0",
+      updateTime: this.clock,
+    };
+    this.orders.set(request.clientOrderId, result);
+    if (!crosses) {
+      this.resting.set(request.clientOrderId, { symbol: request.symbol, side: request.side, price, qty: Number(request.quantity) });
+      this.openOrders.push({ symbol: request.symbol, orderId: result.orderId, clientOrderId: request.clientOrderId, type: "LIMIT", side: request.side, origQty: request.quantity, status: "NEW", reduceOnly: false });
+    }
+    if (after) throw after;
+    return { ...result };
+  }
+
+  async cancelOrder(_symbol: string, clientOrderId: string): Promise<boolean> {
+    this.check("cancelOrder", clientOrderId);
+    const order = this.orders.get(clientOrderId);
+    if (!order || !(order.status === "NEW" || order.status === "PARTIALLY_FILLED")) return false;
+    order.status = "CANCELED";
+    this.resting.delete(clientOrderId);
+    this.openOrders = this.openOrders.filter((o) => o.clientOrderId !== clientOrderId);
+    return true;
+  }
+
+  async getBookTicker(symbol: string): Promise<BookTicker> {
+    this.check("getBookTicker", symbol);
+    const mark = this.marks.get(symbol) ?? 0;
+    return { bidPrice: mark - this.spread, askPrice: mark + this.spread };
+  }
+
+  /** LIMIT orders resting on the book. */
+  restingOrders() {
+    return [...this.resting.entries()].map(([clientOrderId, o]) => ({ clientOrderId, ...o }));
+  }
+
   async getOrder(_symbol: string, clientOrderId: string): Promise<OrderResult | null> {
     this.check("getOrder", clientOrderId);
+    this.onPoll?.(++this.polls);
     const order = this.orders.get(clientOrderId);
     return order ? { ...order } : null;
   }

@@ -2,7 +2,9 @@ import {
   dec,
   feeRateOf,
   finalizeAfterFill,
+  formatToStep,
   planTrade,
+  type Dec,
   type Direction,
   type MethodSignal,
   type Settings,
@@ -11,7 +13,7 @@ import { errorText, isBinanceError } from "../binance/errors.js";
 import type { FuturesApi, LeverageBracket, OrderResult } from "../binance/types.js";
 import { silentLogger, type Logger } from "../lib/logger.js";
 import { chooseLeverage } from "./leverage.js";
-import { closedStats, entrySide, flatten, placeProtection, positionAmount } from "./protection.js";
+import { cancelEntryOrders, closedStats, entrySide, flatten, placeProtection, positionAmount } from "./protection.js";
 import { KeyedLock, newTradeId, sleep as realSleep } from "./support.js";
 import { CLIENT_ID, type EntryStage, type EventSink, type Trade, type TradeStore } from "./types.js";
 
@@ -26,6 +28,9 @@ export interface EntryRequest {
   /** A retry: a failure for this same reason was already reported, so it is only logged. */
   quietReason?: string;
 }
+
+/** How often a resting LIMIT entry is checked. */
+const LIMIT_POLL_MS = 2000;
 
 export type EntryOutcome =
   | { ok: true; trade: Trade }
@@ -165,12 +170,26 @@ export class Executor {
       return fail(stage, reason, detail, trade);
     };
 
-    // 4. Margin type, leverage, MARKET entry.
+    // 4. Margin type, leverage, then the entry: MARKET, or a post-only LIMIT that may not fill.
     try {
       await api.setMarginType(symbol, risk.marginType);
       await api.setLeverage(symbol, leverage);
     } catch (error) {
       return failTrade("ORDER", "LEVERAGE_FAILED", errorText(error));
+    }
+    if (risk.entryOrder === "LIMIT") {
+      let note: string;
+      try {
+        note = (await this.limitEntry(trade, sizing.quantity, request, info.filters.tickSize)).note;
+      } catch (error) {
+        note = errorText(error);
+        await cancelEntryOrders(api, symbol, trade.entryClientId).catch(() => []);
+      }
+      const amount = await positionAmount(api, symbol).catch(() => "0");
+      // Nothing filled: not entered, the next candle that still qualifies tries again.
+      if (dec(amount).isZero()) return failTrade("ORDER", "LIMIT_NOT_FILLED", `Lệnh limit không khớp: ${note}`);
+      // All or part filled: protect what the position holds.
+      return this.protectSafely(trade, null, request);
     }
     let order: OrderResult | null;
     try {
@@ -310,6 +329,64 @@ export class Executor {
   }
 
   /** After an UNKNOWN answer, ask Binance a few times whether the entry exists. */
+  /**
+   * Post-only LIMIT at the best bid (LONG) or ask (SHORT). When the book moves away it is canceled
+   * and posted again at the new best price, as long as that price is within limitMaxChaseAtr ATR of
+   * the price at the decision; all of it within limitWaitSec. What filled stays, the rest is canceled.
+   */
+  private async limitEntry(trade: Trade, quantity: string, request: EntryRequest, tickSize: string): Promise<{ filled: Dec; note: string }> {
+    const { api } = this.deps;
+    const { symbol } = trade;
+    const risk = request.settings.risk;
+    const long = trade.direction === "LONG";
+    const maxChase = risk.limitMaxChaseAtr * request.atr;
+    let polls = Math.max(1, Math.ceil((risk.limitWaitSec * 1000) / LIMIT_POLL_MS));
+    let filled = dec(0);
+    let note = `hết ${risk.limitWaitSec} giây chờ`;
+    for (let quote = 0; polls > 0 && filled.lt(quantity); quote++) {
+      const book = await api.getBookTicker(symbol);
+      const best = long ? book.bidPrice : book.askPrice;
+      if ((long ? best - trade.plannedEntry : trade.plannedEntry - best) > maxChase) {
+        note = `giá đã chạy quá ${risk.limitMaxChaseAtr} ATR khỏi giá lúc quyết định (${trade.plannedEntry} → ${best})`;
+        break;
+      }
+      const id = quote === 0 ? trade.entryClientId : `${trade.entryClientId}-${quote}`;
+      const price = formatToStep(best, tickSize);
+      let order: OrderResult;
+      try {
+        order = await api.placeLimitOrder({ symbol, side: entrySide(trade.direction), quantity: dec(quantity).minus(filled).toString(), price, clientOrderId: id });
+      } catch (error) {
+        if (!(isBinanceError(error) && error.kind === "UNKNOWN")) {
+          note = errorText(error);
+          break;
+        }
+        const found = await this.lookupEntry(symbol, id);
+        if (!found) {
+          await api.cancelOrder(symbol, id).catch(() => false);
+          note = `không xác nhận được lệnh limit (${errorText(error)})`;
+          break;
+        }
+        order = found;
+      }
+      // Rest at this price until it fills, expires (it would have taken liquidity) or the book moves away.
+      while (order.status === "NEW" || order.status === "PARTIALLY_FILLED") {
+        if (polls-- <= 0) break;
+        await this.sleep(LIMIT_POLL_MS);
+        order = (await api.getOrder(symbol, id)) ?? order;
+        if (order.status !== "NEW") continue;
+        const top = await api.getBookTicker(symbol);
+        if (long ? top.bidPrice > Number(price) : top.askPrice < Number(price)) break;
+      }
+      if (order.status === "NEW" || order.status === "PARTIALLY_FILLED") {
+        await api.cancelOrder(symbol, id).catch(() => false);
+        order = (await api.getOrder(symbol, id)) ?? order;
+      }
+      filled = filled.plus(order.executedQty || "0");
+    }
+    this.logger.info("Limit entry done", { tradeId: trade.id, symbol, filled: filled.toString(), quantity, note });
+    return { filled, note };
+  }
+
   private async lookupEntry(symbol: string, clientOrderId: string): Promise<OrderResult | null> {
     for (let attempt = 0; attempt < 3; attempt++) {
       try {

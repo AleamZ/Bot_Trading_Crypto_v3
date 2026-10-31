@@ -293,6 +293,63 @@ describe("Watchdog: after a crash", () => {
   });
 });
 
+describe("Watchdog: LIMIT entries left by a stopped bot", () => {
+  const opening = (h: ReturnType<typeof harness>): Trade => ({
+    id: "l1",
+    symbol: "BTCUSDT",
+    direction: "LONG",
+    status: "OPENING",
+    methods: ["trendPullback", "donchianBreakout", "smcSweep"],
+    createdAt: h.api.clock,
+    openedAt: null,
+    closedAt: null,
+    plannedEntry: 68_000,
+    structuralStop: 67_200,
+    riskUsd: 5,
+    rr: 2,
+    leverage: 10,
+    entryClientId: "v3e-l1",
+    quantity: "0",
+    entryPrice: null,
+    stopLoss: null,
+    takeProfit: null,
+    stopMode: null,
+    riskAtStopUsd: null,
+    riskAtStopR: null,
+    rewardAtTpUsd: null,
+    rewardAtTpR: null,
+    slClientId: null,
+    tpClientId: null,
+    protectionVersion: 0,
+    exitReason: null,
+    exitPrice: null,
+    netPnl: null,
+    fees: null,
+    pnlR: null,
+    note: null,
+  });
+
+  it("cancels the resting entry so it cannot fill later without SL and TP", async () => {
+    const h = harness();
+    await h.store.insert(opening(h));
+    await h.api.placeLimitOrder({ symbol: "BTCUSDT", side: "BUY", quantity: "0.005", price: "67900", clientOrderId: "v3e-l1" });
+    await h.watchdog.reconcile();
+    expect(h.api.restingOrders()).toEqual([]);
+    expect(await h.store.get("l1")).toMatchObject({ status: "FAILED" });
+  });
+
+  it("protects the part that filled and cancels the rest", async () => {
+    const h = harness();
+    await h.store.insert(opening(h));
+    await h.api.placeLimitOrder({ symbol: "BTCUSDT", side: "BUY", quantity: "0.005", price: "67900", clientOrderId: "v3e-l1" });
+    h.api.fillLimit("v3e-l1", 0.002);
+    await h.watchdog.reconcile();
+    expect(h.api.restingOrders()).toEqual([]);
+    expect(await h.store.get("l1")).toMatchObject({ status: "OPEN", quantity: "0.002" });
+    expect(h.api.openAlgos().map((a) => a.quantity)).toEqual(["0.002", "0.002"]);
+  });
+});
+
 describe("Watchdog: things the bot does not own", () => {
   it("reports a foreign position once and never touches it", async () => {
     const h = harness();

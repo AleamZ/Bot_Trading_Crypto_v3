@@ -19,6 +19,8 @@ Ngoài bảng theo symbol, kết quả còn chia theo:
 
 ## Cách mô phỏng
 
+- **Vào lệnh LIMIT** (`risk.entryOrder=LIMIT`): lệnh đặt ở giá đóng cửa của nến tín hiệu và nằm chờ suốt nến sau. Chỉ khớp khi nến sau đi **xuyên qua** giá đó (LONG: đáy < giá đặt; SHORT: đỉnh > giá đặt), vì chạm đúng giá thì có thể còn lệnh khác xếp trước. Khớp thì không trượt giá, phí vào là maker. Không khớp thì ghi `LIMIT_NOT_FILLED` và đợt tín hiệu vẫn được thử lại ở nến sau. Trên nến khớp chỉ xét SL, không xét TP, vì đỉnh (LONG) có thể đến trước lúc khớp.
+
 Code nằm ở `packages/core/src/backtest.ts`. Nó dùng **đúng code của bot live**:
 
 - bộ phân tích 3 phương pháp, đồng thuận và chống báo lặp theo đợt (lần vào bị từ chối thì nến 3/3 sau thử lại; số lần bị từ chối chỉ đếm một lần mỗi đợt);

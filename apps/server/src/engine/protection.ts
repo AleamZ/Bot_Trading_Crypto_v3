@@ -134,6 +134,15 @@ export async function flatten(api: FuturesApi, symbol: string, tradeId: string):
   }
 }
 
+/** Cancels the entry orders of a trade still resting on the book (LIMIT entries, re-posts included). */
+export async function cancelEntryOrders(api: FuturesApi, symbol: string, entryClientId: string): Promise<string[]> {
+  const open = await api.getOpenOrders(symbol);
+  const ours = open.filter((o) => o.clientOrderId === entryClientId || o.clientOrderId.startsWith(`${entryClientId}-`));
+  const canceled: string[] = [];
+  for (const o of ours) if (await api.cancelOrder(symbol, o.clientOrderId).catch(() => false)) canceled.push(o.clientOrderId);
+  return canceled;
+}
+
 export async function positionAmount(api: FuturesApi, symbol: string): Promise<string> {
   const positions = await api.getPositions(symbol);
   return positions.find((p) => p.symbol === symbol && (p.positionSide === "BOTH" || !p.positionSide))?.positionAmt ?? "0";

@@ -142,7 +142,8 @@ export function eventChip(entry: LogEntry): { tone: Tone; label: string } {
     case "ENTRY_FAILED": {
       // Refused by the stop-distance rules (see the server's isStopRuleRejection): a skip, not an error.
       const failed = entry.data as { stage?: string; reason?: string } | null;
-      return failed?.stage === "PLAN" && failed.reason?.startsWith("STOP_") ? { tone: "empty", label: "Bỏ qua" } : { tone: "heart", label: "Lỗi lệnh" };
+      const skipped = (failed?.stage === "PLAN" && failed.reason?.startsWith("STOP_")) || failed?.reason === "LIMIT_NOT_FILLED";
+      return skipped ? { tone: "empty", label: "Bỏ qua" } : { tone: "heart", label: "Lỗi lệnh" };
     }
     case "TRADE_CLOSED": {
       const reason = data?.trade?.exitReason;

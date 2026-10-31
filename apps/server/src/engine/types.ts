@@ -87,6 +87,11 @@ export function initialStop(trade: Pick<Trade, "slMoves" | "stopLoss">): string 
   return trade.slMoves?.[0]?.from ?? trade.stopLoss;
 }
 
+/** A LIMIT entry that did not fill in time: the bot did not enter and tries again later. */
+export function isLimitNotFilled(event: { reason: string }): boolean {
+  return event.reason === "LIMIT_NOT_FILLED";
+}
+
 /** 0: the stop the trade opened with; 1: at the entry; 2: in profit. */
 export function stopStage(trade: Pick<Trade, "slMoves">): 0 | 1 | 2 {
   return trade.slMoves?.at(-1)?.stage ?? 0;

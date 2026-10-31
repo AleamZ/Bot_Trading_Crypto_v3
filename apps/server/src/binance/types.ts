@@ -99,6 +99,20 @@ export interface MarketOrderRequest {
   reduceOnly?: boolean;
 }
 
+/** A post-only LIMIT entry: it only ever rests on the book (maker), never takes liquidity. */
+export interface LimitOrderRequest {
+  symbol: string;
+  side: OrderSide;
+  quantity: string;
+  price: string;
+  clientOrderId: string;
+}
+
+export interface BookTicker {
+  bidPrice: number;
+  askPrice: number;
+}
+
 export interface AlgoOrderRequest {
   symbol: string;
   side: OrderSide;
@@ -126,6 +140,12 @@ export interface FuturesApi {
   setMarginType(symbol: string, marginType: MarginType): Promise<void>;
   setLeverage(symbol: string, leverage: number): Promise<void>;
   placeMarketOrder(request: MarketOrderRequest): Promise<OrderResult>;
+  /** Post-only (GTX). An order that would take liquidity comes back EXPIRED instead of filling. */
+  placeLimitOrder(request: LimitOrderRequest): Promise<OrderResult>;
+  /** False when the order was already gone (filled, canceled or unknown). */
+  cancelOrder(symbol: string, clientOrderId: string): Promise<boolean>;
+  /** Best bid and ask. */
+  getBookTicker(symbol: string): Promise<BookTicker>;
   /** Null when Binance does not know the order. */
   getOrder(symbol: string, clientOrderId: string): Promise<OrderResult | null>;
   placeAlgoOrder(request: AlgoOrderRequest): Promise<AlgoOrder>;

@@ -214,7 +214,15 @@ export function runBacktest(symbols: readonly BacktestSymbol[], options: Backtes
         skip(plan.sizing?.reason ?? "NO_FILTERS");
         continue;
       }
-      const fill = direction === "LONG" ? close * (1 + slip) : close * (1 - slip);
+      // LIMIT: post-only at the close, resting through the next candle. It fills only when price
+      // trades through it (not just touches, the queue is ahead), and then without slippage.
+      const next = book.data.market.entry[i + 1];
+      const limit = risk.entryOrder === "LIMIT";
+      if (limit && !(next && (direction === "LONG" ? next.low < close : next.high > close))) {
+        skip("LIMIT_NOT_FILLED");
+        continue;
+      }
+      const fill = limit ? close : direction === "LONG" ? close * (1 + slip) : close * (1 - slip);
       const final = finalizeAfterFill({
         direction,
         fillPrice: fill,
@@ -253,9 +261,28 @@ export function runBacktest(symbols: readonly BacktestSymbol[], options: Backtes
         bars: 0,
       };
       trades.push(trade);
-      book.position = { trade, entryIndex: i, stop: trade.stopLoss, best: 0 };
       book.episode = markEntered(book.episode!);
       opened.set(day, (opened.get(day) ?? 0) + 1);
+      if (!limit) {
+        book.position = { trade, entryIndex: i, stop: trade.stopLoss, best: 0 };
+        continue;
+      }
+      // Filled during the next candle: from there on the trade is open. Only the stop is checked on
+      // that candle, since its high (LONG) may have come before the fill.
+      trade.entryTime = next!.closeTime;
+      book.position = { trade, entryIndex: i + 1, stop: trade.stopLoss, best: 0 };
+      if (direction === "LONG" ? next!.low <= trade.stopLoss : next!.high >= trade.stopLoss) {
+        trade.exit = direction === "LONG" ? trade.stopLoss * (1 - slip) : trade.stopLoss * (1 + slip);
+        trade.exitTime = next!.closeTime;
+        trade.exitReason = "SL";
+        trade.bars = 1;
+        trade.netPnl = netResultAt(direction, trade.entry, trade.exit, trade.quantity, fee).toNumber();
+        trade.r = trade.netPnl / risk.riskUsd;
+        const exitDay = tradingDayKey(next!.closeTime);
+        realized.set(exitDay, (realized.get(exitDay) ?? 0) + trade.r);
+        book.position = null;
+        book.lastExit = next!.closeTime;
+      }
     }
   }
 

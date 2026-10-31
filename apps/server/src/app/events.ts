@@ -1,6 +1,6 @@
 import { comboOf, GUARD_MESSAGES, METHOD_LABELS, type ConsensusLevel, type Direction, type Episode, type GuardReason, type MethodId, type SymbolAnalysis } from "@bot-v3/core";
 import type { EventLog, LogEntry, LogLevelName } from "../db/stores.js";
-import { isStopRuleRejection, stopStage, type BotEvent, type EventSink, type Trade } from "../engine/types.js";
+import { isLimitNotFilled, isStopRuleRejection, stopStage, type BotEvent, type EventSink, type Trade } from "../engine/types.js";
 import { silentLogger, type Logger } from "../lib/logger.js";
 
 export interface SignalView {
@@ -145,6 +145,9 @@ export function describeEvent(event: AppEvent): { level: LogLevelName; symbol: s
       };
     }
     case "ENTRY_FAILED":
+      if (isLimitNotFilled(event)) {
+        return { level: "info", symbol: event.symbol, title: `Không vào lệnh ${event.symbol} ${event.direction}: lệnh limit không khớp`, message: `${event.detail}. Bot thử lại ở nến sau nếu tín hiệu còn` };
+      }
       if (isStopRuleRejection(event)) {
         return {
           level: "warn",

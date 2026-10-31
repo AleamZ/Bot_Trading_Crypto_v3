@@ -70,6 +70,30 @@ describe("runBacktest: one trade", () => {
     expect(r.total).toMatchObject({ trades: 1, wins: 1, losses: 0, profitFactor: null, maxDrawdownR: 0 });
   });
 
+  it("fills a LIMIT entry only when the next candle trades through the close, at the close, with the maker fee", () => {
+    const limit = settingsWith({ risk: { entryOrder: "LIMIT" } });
+    // The candle after the signal stays above 100: the order rests unfilled, the episode tries again.
+    const away = series(30, { 11: [100.1, 100.6, 100.0, 100.5], 12: [100.5, 100.6, 100.4, 100.5] });
+    const missed = runBacktest([sym("XUSDT", away)], { settings: limit, analyzerFor: scripted({ 10: THREE_LONG, 11: THREE_LONG }) });
+    expect(missed.skipped).toMatchObject({ LIMIT_NOT_FILLED: 1 });
+    expect(missed.trades).toHaveLength(1);
+    expect(missed.trades[0]).toMatchObject({ entry: 100.5, entryTime: away[12]!.closeTime });
+    // Filled on candle 11 (low 99.8 < 100), then TP: the round trip pays maker + taker.
+    const entry = series(30, { 12: [100, 104, 100, 103] });
+    const t = runBacktest([sym("XUSDT", entry)], { settings: limit, analyzerFor: scripted({ 10: THREE_LONG }) }).trades[0]!;
+    expect(t).toMatchObject({ entry: 100, entryTime: entry[11]!.closeTime, exitReason: "TP" });
+    const market = runBacktest([sym("XUSDT", entry)], { settings: defaultSettings(), analyzerFor: scripted({ 10: THREE_LONG }) }).trades[0]!;
+    expect(t.r).toBeGreaterThan(market.r);
+  });
+
+  it("stops a LIMIT entry out on the candle it filled, without counting a TP there", () => {
+    const limit = settingsWith({ risk: { entryOrder: "LIMIT" } });
+    const entry = series(30, { 11: [100, 105, 98, 100] });
+    const t = runBacktest([sym("XUSDT", entry)], { settings: limit, analyzerFor: scripted({ 10: THREE_LONG }) }).trades[0]!;
+    expect(t).toMatchObject({ exitReason: "SL", exitTime: entry[11]!.closeTime, bars: 1 });
+    expect(t.exit).toBe(t.stopLoss);
+  });
+
   it("loses 1R at the stop", () => {
     const entry = series(30, { 11: [100, 100.1, 98, 98.4] });
     const r = runBacktest([sym("XUSDT", entry)], { settings: defaultSettings(), analyzerFor: scripted({ 10: THREE_LONG }) });

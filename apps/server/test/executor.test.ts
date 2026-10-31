@@ -264,3 +264,67 @@ describe("Executor: answers it did not expect", () => {
     expect(h.events.at(-1)).toMatchObject({ type: "PROTECTION_FAILED", flattened: true, detail: expect.stringContaining("something unexpected") });
   });
 });
+
+describe("Executor: LIMIT entries (post-only, maker fee)", () => {
+  const limit = (extra: Record<string, unknown> = {}) => harness({ risk: { entryOrder: "LIMIT", limitWaitSec: 10, ...extra } });
+
+  it("posts at the best bid, fills when the price trades through it, then places SL and TP", async () => {
+    const h = limit();
+    // Mark 68,000: bid 67,999.5. The price dips on the first check.
+    h.api.onPoll = (n) => n === 1 && h.api.setMark("BTCUSDT", 67_999);
+    const outcome = await h.executor.enter(h.request("LONG"));
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    // Sized with the lower round-trip fee (maker in, taker out): 0.0059 instead of 0.0057 at market.
+    expect(outcome.trade).toMatchObject({ status: "OPEN", entryPrice: "67999.5", quantity: "0.0059" });
+    expect(h.api.orders.get("v3e-t1")).toMatchObject({ type: "LIMIT", status: "FILLED" });
+    expect(h.api.openAlgos()).toHaveLength(2);
+    // Maker fee on the entry: 0.0059 × 67,999.5 × 0.02%.
+    expect(Number(h.api.fills[0]!.commission)).toBeCloseTo(0.0059 * 67_999.5 * 0.0002, 6);
+    expect(h.eventTypes()).toEqual(["ENTRY_FILLED"]);
+  });
+
+  it("gives up when nothing fills in time: no position, no order left, counted as not entered", async () => {
+    const h = limit();
+    const outcome = await h.executor.enter(h.request("LONG"));
+    expect(outcome).toMatchObject({ ok: false, stage: "ORDER", reason: "LIMIT_NOT_FILLED" });
+    expect(h.api.positionAmt()).toBe(0);
+    expect(h.api.restingOrders()).toEqual([]);
+    expect(h.api.orders.get("v3e-t1")?.status).toBe("CANCELED");
+    expect((await h.store.get("t1"))?.status).toBe("FAILED");
+  });
+
+  it("posts again when the bid moves up, and stops once the price ran past the chase limit", async () => {
+    const h = limit();
+    h.api.onPoll = (n) => {
+      if (n === 1) h.api.setMark("BTCUSDT", 68_050); // 50 above: within 0.3 × 400 ATR, post again
+      if (n === 3) h.api.setMark("BTCUSDT", 68_300); // 300 above: give up
+    };
+    const outcome = await h.executor.enter(h.request("LONG"));
+    expect(outcome).toMatchObject({ ok: false, reason: "LIMIT_NOT_FILLED" });
+    if (outcome.ok) return;
+    expect(outcome.detail).toContain("0.3 ATR");
+    expect(h.api.orders.get("v3e-t1")?.status).toBe("CANCELED");
+    expect(h.api.orders.get("v3e-t1-1")).toMatchObject({ status: "CANCELED", side: "BUY" });
+    expect(h.api.restingOrders()).toEqual([]);
+  });
+
+  it("keeps a partial fill and protects exactly that quantity", async () => {
+    const h = limit();
+    h.api.onPoll = (n) => n === 1 && h.api.fillLimit("v3e-t1", 0.003);
+    const outcome = await h.executor.enter(h.request("LONG"));
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.trade.quantity).toBe("0.003");
+    expect(h.api.restingOrders()).toEqual([]);
+    expect(h.api.openAlgos().map((a) => a.quantity)).toEqual(["0.003", "0.003"]);
+  });
+
+  it("works for SHORT at the best ask", async () => {
+    const h = limit();
+    h.api.onPoll = (n) => n === 1 && h.api.setMark("BTCUSDT", 68_001);
+    const outcome = await h.executor.enter(h.request("SHORT"));
+    expect(outcome.ok && outcome.trade.entryPrice).toBe("68000.5");
+    expect(h.api.positionAmt()).toBeLessThan(0);
+  });
+});

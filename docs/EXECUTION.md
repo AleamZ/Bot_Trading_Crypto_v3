@@ -19,7 +19,14 @@ Mỗi symbol có một khoá (`KeyedLock`), nên executor và watchdog không ba
 3. **Ghi lệnh `OPENING` vào DB trước khi gửi bất cứ gì.** Nếu bot chết giữa chừng, watchdog sẽ nhận lại lệnh này.
 4. **Đặt lệnh trên sàn:**
    - margin type (lỗi `-4046` "không cần đổi" thì bỏ qua) và đòn bẩy;
-   - **MARKET** với `newClientOrderId = v3e-<id>`, `newOrderRespType=RESULT`.
+   - `risk.entryOrder = MARKET` (mặc định): lệnh **MARKET** với `newClientOrderId = v3e-<id>`, `newOrderRespType=RESULT`, phí taker.
+   - `risk.entryOrder = LIMIT`: lệnh **LIMIT post-only** (`timeInForce=GTX`, phí maker) ở giá mua tốt nhất (LONG) hoặc bán tốt nhất (SHORT), đọc từ `GET /fapi/v1/ticker/bookTicker`.
+     - Lệnh post-only mà sẽ khớp ngay thì sàn trả `EXPIRED` (hoặc lỗi `-5022`): bot đặt lại ở giá tốt nhất mới.
+     - Bot kiểm tra mỗi 2 giây. Khi giá mua/bán tốt nhất chạy khỏi giá đặt, bot huỷ và đặt lại (client id `v3e-<id>-1`, `-2`, …), miễn là giá mới không cách giá lúc quyết định quá `limitMaxChaseAtr` (0.3) ATR.
+     - Hết `limitWaitSec` (120 giây) thì huỷ phần còn lại. Phần đã khớp (cả khi chỉ một phần) được giữ và bảo vệ như bình thường.
+     - Không khớp gì: lệnh `FAILED` lý do `LIMIT_NOT_FILLED`, coi như chưa vào; nến sau nếu vẫn đủ điều kiện thì thử lại. Telegram ghi "CHƯA VÀO LỆNH", nhật ký ghi "Bỏ qua".
+     - Khối lượng 1R tính với phí trung bình của maker (vào) và taker (SL/TP).
+     - Trong lúc chờ, symbol bị khoá nên watchdog không đụng vào. Nếu bot dừng giữa chừng, watchdog huỷ lệnh limit còn treo: không khớp gì thì lệnh `FAILED`; khớp một phần thì đặt SL/TP cho phần đó.
 5. Từ **giá khớp và khối lượng khớp thật**, tính SL/TP cuối (`finalizeAfterFill`, chế độ `EXACT_1R`). Binance DEMO trả kết quả lệnh MARKET **không có `avgPrice`**; khi đó giá vào lấy từ vị thế (`entryPrice`).
 6. **Đặt SL trước, rồi TP**:
    - qua `POST /fapi/v1/algoOrder`, `algoType=CONDITIONAL`, `STOP_MARKET` / `TAKE_PROFIT_MARKET`;

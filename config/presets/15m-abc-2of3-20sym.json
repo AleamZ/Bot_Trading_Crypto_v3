@@ -1,10 +1,26 @@
 {
   "general": {
     "watchlist": [
-      "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT",
-      "DOGEUSDT", "ADAUSDT", "AVAXUSDT", "LINKUSDT", "DOTUSDT",
-      "TRXUSDT", "LTCUSDT", "BCHUSDT", "NEARUSDT", "APTUSDT",
-      "ARBUSDT", "OPUSDT", "SUIUSDT", "INJUSDT", "ATOMUSDT"
+      "BTCUSDT",
+      "ETHUSDT",
+      "BNBUSDT",
+      "SOLUSDT",
+      "XRPUSDT",
+      "DOGEUSDT",
+      "ADAUSDT",
+      "AVAXUSDT",
+      "LINKUSDT",
+      "DOTUSDT",
+      "TRXUSDT",
+      "LTCUSDT",
+      "BCHUSDT",
+      "NEARUSDT",
+      "APTUSDT",
+      "ARBUSDT",
+      "OPUSDT",
+      "SUIUSDT",
+      "INJUSDT",
+      "ATOMUSDT"
     ],
     "entryTf": "15m",
     "trendTf": "1h",
@@ -18,12 +34,25 @@
     "rr": 1.2,
     "maxSlAtr": 6,
     "moveSl": false,
-    "maxOpenPositions": 5
+    "maxOpenPositions": 5,
+    "entryOrder": "LIMIT",
+    "limitWaitSec": 120,
+    "limitMaxChaseAtr": 0.3,
+    "makerFeePct": 0.02,
+    "feeRatePct": 0.05
   },
   "methods": {
-    "trendPullback": { "enabled": true },
-    "donchianBreakout": { "enabled": true },
-    "smcSweep": { "enabled": true },
-    "boxTheory": { "enabled": false }
+    "trendPullback": {
+      "enabled": true
+    },
+    "donchianBreakout": {
+      "enabled": true
+    },
+    "smcSweep": {
+      "enabled": true
+    },
+    "boxTheory": {
+      "enabled": false
+    }
   }
 }

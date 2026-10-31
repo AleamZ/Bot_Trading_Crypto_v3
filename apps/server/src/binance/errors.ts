@@ -36,6 +36,8 @@ export const ERROR_CODES = {
   NO_SUCH_ORDER: -2013,
   WOULD_IMMEDIATELY_TRIGGER: -2021,
   REDUCE_ONLY_REJECTED: -2022,
+  /** A post-only order that would have taken liquidity. */
+  POST_ONLY_REJECTED: -5022,
   NO_NEED_TO_CHANGE_MARGIN_TYPE: -4046,
 } as const;
 

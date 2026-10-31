@@ -1,6 +1,6 @@
 import { comboOf, entryRuleText, feeRateOf, GUARD_MESSAGES, METHOD_IDS, METHOD_LABELS, METHOD_LETTERS, netResultAt, type MethodId, type Settings } from "@bot-v3/core";
 import type { AnalysisView, AppEvent } from "../app/events.js";
-import { isStopRuleRejection, stopStage, type Trade } from "../engine/types.js";
+import { isLimitNotFilled, isStopRuleRejection, stopStage, type Trade } from "../engine/types.js";
 
 /** Telegram HTML messages. Every value that came from outside is escaped. */
 
@@ -112,6 +112,10 @@ export function formatEvent(event: AppEvent, ctx: FormatContext): string | null 
       ].join("\n");
     }
     case "ENTRY_FAILED":
+      if (isLimitNotFilled(event)) {
+        if (!n.notifyEntry) return null;
+        return [`⚪ <b>CHƯA VÀO LỆNH · ${escapeHtml(event.symbol)} ${event.direction}</b>`, escapeHtml(event.detail), "Bot thử lại ở nến sau nếu tín hiệu còn."].join("\n");
+      }
       if (isStopRuleRejection(event)) {
         if (!n.notifyEntry) return null;
         return [

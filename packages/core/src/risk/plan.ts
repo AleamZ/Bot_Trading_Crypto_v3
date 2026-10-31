@@ -30,8 +30,14 @@ export type TradePlan =
     }
   | { ok: false; direction: Direction; reason: PlanRejectReason; detail: string; stopLoss: number; stopPct: number };
 
-export function feeRateOf(risk: RiskSettings): number {
-  return risk.includeFees ? risk.feeRatePct / 100 : 0;
+/**
+ * Fee per side, as a fraction. A LIMIT entry pays the maker fee and the exit the taker fee: their
+ * average on both sides gives the same round trip.
+ */
+export function feeRateOf(risk: Pick<RiskSettings, "includeFees" | "feeRatePct"> & Partial<Pick<RiskSettings, "entryOrder" | "makerFeePct">>): number {
+  if (!risk.includeFees) return 0;
+  const entry = risk.entryOrder === "LIMIT" ? (risk.makerFeePct ?? risk.feeRatePct) : risk.feeRatePct;
+  return (entry + risk.feeRatePct) / 2 / 100;
 }
 
 /** Combines the agreeing stops, checks the distance limits and sizes the position for 1R. */

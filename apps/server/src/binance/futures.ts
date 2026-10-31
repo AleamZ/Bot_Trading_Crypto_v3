@@ -5,9 +5,11 @@ import type { BinanceRest } from "./rest.js";
 import type {
   AlgoOrder,
   AlgoOrderRequest,
+  BookTicker,
   ExchangeSymbol,
   FuturesApi,
   LeverageBracket,
+  LimitOrderRequest,
   MarginType,
   MarketApi,
   MarketOrderRequest,
@@ -154,6 +156,48 @@ export class BinanceFutures implements FuturesApi, MarketApi {
       { signed: true, idempotent: false },
     );
     return toOrderResult(raw);
+  }
+
+  async placeLimitOrder(request: LimitOrderRequest): Promise<OrderResult> {
+    try {
+      const raw = await this.rest.request<RawOrder>(
+        "POST",
+        "/fapi/v1/order",
+        {
+          symbol: request.symbol,
+          side: request.side,
+          type: "LIMIT",
+          timeInForce: "GTX",
+          quantity: request.quantity,
+          price: request.price,
+          newClientOrderId: request.clientOrderId,
+          newOrderRespType: "RESULT",
+        },
+        { signed: true, idempotent: false },
+      );
+      return toOrderResult(raw);
+    } catch (error) {
+      // Some accounts answer a post-only order that would cross with an error rather than EXPIRED.
+      if (error instanceof BinanceError && error.code === ERROR_CODES.POST_ONLY_REJECTED) {
+        return { symbol: request.symbol, orderId: 0, clientOrderId: request.clientOrderId, side: request.side, type: "LIMIT", status: "EXPIRED", origQty: request.quantity, executedQty: "0", avgPrice: "0", updateTime: Date.now() };
+      }
+      throw error;
+    }
+  }
+
+  async cancelOrder(symbol: string, clientOrderId: string): Promise<boolean> {
+    try {
+      await this.rest.request("DELETE", "/fapi/v1/order", { symbol, origClientOrderId: clientOrderId }, { signed: true, idempotent: true });
+      return true;
+    } catch (error) {
+      if (isNotFound(error)) return false;
+      throw error;
+    }
+  }
+
+  async getBookTicker(symbol: string): Promise<BookTicker> {
+    const r = await this.rest.get<{ bidPrice: string; askPrice: string }>("/fapi/v1/ticker/bookTicker", { symbol });
+    return { bidPrice: Number(r.bidPrice), askPrice: Number(r.askPrice) };
   }
 
   async getOrder(symbol: string, clientOrderId: string): Promise<OrderResult | null> {

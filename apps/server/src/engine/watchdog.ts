@@ -2,7 +2,7 @@ import { dec, feeRateOf, finalizeAfterFill, nextStop, tpProgress, type Settings 
 import { errorText } from "../binance/errors.js";
 import type { AlgoOrder, FuturesApi, PositionInfo } from "../binance/types.js";
 import { silentLogger, type Logger } from "../lib/logger.js";
-import { absQty, closedStats, flatten, placeProtection } from "./protection.js";
+import { absQty, cancelEntryOrders, closedStats, flatten, placeProtection } from "./protection.js";
 import { KeyedLock, sleep as realSleep } from "./support.js";
 import { CLIENT_ID, type EventSink, type StopMove, type Trade, type TradeStore } from "./types.js";
 
@@ -149,6 +149,13 @@ export class Watchdog {
   }
 
   private async failOpening(trade: Trade): Promise<void> {
+    // A LIMIT entry left resting by a stopped bot would fill later without SL/TP.
+    const canceled = await cancelEntryOrders(this.deps.api, trade.symbol, trade.entryClientId).catch(() => []);
+    if (canceled.length) {
+      // It may have filled meanwhile: look again on the next pass.
+      const amount = await positionAmountOf(this.deps.api, trade.symbol);
+      if (!dec(amount).isZero()) return;
+    }
     trade.status = "FAILED";
     trade.closedAt = this.now();
     trade.note = trade.note ?? "Bot dừng giữa lúc vào lệnh; sàn không có vị thế";
@@ -158,6 +165,11 @@ export class Watchdog {
   /** OPENING with a live position (the bot stopped right after the fill): protect it now. */
   private async adopt(trade: Trade, position: PositionInfo, report: ReconcileReport): Promise<void> {
     const { api } = this.deps;
+    // Part of a LIMIT entry filled: the rest must not fill later beside the protected quantity.
+    if ((await cancelEntryOrders(api, trade.symbol, trade.entryClientId).catch(() => [])).length) {
+      const fresh = (await api.getPositions(trade.symbol)).find((p) => p.symbol === trade.symbol);
+      if (fresh) position = fresh;
+    }
     const risk = this.deps.settings().risk;
     const info = await api.getSymbol(trade.symbol);
     trade.quantity = absQty(position.positionAmt);
@@ -375,6 +387,10 @@ export class Watchdog {
     events.emit({ type: "TRADE_CLOSED", trade: structuredClone(trade) });
     this.logger.info("Trade closed", { tradeId: trade.id, symbol: trade.symbol, exit: trade.exitReason, pnl: trade.netPnl, r: trade.pnlR });
   }
+}
+
+async function positionAmountOf(api: FuturesApi, symbol: string): Promise<string> {
+  return (await api.getPositions(symbol)).find((p) => p.symbol === symbol)?.positionAmt ?? "0";
 }
 
 /** Cancels the bot's remaining algo orders on a symbol. */
