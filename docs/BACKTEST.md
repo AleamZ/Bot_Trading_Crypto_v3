@@ -139,3 +139,26 @@ Tốt nhất mỗi khung:
 - RR 1 cho winrate cao hơn nhưng sau phí không lệnh nào thắng đủ 0.97R; cần RR khoảng 1.1–1.2 trở lên.
 - Dời SL làm "Thắng" (tính cả hoà vốn bị loại) và PF thấp hơn ở RR gần 1, vì nhiều lệnh bị đóng ở giá vào hoặc khoá lãi nhỏ.
 - Khung lớn hơn tốt hơn rõ: 5m lỗ hoặc hoà, 15m dương nhẹ, 1h dương nhất. Phí và nhiễu chiếm phần nhỏ hơn của 1R khi SL rộng hơn.
+
+## Phương pháp D, cả 4 phương pháp, 20 symbol, phí (2026-10-31)
+
+Nến Binance thật, `signalTtlBars=4`, không dời SL trừ khi ghi khác. "R/30n" là tổng R chia đều mỗi 30 ngày.
+
+**D (hộp) một mình** (`entryCombos=["D"]`, `maxSlAtr=40`): lỗ trên mọi khung. 3m 90 ngày −119R tốt nhất; 5m 180 ngày −192R; 15m 180 ngày −178R; 1h 365 ngày −28R. Winrate cao nhất ~50% ở RR 1.
+
+**D trong tổ hợp, 1h, 365 ngày:**
+
+| Tổ hợp | 6 symbol | 20 symbol |
+|---|---|---|
+| A+D, RR 1.5 | 12 lệnh, 67% thắng, +7.2R | 34 lệnh, 53% thắng, +8.7R |
+| C+D, RR 1.5 | 13 lệnh, 62% thắng, +5.6R | 34 lệnh, 41% thắng, −1.1R |
+
+**Cả 4 phương pháp, 6 symbol** (`maxSlAtr=40`): 2/4 trên 15m (180 ngày) tốt nhất +16.3R ở RR 1.5 (370 lệnh, +2.7R/30n); trên 1h (365 ngày) +15.1R ở RR 1.2 (90 lệnh, +1.2R/30n). 3/4 chỉ 5–41 lệnh. 5m lỗ.
+
+**Phí, 20 symbol, 15m, A+B+C 2/3, RR 1.2, 180 ngày:** phí 0.05% (taker) +6R; 0.02% (maker) +38R (+6.4R/30n, sụt giảm 36R); 0% +59R. Cùng thử trên 5m: −132R / −62R / −3R, tức 5m không có lợi thế kể cả khi không mất phí.
+
+**Ý từ AI tổng hợp, 6 symbol, A+B+C 2/3:**
+- RSI cho SHORT không dưới 35 (`trendPullback.rsiMax=65`): khác biệt nhỏ, không rõ hướng.
+- Dời SL về giá vào ở +0.5R (`breakEvenAtTpPct=25`, RR 2) trên 1h: +13.6R/năm, PF 2.0, sụt giảm 4.5R (không dời: +8.3R, PF 1.25, sụt giảm 9.1R). Trên 15m thì kém hơn không dời.
+
+Không phương án nào đạt 20R/tháng; tháng tốt nhất ở phương án phí maker trên 15m có một tháng vượt 20R trong 6 tháng.
