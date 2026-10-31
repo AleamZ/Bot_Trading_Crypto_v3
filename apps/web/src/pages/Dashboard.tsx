@@ -66,7 +66,7 @@ function Alerts({ status, go }: { status: Status; go: (route: Route) => void }) 
         </Notice>
       )}
       {status.autoTradeBlockers.length > 0 && (
-        <Notice tone="coin" title="Tự vào lệnh đang tắt: 3/3 chỉ được báo, không đặt lệnh">
+        <Notice tone="coin" title={`Tự vào lệnh đang tắt: ${status.limits.autoEntryThreshold}/3 chỉ được báo, không đặt lệnh`}>
           <ul>
             {status.autoTradeBlockers.map((b) => (
               <li key={b}>{b}</li>
@@ -179,12 +179,13 @@ function moodOf(status: Status): Mood {
   return "running";
 }
 
-const MOOD_TEXT: Record<Mood, string> = {
-  running: "Đang chạy: 3/3 sẽ tự vào lệnh",
-  paused: "Tạm dừng: không vào lệnh mới",
-  error: "Đang gặp lỗi kết nối",
-  off: "Chỉ báo tín hiệu, không tự vào lệnh",
-};
+const moodText = (mood: Mood, status: Status): string =>
+  ({
+    running: `Đang chạy: ${status.limits.autoEntryThreshold}/3 sẽ tự vào lệnh`,
+    paused: "Tạm dừng: không vào lệnh mới",
+    error: "Đang gặp lỗi kết nối",
+    off: "Chỉ báo tín hiệu, không tự vào lệnh",
+  })[mood];
 
 function BotPanel({ status }: { status: Status }) {
   const toast = useToast();
@@ -209,7 +210,7 @@ function BotPanel({ status }: { status: Status }) {
     <Panel title="Bot" sub={`v${status.version}`} flush>
       <div className="stripes">
         <Mascot mood={mood} />
-        <strong style={{ marginTop: 8 }}>{MOOD_TEXT[mood]}</strong>
+        <strong style={{ marginTop: 8 }}>{moodText(mood, status)}</strong>
       </div>
       <div className="panel-body" style={{ display: "grid", gap: 14 }}>
         <Meter label="Lỗ trong ngày" value={Number(lossUsed.toFixed(2))} max={status.limits.maxDailyLossR} cells={Math.max(3, Math.round(status.limits.maxDailyLossR * 2))} tone="heart" display={`${lossUsed.toFixed(2)} / ${status.limits.maxDailyLossR}R`} />

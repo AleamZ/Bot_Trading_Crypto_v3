@@ -130,8 +130,11 @@ export function eventChip(entry: LogEntry): { tone: Tone; label: string } {
   switch (entry.type) {
     case "SIGNAL_READY":
       return { tone: "coin", label: "Ready" };
-    case "SIGNAL_ENTER":
-      return { tone: "sky", label: "3/3" };
+    case "SIGNAL_ENTER": {
+      // How many methods agreed: 2/3 when the entry threshold is 2.
+      const agreeing = (entry.data as { analysis?: { consensus?: { agreeing?: unknown[] } } } | null)?.analysis?.consensus?.agreeing?.length;
+      return { tone: "sky", label: agreeing ? `${agreeing}/3` : "Vào" };
+    }
     case "ENTRY_FILLED":
       return { tone: "quest", label: "Vào lệnh" };
     case "ENTRY_SKIPPED":

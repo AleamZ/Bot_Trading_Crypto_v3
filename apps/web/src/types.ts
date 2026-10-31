@@ -429,3 +429,37 @@ export interface MonthStats {
   totals: PeriodStats;
   allTime: PeriodStats;
 }
+
+export interface GroupStats {
+  key: string;
+  count: number;
+  wins: number;
+  losses: number;
+  flats: number;
+  winRate: number | null;
+  r: number;
+  pnl: number;
+}
+
+export interface TradePoint {
+  id: string;
+  symbol: string;
+  direction: Direction;
+  closedAt: number;
+  methods: string;
+  exit: string;
+  outcome: "WIN" | "LOSS" | "FLAT";
+  r: number;
+  pnl: number;
+}
+
+export interface AllStats {
+  firstClosedAt: number | null;
+  totals: PeriodStats;
+  trades: TradePoint[];
+  months: (GroupStats & { fees: number })[];
+  bySymbol: GroupStats[];
+  byDirection: GroupStats[];
+  byExit: GroupStats[];
+  byMethods: GroupStats[];
+}

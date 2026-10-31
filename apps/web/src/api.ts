@@ -1,4 +1,4 @@
-import type { AiStatus, ChartResponse, ChatReply, InsightsRecord, JsonObject, ReviewItem, LogEntry, Me, MonthStats, PositionsResponse, ScanReport, SettingsResponse, Status, TelegramInfo, Trade } from "./types";
+import type { AiStatus, AllStats, ChartResponse, ChatReply, InsightsRecord, JsonObject, ReviewItem, LogEntry, Me, MonthStats, PositionsResponse, ScanReport, SettingsResponse, Status, TelegramInfo, Trade } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -51,7 +51,7 @@ export const api = {
   chart: (symbol: string, limit = 300) => request<ChartResponse>("GET", `/api/chart${query({ symbol, limit })}`),
   ai: () => request<AiStatus>("GET", "/api/ai"),
   chat: (messages: { role: "user" | "assistant"; content: string }[]) => request<ChatReply>("POST", "/api/ai/chat", { messages }),
-  reviews: (params: { limit?: number; outcome?: string; symbol?: string } = {}) => request<{ items: ReviewItem[] }>("GET", `/api/reviews${query(params)}`),
+  reviews: (params: { limit?: number; outcome?: string; symbol?: string; from?: number; to?: number } = {}) => request<{ items: ReviewItem[] }>("GET", `/api/reviews${query(params)}`),
   reviewTrade: (tradeId: string) => request<ReviewItem>("POST", `/api/reviews/${encodeURIComponent(tradeId)}`),
   insights: () => request<{ insights: InsightsRecord | null }>("GET", "/api/reviews/insights"),
   makeInsights: () => request<{ insights: InsightsRecord }>("POST", "/api/reviews/insights"),
@@ -60,12 +60,13 @@ export const api = {
   settings: () => request<SettingsResponse>("GET", "/api/settings"),
   saveSettings: (patch: JsonObject) => request<{ settings: JsonObject; warnings: string[] }>("PUT", "/api/settings", patch),
   resetSettings: () => request<{ settings: JsonObject; warnings: string[] }>("POST", "/api/settings/reset"),
-  trades: (params: { status?: string; symbol?: string; limit?: number; offset?: number } = {}) =>
+  trades: (params: { status?: string; symbol?: string; from?: number; to?: number; limit?: number; offset?: number } = {}) =>
     request<{ trades: Trade[]; total: number }>("GET", `/api/trades${query(params)}`),
   closeTrade: (id: string) => request<Trade>("POST", `/api/trades/${encodeURIComponent(id)}/close`),
   positions: () => request<PositionsResponse>("GET", "/api/positions"),
   stats: (month?: string) => request<MonthStats>("GET", `/api/stats${query({ month })}`),
-  events: (params: { before?: number; limit?: number; level?: string; symbol?: string } = {}) =>
+  statsAll: () => request<AllStats>("GET", "/api/stats/all"),
+  events: (params: { before?: number; limit?: number; level?: string; symbol?: string; from?: number; to?: number } = {}) =>
     request<{ items: LogEntry[] }>("GET", `/api/events${query(params)}`),
   telegram: () => request<TelegramInfo>("GET", "/api/telegram"),
   telegramTest: () => request<{ sent: boolean }>("POST", "/api/telegram/test"),

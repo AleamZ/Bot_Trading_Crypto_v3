@@ -1,10 +1,10 @@
 import { CaretLeftIcon, CaretRightIcon } from "@phosphor-icons/react";
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
 import { api } from "../api";
-import { rMultiple, signed, usd } from "../format";
+import { dateTime, rMultiple, signed, usd } from "../format";
 import { useLoad, type Live, type Route } from "../hooks";
-import type { DayStats, MeasureStats, PeriodStats } from "../types";
-import { Button, Notice, Panel, Stat, Tabs } from "../ui";
+import type { AllStats, DayStats, GroupStats, MeasureStats, MonthStats, PeriodStats, TradePoint } from "../types";
+import { Button, DirectionChip, Notice, Panel, Stat, Tabs } from "../ui";
 
 type Unit = "usd" | "r";
 const UNIT_KEY = "bot3.statsUnit";
@@ -19,7 +19,7 @@ function readUnit(): Unit {
 
 const pct = (value: number | null) => (value === null ? "—" : `${Math.round(value * 100)}%`);
 const inUnit = (unit: Unit, value: number | null) => (value === null ? "—" : unit === "r" ? rMultiple(value) : usd(value));
-const valueOf = (day: DayStats, unit: Unit) => (unit === "r" ? day.r : day.pnl);
+const pick = (unit: Unit, x: { r: number; pnl: number }) => (unit === "r" ? x.r : x.pnl);
 const tone = (value: number | null) => (value === null ? undefined : value > 0 ? "up" : value < 0 ? "down" : undefined);
 
 function shiftMonth(month: string, by: number): string {
@@ -28,15 +28,15 @@ function shiftMonth(month: string, by: number): string {
 }
 
 const monthLabel = (month: string) => `Tháng ${Number(month.slice(5, 7))}/${month.slice(0, 4)}`;
+const shortMonth = (month: string) => `${month.slice(5, 7)}/${month.slice(2, 4)}`;
 const dayLabel = (day: string) => `${day.slice(8, 10)}/${day.slice(5, 7)}`;
 const WEEKDAYS = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
 const weekday = (day: string) => WEEKDAYS[new Date(`${day}T00:00:00Z`).getUTCDay()];
 
+/** `#/stats` this month, `#/stats/2026-09` another month, `#/stats/all` every trade since the start. */
 export function StatsPage({ live, month, go }: { live: Live; month: string | null; go: (route: Route, param?: string) => void }) {
   const [unit, setUnit] = useState<Unit>(readUnit);
-  const [scope, setScope] = useState<"month" | "all">("month");
-  // A trade closing writes a log entry: reload then.
-  const stats = useLoad(() => api.stats(month ?? undefined), [month, live.lastLogId]);
+  const all = month === "all";
 
   useEffect(() => {
     try {
@@ -46,31 +46,18 @@ export function StatsPage({ live, month, go }: { live: Live; month: string | nul
     }
   }, [unit]);
 
-  const data = stats.data;
-  if (!data) return stats.error ? <Notice tone="heart">{stats.error}</Notice> : <div className="empty-state">Đang tải…</div>;
-
-  const thisMonth = data.today.slice(0, 7);
-  const open = (target: string) => go("stats", target === thisMonth ? undefined : target);
-  const elapsed = data.days.filter((d) => d.day <= data.today && d.count > 0);
-  const green = elapsed.filter((d) => valueOf(d, unit) > 0).length;
-  const red = elapsed.filter((d) => valueOf(d, unit) < 0).length;
-  const best = elapsed.length ? elapsed.reduce((a, b) => (valueOf(b, unit) > valueOf(a, unit) ? b : a)) : null;
-  const worst = elapsed.length ? elapsed.reduce((a, b) => (valueOf(b, unit) < valueOf(a, unit) ? b : a)) : null;
-  const t = data.totals;
-  const net = unit === "r" ? t.r.net : t.usd.net;
-
   return (
     <>
       <div className="row between">
-        <div className="row">
-          <Button tone="plain" small icon={<CaretLeftIcon size={14} weight="bold" />} disabled={!data.firstMonth || data.month <= data.firstMonth} onClick={() => open(shiftMonth(data.month, -1))}>
-            Tháng trước
-          </Button>
-          <strong>{monthLabel(data.month)}</strong>
-          <Button tone="plain" small icon={<CaretRightIcon size={14} weight="bold" />} disabled={data.month >= thisMonth} onClick={() => open(shiftMonth(data.month, 1))}>
-            Tháng sau
-          </Button>
-        </div>
+        <Tabs
+          label="Khoảng thống kê"
+          value={all ? "all" : "month"}
+          onChange={(id) => go("stats", id === "all" ? "all" : undefined)}
+          items={[
+            { id: "month", label: "Theo tháng" },
+            { id: "all", label: "Toàn bộ" },
+          ]}
+        />
         <div className="unit-tabs">
           <Tabs
             label="Đơn vị"
@@ -83,16 +70,51 @@ export function StatsPage({ live, month, go }: { live: Live; month: string | nul
           />
         </div>
       </div>
+      {all ? <AllView live={live} unit={unit} /> : <MonthView live={live} month={month} unit={unit} go={go} />}
+    </>
+  );
+}
+
+// ---------- one month
+
+function MonthView({ live, month, unit, go }: { live: Live; month: string | null; unit: Unit; go: (route: Route, param?: string) => void }) {
+  const [scope, setScope] = useState<"month" | "all">("month");
+  // A trade closing writes a log entry: reload then.
+  const stats = useLoad(() => api.stats(month ?? undefined), [month, live.lastLogId]);
+  const data = stats.data;
+  if (!data) return stats.error ? <Notice tone="heart">{stats.error}</Notice> : <div className="empty-state">Đang tải…</div>;
+
+  const thisMonth = data.today.slice(0, 7);
+  const open = (target: string) => go("stats", target === thisMonth ? undefined : target);
+  const elapsed = data.days.filter((d) => d.day <= data.today && d.count > 0);
+  const green = elapsed.filter((d) => pick(unit, d) > 0).length;
+  const red = elapsed.filter((d) => pick(unit, d) < 0).length;
+  const best = elapsed.length ? elapsed.reduce((a, b) => (pick(unit, b) > pick(unit, a) ? b : a)) : null;
+  const worst = elapsed.length ? elapsed.reduce((a, b) => (pick(unit, b) < pick(unit, a) ? b : a)) : null;
+  const t = data.totals;
+  const net = unit === "r" ? t.r.net : t.usd.net;
+
+  return (
+    <>
+      <div className="row">
+        <Button tone="plain" small icon={<CaretLeftIcon size={14} weight="bold" />} disabled={!data.firstMonth || data.month <= data.firstMonth} onClick={() => open(shiftMonth(data.month, -1))}>
+          Tháng trước
+        </Button>
+        <strong>{monthLabel(data.month)}</strong>
+        <Button tone="plain" small icon={<CaretRightIcon size={14} weight="bold" />} disabled={data.month >= thisMonth} onClick={() => open(shiftMonth(data.month, 1))}>
+          Tháng sau
+        </Button>
+      </div>
       {stats.error && <Notice tone="heart">{stats.error}</Notice>}
       <div className="stats">
         <Stat label="Lãi/lỗ ròng tháng" value={inUnit(unit, net)} tone={tone(net)} hint={`${unit === "r" ? usd(t.usd.net) : rMultiple(t.r.net)} · phí ${t.usd.fees.toFixed(2)}$`} />
         <Stat label="Winrate theo lệnh" value={pct(t.winRate)} hint={`${t.wins} thắng · ${t.flats} hòa · ${t.losses} thua`} />
         <Stat label="Ngày lãi / ngày lỗ" value={`${green} / ${red}`} hint={`${elapsed.length} ngày có lệnh đóng`} />
-        <Stat label="Ngày tốt nhất" value={best ? inUnit(unit, valueOf(best, unit)) : "—"} tone={best ? tone(valueOf(best, unit)) : undefined} hint={best ? dayLabel(best.day) : undefined} />
-        <Stat label="Ngày tệ nhất" value={worst ? inUnit(unit, valueOf(worst, unit)) : "—"} tone={worst ? tone(valueOf(worst, unit)) : undefined} hint={worst ? dayLabel(worst.day) : undefined} />
+        <Stat label="Ngày tốt nhất" value={best ? inUnit(unit, pick(unit, best)) : "—"} tone={best ? tone(pick(unit, best)) : undefined} hint={best ? dayLabel(best.day) : undefined} />
+        <Stat label="Ngày tệ nhất" value={worst ? inUnit(unit, pick(unit, worst)) : "—"} tone={worst ? tone(pick(unit, worst)) : undefined} hint={worst ? dayLabel(worst.day) : undefined} />
       </div>
       <Panel title="Lãi/lỗ từng ngày" sub={`${monthLabel(data.month)} · ${unit === "r" ? "R" : "USDT"} · tài khoản ${live.status?.binanceEnv ?? "…"}`} flush>
-        {t.count === 0 ? <div className="empty-state">{monthLabel(data.month)} chưa có lệnh nào đóng.</div> : <DailyChart days={data.days} unit={unit} today={data.today} />}
+        {t.count === 0 ? <div className="empty-state">{monthLabel(data.month)} chưa có lệnh nào đóng.</div> : <DailyChart data={data} unit={unit} />}
       </Panel>
       <Panel
         title="Winrate"
@@ -117,6 +139,196 @@ export function StatsPage({ live, month, go }: { live: Live; month: string | nul
         </Panel>
       )}
     </>
+  );
+}
+
+function DailyChart({ data, unit }: { data: MonthStats; unit: Unit }) {
+  const slots: Slot[] = data.days.map((d) => {
+    const n = Number(d.day.slice(8, 10));
+    return { key: d.day, value: d.count > 0 ? pick(unit, d) : null, label: String(n), major: n === 1 || n % 5 === 0, future: d.day > data.today, marker: d.day === data.today };
+  });
+  return (
+    <PnlChart
+      slots={slots}
+      unit={unit}
+      names={["Ngày lãi", "Ngày lỗ", "Lũy kế trong tháng"]}
+      tip={(i, cum) => {
+        const d = data.days[i]!;
+        return (
+          <>
+            <strong>
+              {weekday(d.day)} {dayLabel(d.day)}
+            </strong>
+            {d.day > data.today ? <div className="soft">Chưa tới</div> : d.count === 0 ? <div className="soft">Không có lệnh đóng</div> : <GroupLines g={d} fees={d.fees} />}
+            {cum !== null && <div>Lũy kế {inUnit(unit, cum)}</div>}
+          </>
+        );
+      }}
+    />
+  );
+}
+
+// ---------- every trade since the start
+
+function AllView({ live, unit }: { live: Live; unit: Unit }) {
+  const stats = useLoad(() => api.statsAll(), [live.lastLogId]);
+  const data = stats.data;
+  if (!data) return stats.error ? <Notice tone="heart">{stats.error}</Notice> : <div className="empty-state">Đang tải…</div>;
+  const t = data.totals;
+  if (t.count === 0) return <div className="empty-state">Chưa có lệnh nào đóng.</div>;
+
+  const m = unit === "r" ? t.r : t.usd;
+  let running = 0;
+  let peak = 0;
+  let drawdown = 0;
+  for (const p of data.trades) {
+    running += pick(unit, p);
+    peak = Math.max(peak, running);
+    drawdown = Math.max(drawdown, peak - running);
+  }
+  const days = new Set(data.trades.map((p) => new Date(p.closedAt + 7 * 3_600_000).toISOString().slice(0, 10))).size;
+
+  return (
+    <>
+      {stats.error && <Notice tone="heart">{stats.error}</Notice>}
+      <div className="stats">
+        <Stat label="Lãi/lỗ ròng" value={inUnit(unit, m.net)} tone={tone(m.net)} hint={`${unit === "r" ? usd(t.usd.net) : rMultiple(t.r.net)} · phí ${t.usd.fees.toFixed(2)}$`} />
+        <Stat label="Lệnh đã đóng" value={t.count} hint={`${days} ngày · từ ${data.firstClosedAt ? dateTime(data.firstClosedAt) : "—"}`} />
+        <Stat label="Winrate theo lệnh" value={pct(t.winRate)} hint={`${t.wins} thắng · ${t.flats} hòa · ${t.losses} thua`} />
+        <Stat label="Hệ số lãi" value={profitFactor(m)} hint="tổng thắng ÷ tổng thua" />
+        <Stat label="Sụt giảm lớn nhất" value={inUnit(unit, -drawdown)} tone={drawdown > 0 ? "down" : undefined} hint="từ đỉnh lũy kế xuống đáy sau đó" />
+      </div>
+      <Panel title="Đường vốn qua từng lệnh" sub={`${t.count} lệnh · cũ nhất bên trái · ${unit === "r" ? "R" : "USDT"} · tài khoản ${live.status?.binanceEnv ?? "…"}`} flush>
+        <TradesChart trades={data.trades} unit={unit} />
+      </Panel>
+      <Panel title="Lãi/lỗ theo tháng" sub={`${data.months.length} tháng`} flush>
+        <MonthsChart months={data.months} unit={unit} />
+      </Panel>
+      <Panel title="Winrate" sub="từ đầu">
+        <WinRates stats={t} />
+      </Panel>
+      <div className="grid2">
+        <Panel title="Theo symbol" flush>
+          <Breakdown rows={data.bySymbol} unit={unit} />
+        </Panel>
+        <Panel title="Theo phương pháp đồng thuận" flush>
+          <Breakdown rows={data.byMethods} unit={unit} />
+        </Panel>
+        <Panel title="Theo chiều" flush>
+          <Breakdown rows={data.byDirection} unit={unit} label={(key) => <DirectionChip direction={key === "SHORT" ? "SHORT" : "LONG"} />} />
+        </Panel>
+        <Panel title="Theo kiểu thoát" flush>
+          <Breakdown rows={data.byExit} unit={unit} />
+        </Panel>
+      </div>
+    </>
+  );
+}
+
+function TradesChart({ trades, unit }: { trades: TradePoint[]; unit: Unit }) {
+  // Number every k-th trade when there is no room for all.
+  const every = trades.length <= 20 ? 1 : trades.length <= 60 ? 5 : trades.length <= 150 ? 10 : trades.length <= 400 ? 25 : 50;
+  const slots: Slot[] = trades.map((p, i) => ({ key: p.id, value: pick(unit, p), label: String(i + 1), major: i === 0 || (i + 1) % every === 0 }));
+  return (
+    <PnlChart
+      slots={slots}
+      unit={unit}
+      names={["Lệnh lãi", "Lệnh lỗ", "Lũy kế (đường vốn)"]}
+      tip={(i, cum) => {
+        const p = trades[i]!;
+        return (
+          <>
+            <strong>
+              #{i + 1} {p.symbol} {p.direction}
+            </strong>
+            <div className="soft">
+              {dateTime(p.closedAt)} · {p.methods} · {p.exit}
+            </div>
+            <div>
+              <span className={tone(p.pnl) ?? ""}>{usd(p.pnl)}</span> · <span className={tone(p.r) ?? ""}>{rMultiple(p.r)}</span>
+            </div>
+            {cum !== null && <div>Lũy kế {inUnit(unit, cum)}</div>}
+          </>
+        );
+      }}
+    />
+  );
+}
+
+function MonthsChart({ months, unit }: { months: AllStats["months"]; unit: Unit }) {
+  const slots: Slot[] = months.map((g) => ({ key: g.key, value: pick(unit, g), label: shortMonth(g.key), major: true }));
+  return (
+    <PnlChart
+      slots={slots}
+      unit={unit}
+      names={["Tháng lãi", "Tháng lỗ", "Lũy kế"]}
+      tip={(i, cum) => {
+        const g = months[i]!;
+        return (
+          <>
+            <strong>{monthLabel(g.key)}</strong>
+            <GroupLines g={g} fees={g.fees} />
+            {cum !== null && <div>Lũy kế {inUnit(unit, cum)}</div>}
+          </>
+        );
+      }}
+    />
+  );
+}
+
+/** Result lines of a group of trades for a tooltip. */
+function GroupLines({ g, fees }: { g: { count: number; wins: number; flats: number; losses: number; r: number; pnl: number }; fees: number }) {
+  return (
+    <>
+      <div>
+        Ròng <span className={tone(g.pnl) ?? ""}>{usd(g.pnl)}</span> · <span className={tone(g.r) ?? ""}>{rMultiple(g.r)}</span>
+      </div>
+      <div>
+        {g.count} lệnh: {g.wins} thắng · {g.flats} hòa · {g.losses} thua
+      </div>
+      <div className="soft">Phí {fees.toFixed(2)}$</div>
+    </>
+  );
+}
+
+/** Groups as rows, each with a bar for its result around zero. */
+function Breakdown({ rows, unit, label }: { rows: GroupStats[]; unit: Unit; label?: (key: string) => ReactNode }) {
+  const max = Math.max(...rows.map((g) => Math.abs(pick(unit, g))), 1e-9);
+  return (
+    <div className="scroll-x">
+      <table className="table static">
+        <thead>
+          <tr>
+            <th>Nhóm</th>
+            <th className="right">Lệnh</th>
+            <th className="right">Winrate</th>
+            <th className="right">{unit === "r" ? "R" : "Lãi/lỗ"}</th>
+            <th aria-hidden="true" />
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((g) => {
+            const v = pick(unit, g);
+            const width = `${(Math.abs(v) / max) * 50}%`;
+            return (
+              <tr key={g.key}>
+                <td>{label ? label(g.key) : <strong>{g.key}</strong>}</td>
+                <td className="right num">{g.count}</td>
+                <td className="right num" title={`${g.wins} thắng · ${g.flats} hòa · ${g.losses} thua`}>
+                  {pct(g.winRate)}
+                </td>
+                <td className={`right num ${tone(v) ?? ""}`}>{inUnit(unit, v)}</td>
+                <td className="mini-bar-cell" aria-hidden="true">
+                  <div className="mini-bar">
+                    <span style={v >= 0 ? { left: "50%", width, background: "var(--quest)" } : { right: "50%", width, background: "var(--heart)" }} />
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -223,7 +435,7 @@ function RateCard(props: { title: string; rate: string; hint: string; parts: { v
 
 function DayTable({ days, unit }: { days: DayStats[]; unit: Unit }) {
   let running = 0;
-  const rows = days.map((d) => ({ d, cum: (running += valueOf(d, unit)) })).filter((r) => r.d.count > 0).reverse();
+  const rows = days.map((d) => ({ d, cum: (running += pick(unit, d)) })).filter((r) => r.d.count > 0).reverse();
   return (
     <div className="scroll-x">
       <table className="table static">
@@ -305,6 +517,20 @@ function axisLabel(value: number, step: number, unit: Unit): string {
   return `${signed(value, digits)}${unit === "r" ? "R" : "$"}`;
 }
 
+/** One bar position of a P&L chart: a day, a trade or a month. */
+interface Slot {
+  key: string;
+  /** The bar; null when there is nothing in that slot (a day without trades). */
+  value: number | null;
+  /** Axis text, shown on every slot when there is room, otherwise only on major slots. */
+  label: string;
+  major: boolean;
+  /** Not reached yet: no bar and no running total. */
+  future?: boolean;
+  /** Marked under the axis (today). */
+  marker?: boolean;
+}
+
 const LEFT = 58;
 const RIGHT = 16;
 const TOP = 14;
@@ -314,56 +540,55 @@ const CUM_H = 110;
 const BOTTOM = 10;
 const TIP_W = 250;
 
-/** Daily net result as bars above / below zero, with the running total of the month underneath. */
-function DailyChart({ days, unit, today }: { days: DayStats[]; unit: Unit; today: string }) {
+/** Results as bars above / below zero, with their running total underneath. */
+function PnlChart({ slots, unit, names, tip }: { slots: Slot[]; unit: Unit; names: [string, string, string]; tip: (i: number, cum: number | null) => ReactNode }) {
   const [ref, width] = useWidth<HTMLDivElement>();
   const [hover, setHover] = useState<number | null>(null);
-  const n = days.length;
-  const values = days.map((d) => valueOf(d, unit));
+  const n = slots.length;
+  const values = slots.map((s) => s.value ?? 0);
   let running = 0;
   const cum = values.map((v) => (running += v));
-  // Days up to today (the whole month once it is over).
-  const shown = days.filter((d) => d.day <= today).length;
+  const shown = slots.filter((s) => !s.future).length;
   const plotW = Math.max(0, width - LEFT - RIGHT);
   const band = n ? plotW / n : 0;
-  const barW = Math.max(2, Math.min(26, band - 2));
+  const barW = Math.max(1, Math.min(26, band > 4 ? band - 2 : band));
   const x = (i: number) => LEFT + i * band + band / 2;
   const fallback = unit === "r" ? 1 : 5;
-  const traded = days.map((d, i) => (d.count > 0 ? values[i]! : 0));
-  const bars = niceScale(Math.min(...traded), Math.max(...traded), TOP, TOP + BARS_H, fallback, 4);
+  const bars = niceScale(Math.min(...values), Math.max(...values), TOP, TOP + BARS_H, fallback, 4);
   const cumTop = TOP + BARS_H + LABELS_H;
   const shownCum = cum.slice(0, shown);
   const cumScale = niceScale(Math.min(0, ...shownCum), Math.max(0, ...shownCum), cumTop + 6, cumTop + CUM_H, fallback, 2);
   const height = cumTop + CUM_H + BOTTOM;
   const zero = bars.y(0);
-  const tradedIdx = days.map((d, i) => (d.count > 0 ? i : -1)).filter((i) => i >= 0);
-  const bestIdx = tradedIdx.reduce((a, i) => (a < 0 || values[i]! > values[a]! ? i : a), -1);
-  const worstIdx = tradedIdx.reduce((a, i) => (a < 0 || values[i]! < values[a]! ? i : a), -1);
-  const everyDay = band >= 18;
-  const todayIdx = days.findIndex((d) => d.day === today);
+  const filled = slots.map((s, i) => (s.value !== null ? i : -1)).filter((i) => i >= 0);
+  const bestIdx = filled.reduce((a, i) => (a < 0 || values[i]! > values[a]! ? i : a), -1);
+  const worstIdx = filled.reduce((a, i) => (a < 0 || values[i]! < values[a]! ? i : a), -1);
+  const allLabels = band >= 18 + Math.max(...slots.map((s) => s.label.length)) * 3;
   const cumPoints = [`${LEFT},${cumScale.y(0)}`, ...shownCum.map((v, i) => `${x(i)},${cumScale.y(v)}`)].join(" ");
-  const hovered = hover !== null ? days[hover] : null;
+  const pointAt = (e: PointerEvent<SVGRectElement>) => {
+    const box = e.currentTarget.getBoundingClientRect();
+    setHover(Math.min(n - 1, Math.max(0, Math.floor((e.clientX - box.left) / band))));
+  };
 
   return (
     <div>
       <div className="chart-legend">
         <span>
           <span className="swatch" style={{ background: "var(--quest)" }} />
-          Ngày lãi
+          {names[0]}
         </span>
         <span>
           <span className="swatch" style={{ background: "var(--heart)" }} />
-          Ngày lỗ
+          {names[1]}
         </span>
         <span>
           <span className="swatch line" style={{ background: "var(--sky)" }} />
-          Lũy kế trong tháng
+          {names[2]}
         </span>
       </div>
       <div className="pnl-chart" ref={ref} onPointerLeave={() => setHover(null)}>
         {width > 0 && (
-          <svg width={width} height={height} role="img" aria-label={`Lãi lỗ từng ngày, lũy kế ${inUnit(unit, shownCum.at(-1) ?? 0)}`}>
-            {/* bars: grid, zero line, bars */}
+          <svg width={width} height={height} role="img" aria-label={`${names[0]} và ${names[1].toLowerCase()}, lũy kế ${inUnit(unit, shownCum.at(-1) ?? 0)}`}>
             {bars.ticks.map((v) => (
               <g key={`b${v}`}>
                 <line x1={LEFT} x2={width - RIGHT} y1={bars.y(v)} y2={bars.y(v)} className="grid-line" />
@@ -372,12 +597,12 @@ function DailyChart({ days, unit, today }: { days: DayStats[]; unit: Unit; today
                 </text>
               </g>
             ))}
-            {hover !== null && <rect x={LEFT + hover * band} y={TOP} width={band} height={cumTop + CUM_H - TOP} className="hover-band" />}
-            {days.map((d, i) => {
-              if (d.count === 0) return null;
-              const v = values[i]!;
+            {hover !== null && <rect x={LEFT + hover * band} y={TOP} width={Math.max(band, 2)} height={cumTop + CUM_H - TOP} className="hover-band" />}
+            {slots.map((s, i) => {
+              if (s.value === null) return null;
+              const v = s.value;
               const y = bars.y(v);
-              return <rect key={d.day} x={x(i) - barW / 2} y={Math.min(y, zero)} width={barW} height={Math.max(2, Math.abs(y - zero))} style={{ fill: v > 0 ? "var(--quest)" : v < 0 ? "var(--heart)" : "var(--stone)" }} />;
+              return <rect key={s.key} x={x(i) - barW / 2} y={Math.min(y, zero)} width={barW} height={Math.max(2, Math.abs(y - zero))} style={{ fill: v > 0 ? "var(--quest)" : v < 0 ? "var(--heart)" : "var(--stone)" }} />;
             })}
             <line x1={LEFT} x2={width - RIGHT} y1={zero} y2={zero} className="zero-line" />
             {[bestIdx, worstIdx]
@@ -390,18 +615,14 @@ function DailyChart({ days, unit, today }: { days: DayStats[]; unit: Unit; today
                   </text>
                 );
               })}
-            {/* day numbers */}
-            {days.map((d, i) => {
-              const dayNo = Number(d.day.slice(8, 10));
-              if (!everyDay && dayNo !== 1 && dayNo % 5 !== 0) return null;
-              return (
-                <text key={`d${d.day}`} x={x(i)} y={TOP + BARS_H + 19} textAnchor="middle" className={`axis-text${i === todayIdx ? " today" : ""}${d.day > today ? " future" : ""}`}>
-                  {dayNo}
+            {slots.map((s, i) =>
+              allLabels || s.major ? (
+                <text key={`d${s.key}`} x={x(i)} y={TOP + BARS_H + 19} textAnchor="middle" className={`axis-text${s.marker ? " today" : ""}${s.future ? " future" : ""}`}>
+                  {s.label}
                 </text>
-              );
-            })}
-            {todayIdx >= 0 && <rect x={x(todayIdx) - 3} y={TOP + BARS_H + 24} width={6} height={4} style={{ fill: "var(--coin)" }} />}
-            {/* running total */}
+              ) : null,
+            )}
+            {slots.map((s, i) => (s.marker ? <rect key={`m${s.key}`} x={x(i) - 3} y={TOP + BARS_H + 24} width={6} height={4} style={{ fill: "var(--coin)" }} /> : null))}
             {cumScale.ticks.map((v) => (
               <g key={`c${v}`}>
                 <line x1={LEFT} x2={width - RIGHT} y1={cumScale.y(v)} y2={cumScale.y(v)} className={v === 0 ? "zero-line soft" : "grid-line"} />
@@ -411,34 +632,14 @@ function DailyChart({ days, unit, today }: { days: DayStats[]; unit: Unit; today
               </g>
             ))}
             {shown > 0 && <polyline points={cumPoints} className="cum-line" />}
-            {shownCum.map((v, i) => (days[i]!.count > 0 || i === hover ? <circle key={`p${i}`} cx={x(i)} cy={cumScale.y(v)} r={4} className="cum-dot" /> : null))}
-            {/* hit targets, wider than the bars */}
-            {days.map((d, i) => (
-              <rect key={`h${d.day}`} x={LEFT + i * band} y={TOP} width={band} height={cumTop + CUM_H - TOP} fill="transparent" onPointerEnter={() => setHover(i)} onPointerDown={() => setHover(i)} />
-            ))}
+            {shownCum.map((v, i) => ((slots[i]!.value !== null && band >= 6) || i === hover ? <circle key={`p${i}`} cx={x(i)} cy={cumScale.y(v)} r={4} className="cum-dot" /> : null))}
+            {/* one hit target over the plot; the slot under the pointer is hovered */}
+            <rect x={LEFT} y={TOP} width={plotW} height={cumTop + CUM_H - TOP} fill="transparent" onPointerMove={pointAt} onPointerDown={pointAt} />
           </svg>
         )}
-        {hovered && hover !== null && (
+        {hover !== null && (
           <div className="pnl-tip" style={{ left: x(hover) + 14 + TIP_W <= width ? x(hover) + 14 : Math.max(0, x(hover) - 14 - TIP_W), top: 6 }}>
-            <strong>
-              {weekday(hovered.day)} {dayLabel(hovered.day)}
-            </strong>
-            {hovered.day > today ? (
-              <div className="soft">Chưa tới</div>
-            ) : hovered.count === 0 ? (
-              <div className="soft">Không có lệnh đóng</div>
-            ) : (
-              <>
-                <div>
-                  Ròng <span className={tone(hovered.pnl) ?? ""}>{usd(hovered.pnl)}</span> · <span className={tone(hovered.r) ?? ""}>{rMultiple(hovered.r)}</span>
-                </div>
-                <div>
-                  {hovered.count} lệnh: {hovered.wins} thắng · {hovered.flats} hòa · {hovered.losses} thua
-                </div>
-                <div className="soft">Phí {hovered.fees.toFixed(2)}$</div>
-              </>
-            )}
-            {hovered.day <= today && <div>Lũy kế {inUnit(unit, cum[hover]!)}</div>}
+            {tip(hover, hover < shown ? cum[hover]! : null)}
           </div>
         )}
       </div>

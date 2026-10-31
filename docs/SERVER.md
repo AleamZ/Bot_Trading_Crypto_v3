@@ -128,17 +128,18 @@ Mọi route dưới `/api` cần đăng nhập, trừ `/api/health` và `/api/au
 | `GET /api/chart?symbol=BTCUSDT&limit=300` | Nến, các đường và mốc để vẽ, điều kiện từng phương pháp trên nến vừa đóng, lệnh dự kiến nếu vào lúc này, các giới hạn, lệnh của bot trên symbol. Dùng nến của lượt quét gần nhất nếu còn mới, symbol khác thì lấy từ Binance |
 | `GET /api/settings`, `PUT /api/settings` (một phần), `POST /api/settings/reset` | Cài đặt, mặc định, JSON Schema để dựng form, cảnh báo |
 | `POST /api/bot/pause`, `POST /api/bot/resume` | Tạm dừng / chạy lại |
-| `GET /api/trades?status=OPEN,CLOSED&symbol=&limit=&offset=`, `GET /api/trades/:id` | Lệnh của bot, mới nhất trước |
+| `GET /api/trades?status=OPEN,CLOSED&symbol=&from=&to=&limit=&offset=`, `GET /api/trades/:id` | Lệnh của bot, mới nhất trước. `from`/`to` là mốc ms (`to` không tính), lọc theo lúc tạo lệnh |
 | `POST /api/trades/:id/close` | Đóng lệnh bằng MARKET; watchdog ghi là đóng tay |
 | `GET /api/positions` | Vị thế, lệnh chờ và lệnh algo đang có trên tài khoản |
 | `GET /api/today` | Kết quả hôm nay |
 | `GET /api/stats?month=YYYY-MM` | Lãi/lỗ từng ngày của tháng (mặc định tháng hiện tại, ngày giờ Việt Nam theo lúc đóng lệnh) và winrate tháng đó cùng từ đầu: theo lệnh (thắng / hòa / thua, chuỗi dài nhất), theo R và theo USDT (phần thắng trong tổng, ròng, trung bình mỗi lệnh, TB thắng / thua, hệ số lãi, lệnh tốt / tệ nhất, phí). Hòa: thoát ở SL đã dời về giá vào, hoặc trong ±0.05R |
-| `GET /api/events?before=&limit=&level=error,warn&symbol=` | Nhật ký hoạt động |
+| `GET /api/stats/all` | Mọi lệnh đã đóng từ đầu: từng lệnh (để vẽ đường vốn), từng tháng, winrate, và chia theo symbol, chiều, kiểu thoát (TP, SL, SL ở giá vào, SL khoá lãi, đóng tay, khẩn cấp), phương pháp đồng thuận |
+| `GET /api/events?before=&limit=&level=error,warn&symbol=&from=&to=` | Nhật ký hoạt động |
 | `GET /api/events/stream` | SSE (xem dưới) |
 | `GET /api/telegram`, `POST /api/telegram/test` | Trạng thái Telegram, chat id tìm được; gửi tin thử |
 | `GET /api/ai` | AI bật hay tắt, model, host, gợi ý khi tắt |
 | `POST /api/ai/chat` `{messages: [{role, content}]}` | Hỏi AI (1-30 tin, mỗi tin tối đa 4000 ký tự). `409 AI_OFF` / `CHAT_OFF` khi tắt, `424 AI_ERROR` khi AI lỗi |
-| `GET /api/reviews?outcome=WIN\|LOSS&symbol=&limit=` | Các bài AI phân tích lệnh, kèm lệnh |
+| `GET /api/reviews?outcome=WIN\|LOSS&symbol=&from=&to=&limit=` | Các bài AI phân tích lệnh, kèm lệnh; `from`/`to` lọc theo lúc phân tích lần đầu (lúc lệnh đóng) |
 | `POST /api/reviews/:tradeId` | Phân tích (lại) một lệnh đã đóng; chờ tới khi xong |
 | `GET /api/reviews/insights`, `POST /api/reviews/insights` | Bài học tổng hợp gần nhất; tạo bài mới |
 

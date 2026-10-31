@@ -54,7 +54,15 @@ const csv = <T extends string>(values: readonly T[]) =>
       return list as T[];
     });
 
+/** Optional time range in ms (Vietnam days are turned into ms by the UI); `to` is exclusive. */
+const range = {
+  from: z.coerce.number().int().min(0).optional(),
+  to: z.coerce.number().int().min(0).optional(),
+};
+const ranged = (q: { from?: number | undefined; to?: number | undefined }) => ({ ...(q.from !== undefined ? { from: q.from } : {}), ...(q.to !== undefined ? { to: q.to } : {}) });
+
 const tradesQuery = z.object({
+  ...range,
   status: csv(TRADE_STATUSES),
   symbol: z.string().trim().toUpperCase().optional(),
   limit: z.coerce.number().int().min(1).max(500).default(50),
@@ -62,6 +70,7 @@ const tradesQuery = z.object({
 });
 
 const eventsQuery = z.object({
+  ...range,
   before: z.coerce.number().int().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(500).default(100),
   level: csv(LEVELS),
@@ -88,6 +97,7 @@ const chatBody = z.object({
 });
 
 const reviewsQuery = z.object({
+  ...range,
   limit: z.coerce.number().int().min(1).max(200).default(50),
   outcome: z.enum(["WIN", "LOSS", "FLAT"]).optional(),
   symbol: z.string().trim().toUpperCase().optional(),
@@ -223,7 +233,7 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
 
   app.get("/api/reviews", async (request) => {
     const q = parse(reviewsQuery, request.query);
-    const items = runtime.reviewStore.list({ limit: q.limit, ...(q.outcome ? { outcome: q.outcome } : {}), ...(q.symbol ? { symbol: q.symbol } : {}) });
+    const items = runtime.reviewStore.list({ limit: q.limit, ...(q.outcome ? { outcome: q.outcome } : {}), ...(q.symbol ? { symbol: q.symbol } : {}), ...ranged(q) });
     return { items: items.map((r) => ({ ...r, trade: runtime.trades.getSync(r.tradeId) })) };
   });
 
@@ -282,7 +292,7 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
   // --- trades and positions
   app.get("/api/trades", async (request) => {
     const q = parse(tradesQuery, request.query);
-    return runtime.trades.list({ statuses: q.status as TradeStatus[], ...(q.symbol ? { symbol: q.symbol } : {}), limit: q.limit, offset: q.offset });
+    return runtime.trades.list({ statuses: q.status as TradeStatus[], ...(q.symbol ? { symbol: q.symbol } : {}), ...ranged(q), limit: q.limit, offset: q.offset });
   });
 
   app.get<{ Params: { id: string } }>("/api/trades/:id", async (request) => {
@@ -299,6 +309,8 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
 
   app.get("/api/stats", async (request) => runtime.monthStats(parse(statsQuery, request.query).month));
 
+  app.get("/api/stats/all", async () => runtime.allStats());
+
   // --- activity log
   app.get("/api/events", async (request) => {
     const q = parse(eventsQuery, request.query);
@@ -308,6 +320,7 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
         levels: q.level as LogLevelName[],
         ...(q.before ? { before: q.before } : {}),
         ...(q.symbol ? { symbol: q.symbol } : {}),
+        ...ranged(q),
       }),
     };
   });

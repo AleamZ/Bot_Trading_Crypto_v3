@@ -41,6 +41,41 @@ describe("Watchdog: exits", () => {
     expect(h.api.openAlgos()).toEqual([]);
   });
 
+  it("still records a stop loss when Binance reports the fired stop late", async () => {
+    const h = await opened();
+    const real = h.api.getAlgoOrder.bind(h.api);
+    let calls = 0;
+    // The first look sees the stop as NEW, the second as TRIGGERED without its quantity yet.
+    h.api.getAlgoOrder = async (id: string) => {
+      const order = await real(id);
+      if (!order || order.orderType !== "STOP_MARKET") return order;
+      calls++;
+      return calls === 1 ? { ...order, algoStatus: "NEW", actualQty: "0" } : calls === 2 ? { ...order, algoStatus: "TRIGGERED", actualQty: "0" } : order;
+    };
+    h.api.setMark("BTCUSDT", Number(h.trade.stopLoss) - 5);
+    await h.watchdog.reconcile();
+    expect(await h.store.get("t1")).toMatchObject({ status: "CLOSED", exitReason: "SL" });
+    expect(calls).toBe(2);
+  });
+
+  it("corrects a stop loss that was recorded as a manual close", async () => {
+    const h = await opened();
+    const real = h.api.getAlgoOrder.bind(h.api);
+    // Binance never shows the stop as fired while the close is handled.
+    h.api.getAlgoOrder = async (id: string) => {
+      const order = await real(id);
+      return order?.orderType === "STOP_MARKET" ? { ...order, algoStatus: "NEW", actualQty: "0" } : order;
+    };
+    h.api.setMark("BTCUSDT", Number(h.trade.stopLoss) - 5);
+    await h.watchdog.reconcile();
+    expect(await h.store.get("t1")).toMatchObject({ exitReason: "MANUAL" });
+    h.api.getAlgoOrder = real;
+    const closed = (await h.store.listByStatus(["CLOSED"]))!;
+    expect(await h.watchdog.recheckManualExits(closed)).toEqual(["t1"]);
+    expect(await h.store.get("t1")).toMatchObject({ status: "CLOSED", exitReason: "SL", note: expect.stringContaining("đóng tay") });
+    expect(await h.watchdog.recheckManualExits(await h.store.listByStatus(["CLOSED"]))).toEqual([]);
+  });
+
   it("records a manual close", async () => {
     const h = await opened();
     await h.api.placeMarketOrder({ symbol: "BTCUSDT", side: "SELL", quantity: "0.0057", clientOrderId: "manual-1", reduceOnly: true });

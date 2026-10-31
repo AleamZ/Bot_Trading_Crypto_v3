@@ -121,7 +121,8 @@ export function describeEvent(event: AppEvent): { level: LogLevelName; symbol: s
     }
     case "SIGNAL_ENTER": {
       const a = event.analysis;
-      return { level: "info", symbol: a.symbol, title: `3/3 ${a.symbol} ${side(a.consensus.direction)}`, message: `Đủ ${a.consensus.agreeing.length} phương pháp, thử vào lệnh` };
+      const n = a.consensus.agreeing.length;
+      return { level: "info", symbol: a.symbol, title: `VÀO LỆNH ${n}/3 ${a.symbol} ${side(a.consensus.direction)}`, message: `Đủ ${n} phương pháp, thử vào lệnh` };
     }
     case "ENTRY_SKIPPED":
       return { level: "warn", symbol: event.symbol, title: `Không vào lệnh ${event.symbol} ${event.direction}`, message: GUARD_MESSAGES[event.reason] };

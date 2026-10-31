@@ -109,7 +109,7 @@ export function Analysis({ live, symbol, go }: { live: Live; symbol: string | nu
             </label>
           </div>
           {data ? <ChartView data={data} layers={layers} zoneOpacity={opacity / 100} /> : <div className="chart-host empty-state">{chart.loading ? "Đang tải nến…" : "Chưa có dữ liệu"}</div>}
-          <Legend />
+          <Legend alert={live.status?.limits.alertThreshold ?? 2} entry={live.status?.limits.autoEntryThreshold ?? 3} />
         </Panel>
         <div className="stack">{data && <Verdict data={data} />}</div>
       </div>
@@ -125,12 +125,12 @@ export function Analysis({ live, symbol, go }: { live: Live; symbol: string | nu
   );
 }
 
-function Legend() {
+function Legend({ alert, entry }: { alert: number; entry: number }) {
   return (
     <div className="legend soft">
       <span>▲▼ A/B/C: lần phương pháp kích hoạt</span>
-      <span>● 2/3: báo SẴN SÀNG</span>
-      <span>■ 3/3: vào lệnh</span>
+      <span>● {alert}/3: báo SẴN SÀNG</span>
+      <span>■ {entry}/3: vào lệnh</span>
       <span>Đường đứt: EMA khung lớn</span>
       <span>Đường chấm: kênh Donchian</span>
       <span>Hộp có viền: vùng FVG còn mở (nhạt: đã lấp)</span>
@@ -170,8 +170,8 @@ function Verdict({ data }: { data: ChartResponse }) {
           <div>
             {c.level === "ENTER"
               ? scanned
-                ? "Đủ 3/3 cùng chiều: bot thử vào lệnh (nếu các giới hạn cho phép)."
-                : "Đủ 3/3 cùng chiều: bot sẽ thử vào lệnh khi quét nến này (nếu các giới hạn cho phép)."
+                ? `Đủ ${best}/3 cùng chiều: bot thử vào lệnh (nếu các giới hạn cho phép).`
+                : `Đủ ${best}/3 cùng chiều: bot sẽ thử vào lệnh khi quét nến này (nếu các giới hạn cho phép).`
               : c.level === "READY"
                 ? `${readyText} Cần ${data.thresholds.entry}/3 và không có phương pháp ngược chiều để vào lệnh.`
                 : need

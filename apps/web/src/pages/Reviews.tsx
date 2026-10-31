@@ -2,6 +2,7 @@ import { ArrowsClockwiseIcon, LightbulbIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 import { api, errorMessage } from "../api";
 import { dateTime, price, rMultiple } from "../format";
+import { ALL_DATES, DateFilter, rangeBounds, type DateRange } from "../DateFilter";
 import { useLoad, type Live, type Route } from "../hooks";
 import { METHODS, type InsightsRecord, type ReviewItem } from "../types";
 import { Button, Chip, DirectionChip, ExitChip, Notice, Panel, Stat, Tabs, useToast } from "../ui";
@@ -27,7 +28,8 @@ export function Reviews({ live, focus, go }: { live: Live; focus: string | null;
   const toast = useToast();
   const [filter, setFilter] = useState<(typeof FILTERS)[number]["id"]>("all");
   const outcome = FILTERS.find((f) => f.id === filter)!.outcome;
-  const reviews = useLoad(() => api.reviews({ limit: 100, outcome }), [outcome, live.lastLogId]);
+  const [dates, setDates] = useState<DateRange>(ALL_DATES);
+  const reviews = useLoad(() => api.reviews({ limit: 100, outcome, ...rangeBounds(dates) }), [outcome, dates.from, dates.to, live.lastLogId]);
   const insights = useLoad(() => api.insights(), [live.lastLogId]);
   const [busy, setBusy] = useState<string | null>(null);
   const ai = live.status?.ai;
@@ -95,6 +97,7 @@ export function Reviews({ live, focus, go }: { live: Live; focus: string | null;
         </Notice>
       )}
       <Tabs label="Lọc" value={filter} onChange={setFilter} items={FILTERS.map((f) => ({ id: f.id, label: f.label }))} />
+      <DateFilter value={dates} onChange={setDates} />
       {reviews.error && <Notice tone="heart">{reviews.error}</Notice>}
       {shown.length === 0 ? (
         <Panel title="Phân tích từng lệnh">

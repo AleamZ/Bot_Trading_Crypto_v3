@@ -31,7 +31,7 @@ import type { TelegramClient } from "../telegram/client.js";
 import { formatPositions, formatStatus, formatToday, type StatusSummary } from "../telegram/format.js";
 import { TelegramService } from "../telegram/service.js";
 import { BotControl, guardStateFor, SettingsService, timeframeMs, todayStats } from "./control.js";
-import { monthOf, monthRange, monthStats, type MonthStats } from "./stats.js";
+import { allStats, monthOf, monthRange, monthStats, type AllStats, type MonthStats } from "./stats.js";
 import { EventHub, toAnalysisView } from "./events.js";
 import { candleLimits, lastClosedCandleTime, Scanner } from "./scanner.js";
 
@@ -246,6 +246,8 @@ export class BotRuntime {
       // Protect whatever the last run left before looking for new trades.
       await this.reconcile();
       this.timers.push(setInterval(() => void this.reconcile(), this.options.watchdogIntervalMs ?? 15_000));
+      // Stops that fired but were recorded as manual closes before that was fixed.
+      void this.watchdog.recheckManualExits(this.trades.closedBetween(this.now() - 30 * 86_400_000, Number.MAX_SAFE_INTEGER)).catch(() => []);
       await this.refreshBalance();
       this.timers.push(setInterval(() => void this.refreshBalance(), 60_000));
       this.userStream?.start();
@@ -331,6 +333,11 @@ export class BotRuntime {
 
   today() {
     return todayStats(this.trades, this.now());
+  }
+
+  /** Every closed trade since the start: equity curve, months, breakdowns. */
+  allStats(): AllStats {
+    return allStats(this.trades.closedBetween(0, Number.MAX_SAFE_INTEGER));
   }
 
   /** Day-by-day result of a month ("YYYY-MM", default the current one) and the win rates. */

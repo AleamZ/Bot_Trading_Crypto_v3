@@ -51,7 +51,7 @@ Chạy lúc khởi động, mỗi 15 giây, và ngay sau mỗi sự kiện từ 
 - **Vị thế mất SL hoặc TP** (bị huỷ tay, hết hạn): đặt lại với client id mới (`-<n+1>`) và gửi `PROTECTION_REPAIRED`. Không đặt lại được thì đóng vị thế.
 - **Khối lượng lệnh bảo vệ lệch với vị thế** (bị đóng bớt bằng tay): huỷ rồi đặt lại theo khối lượng mới.
 - **Vị thế đã về 0:**
-  - xác định lý do đóng: TP, SL hay MANUAL;
+  - xác định lý do đóng: TP, SL hay MANUAL. Ngay sau khi khớp, Binance có thể vẫn báo lệnh SL/TP là NEW hoặc chưa có khối lượng, nên watchdog hỏi lại tối đa 3 lần, cách nhau 1 giây, trước khi ghi là đóng tay. Khi bot khởi động, lệnh đóng trong 30 ngày qua bị ghi nhầm là đóng tay được kiểm tra lại và sửa nếu Binance cho thấy SL/TP đã khớp;
   - **huỷ lệnh còn lại**, vì Binance futures không có OCO;
   - tính giá thoát, phí, lãi/lỗ ròng và R từ `userTrades`;
   - gửi `TRADE_CLOSED`.

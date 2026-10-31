@@ -34,6 +34,12 @@ const LIVE_ALGO = new Set(["NEW"]);
 /** The order fired and the position is being closed right now: do not replace it. */
 const FIRING_ALGO = new Set(["TRIGGERING", "TRIGGERED"]);
 const FILLED_ALGO = new Set(["TRIGGERED", "FINISHED"]);
+/** Extra looks at the SL/TP orders when a position is gone and neither shows as fired yet. */
+const CLOSE_CHECK_RETRIES = 3;
+const CLOSE_CHECK_DELAY_MS = 1000;
+
+/** The order fired and some quantity executed. */
+const executed = (a: AlgoOrder | null) => a !== null && FILLED_ALGO.has(a.algoStatus) && dec(a.actualQty || "0").gt(0);
 
 /**
  * Compares the bot's open trades with the exchange (on a timer and after every user-stream event):
@@ -54,6 +60,27 @@ export class Watchdog {
     this.logger = deps.logger ?? silentLogger;
     this.now = deps.now ?? Date.now;
     this.sleep = deps.sleep ?? realSleep;
+  }
+
+  /**
+   * Closed trades recorded as manual because the SL/TP order did not show as fired yet when the
+   * position went (fixed since): if Binance now shows the order executed, record that exit.
+   */
+  async recheckManualExits(trades: readonly Trade[]): Promise<string[]> {
+    const fixed: string[] = [];
+    for (const trade of trades) {
+      if (trade.status !== "CLOSED" || trade.exitReason !== "MANUAL") continue;
+      const sl = trade.slClientId ? await this.deps.api.getAlgoOrder(trade.slClientId).catch(() => null) : null;
+      const tp = trade.tpClientId ? await this.deps.api.getAlgoOrder(trade.tpClientId).catch(() => null) : null;
+      const reason = executed(tp) ? "TP" : executed(sl) ? "SL" : null;
+      if (!reason) continue;
+      trade.exitReason = reason;
+      trade.note = [trade.note, `Kiểu thoát sửa thành ${reason} (trước ghi nhầm là đóng tay)`].filter(Boolean).join("; ");
+      await this.deps.store.update(trade);
+      fixed.push(trade.id);
+      this.logger.info("Exit reason corrected", { tradeId: trade.id, symbol: trade.symbol, exit: reason });
+    }
+    return fixed;
   }
 
   /** One pass. Concurrent calls share the pass in progress. */
@@ -315,10 +342,20 @@ export class Watchdog {
   /** The position is gone: find out how, cancel the leftover leg, record the result. */
   private async closeOut(trade: Trade, report: ReconcileReport, forced?: "EMERGENCY"): Promise<void> {
     const { api, store, events } = this.deps;
-    const sl = trade.slClientId ? await api.getAlgoOrder(trade.slClientId).catch(() => null) : null;
-    const tp = trade.tpClientId ? await api.getAlgoOrder(trade.tpClientId).catch(() => null) : null;
-    const filled = (a: AlgoOrder | null) => a !== null && FILLED_ALGO.has(a.algoStatus) && dec(a.actualQty || "0").gt(0);
-    trade.exitReason = forced ?? (filled(tp) ? "TP" : filled(sl) ? "SL" : "MANUAL");
+    const firing = (a: AlgoOrder | null) => a !== null && FIRING_ALGO.has(a.algoStatus);
+    let sl: AlgoOrder | null = null;
+    let tp: AlgoOrder | null = null;
+    let reason: Trade["exitReason"] = forced ?? null;
+    // The algo service can report a fired stop as NEW, or without its quantity, for a moment
+    // after the position is gone: ask again before calling it a manual close.
+    for (let attempt = 0; ; attempt++) {
+      sl = trade.slClientId ? await api.getAlgoOrder(trade.slClientId).catch(() => null) : null;
+      tp = trade.tpClientId ? await api.getAlgoOrder(trade.tpClientId).catch(() => null) : null;
+      reason ??= executed(tp) ? "TP" : executed(sl) ? "SL" : firing(tp) ? "TP" : firing(sl) ? "SL" : null;
+      if (reason || attempt >= CLOSE_CHECK_RETRIES) break;
+      await this.sleep(CLOSE_CHECK_DELAY_MS);
+    }
+    trade.exitReason = reason ?? "MANUAL";
     for (const leg of [sl, tp]) {
       if (leg && LIVE_ALGO.has(leg.algoStatus)) await api.cancelAlgoOrder(trade.symbol, leg.clientAlgoId).catch(() => false);
     }

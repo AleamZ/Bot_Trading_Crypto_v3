@@ -144,7 +144,7 @@ function TopBar({ status, connected }: { status: Status | null; connected: boole
           BOT V3
         </div>
         <div className="tagline">
-          Binance USDT-M · 3 phương pháp · 2/3 báo, 3/3 vào lệnh
+          Binance USDT-M · 3 phương pháp · {status ? `${status.limits.alertThreshold}/3 báo, ${status.limits.autoEntryThreshold}/3 vào lệnh` : "…"}
           {status && ` · 1R = ${status.limits.riskUsd}$ · RR ${status.limits.rr}`}
         </div>
         <div className="bar-chips">
@@ -152,7 +152,7 @@ function TopBar({ status, connected }: { status: Status | null; connected: boole
             <span className="dot" style={{ ["--c" as string]: "var(--sky)" }} />
             {status?.binanceEnv ?? "…"}
           </span>
-          <span className="bar-chip" title={status?.autoTradeBlockers.join("\n") || (status?.paused ? "Đang tạm dừng" : "Tự vào lệnh khi 3/3")}>
+          <span className="bar-chip" title={status?.autoTradeBlockers.join("\n") || (status?.paused ? "Đang tạm dừng" : `Tự vào lệnh khi ${status?.limits.autoEntryThreshold ?? 3}/3`)}>
             <span className="dot" style={{ ["--c" as string]: auto ? "var(--quest)" : status?.paused ? "var(--coin)" : "var(--heart)" }} />
             Auto {auto ? "on" : status?.paused ? "pause" : "off"}
           </span>

@@ -1,6 +1,18 @@
 import type { Trade, TradeStatus, TradeStore } from "../engine/types.js";
 import type { Database } from "./database.js";
 
+/** Adds `column >= from AND column < to` for the bounds that are set. */
+function timeRange(where: string[], params: (string | number)[], column: string, range: { from?: number; to?: number }): void {
+  if (range.from !== undefined) {
+    where.push(`${column} >= ?`);
+    params.push(range.from);
+  }
+  if (range.to !== undefined) {
+    where.push(`${column} < ?`);
+    params.push(range.to);
+  }
+}
+
 /** Trades as JSON rows, with the columns the bot filters on kept alongside. */
 export class SqliteTradeStore implements TradeStore {
   constructor(private readonly db: Database) {}
@@ -38,10 +50,11 @@ export class SqliteTradeStore implements TradeStore {
     return rows.map((r) => JSON.parse(r.data) as Trade);
   }
 
-  /** Newest first. */
-  list(options: { statuses?: readonly TradeStatus[]; symbol?: string; limit?: number; offset?: number } = {}): { trades: Trade[]; total: number } {
+  /** Newest first; `from`/`to` (ms, to exclusive) filter on when the trade was created. */
+  list(options: { statuses?: readonly TradeStatus[]; symbol?: string; from?: number; to?: number; limit?: number; offset?: number } = {}): { trades: Trade[]; total: number } {
     const where: string[] = [];
     const params: (string | number)[] = [];
+    timeRange(where, params, "created_at", options);
     if (options.statuses?.length) {
       where.push(`status IN (${options.statuses.map(() => "?").join(", ")})`);
       params.push(...options.statuses);
@@ -162,10 +175,11 @@ export class EventLog {
     return { ...entry, id: Number(result.lastInsertRowid) };
   }
 
-  /** Newest first, optionally before an id (paging) and only some levels. */
-  list(options: { before?: number; limit?: number; levels?: readonly LogLevelName[]; symbol?: string } = {}): LogEntry[] {
+  /** Newest first, optionally before an id (paging), only some levels, between `from` and `to` (ms, to exclusive). */
+  list(options: { before?: number; limit?: number; levels?: readonly LogLevelName[]; symbol?: string; from?: number; to?: number } = {}): LogEntry[] {
     const where: string[] = [];
     const params: (string | number)[] = [];
+    timeRange(where, params, "time", options);
     if (options.before) {
       where.push("id < ?");
       params.push(options.before);
@@ -296,10 +310,11 @@ export class ReviewStore {
     return row ? toReview(row) : null;
   }
 
-  /** Newest first. */
-  list(options: { limit?: number; outcome?: ReviewOutcome; symbol?: string; status?: ReviewStatus } = {}): ReviewRecord[] {
+  /** Newest first; `from`/`to` (ms, to exclusive) filter on when the review was first made (the trade's close). */
+  list(options: { limit?: number; outcome?: ReviewOutcome; symbol?: string; status?: ReviewStatus; from?: number; to?: number } = {}): ReviewRecord[] {
     const where: string[] = [];
     const params: (string | number)[] = [];
+    timeRange(where, params, "created_at", options);
     if (options.outcome) {
       where.push("outcome = ?");
       params.push(options.outcome);

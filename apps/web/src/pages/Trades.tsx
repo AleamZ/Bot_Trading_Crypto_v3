@@ -1,5 +1,6 @@
 import { Fragment, useState } from "react";
 import { api } from "../api";
+import { ALL_DATES, DateFilter, rangeBounds, type DateRange } from "../DateFilter";
 import { clock, dateTime, fullDateTime, price, rMultiple, usd } from "../format";
 import { useLoad, type Live, type Route } from "../hooks";
 import { METHODS, type Trade } from "../types";
@@ -19,8 +20,9 @@ export function Trades({ live, go }: { live: Live; go: (route: Route, param?: st
   const [filter, setFilter] = useState<FilterId>("all");
   const [page, setPage] = useState(0);
   const [open, setOpen] = useState<string | null>(null);
+  const [dates, setDates] = useState<DateRange>(ALL_DATES);
   const status = FILTERS.find((f) => f.id === filter)!.status;
-  const result = useLoad(() => api.trades({ status, limit: PAGE, offset: page * PAGE }), [status, page, live.lastLogId]);
+  const result = useLoad(() => api.trades({ status, ...rangeBounds(dates), limit: PAGE, offset: page * PAGE }), [status, page, dates.from, dates.to, live.lastLogId]);
   const trades = result.data?.trades ?? [];
   const total = result.data?.total ?? 0;
   const closed = trades.filter((t) => t.status === "CLOSED");
@@ -38,6 +40,13 @@ export function Trades({ live, go }: { live: Live; go: (route: Route, param?: st
           setPage(0);
         }}
         items={FILTERS.map((f) => ({ id: f.id, label: f.label }))}
+      />
+      <DateFilter
+        value={dates}
+        onChange={(next) => {
+          setDates(next);
+          setPage(0);
+        }}
       />
       {closed.length > 0 && (
         <div className="stats">

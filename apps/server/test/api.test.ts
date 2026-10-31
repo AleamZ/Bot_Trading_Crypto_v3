@@ -327,6 +327,23 @@ describe("API AI", () => {
     expect((await h.app.inject({ url: "/api/reviews/insights", headers: { cookie } })).json()).toEqual({ insights: null });
   });
 
+  it("filters trades and the activity log by date", async () => {
+    const h = await apiHarness();
+    const { cookie } = await h.login();
+    const day = 86_400_000;
+    const t0 = h.exchange.clock - 3 * day;
+    for (const [id, at] of [["d0", t0], ["d1", t0 + day], ["d2", t0 + 2 * day]] as const) {
+      await h.runtime.trades.insert(sampleTrade({ id, status: "CLOSED", createdAt: at, openedAt: at, closedAt: at + 60_000, pnlR: 1, netPnl: "5" }));
+      h.runtime.log.append({ time: at, type: "ERROR", level: "error", symbol: null, title: id, message: "", data: null });
+    }
+    const trades = (await h.app.inject({ url: `/api/trades?from=${t0 + day}&to=${t0 + 2 * day}`, headers: { cookie } })).json();
+    expect(trades).toMatchObject({ total: 1, trades: [{ id: "d1" }] });
+    expect((await h.app.inject({ url: `/api/trades?from=${t0 + day}`, headers: { cookie } })).json().trades.map((t: { id: string }) => t.id)).toEqual(["d2", "d1"]);
+    const events = (await h.app.inject({ url: `/api/events?level=error&to=${t0 + day}`, headers: { cookie } })).json();
+    expect(events.items.map((e: { title: string }) => e.title)).toEqual(["d0"]);
+    expect((await h.app.inject({ url: "/api/trades?from=abc", headers: { cookie } })).statusCode).toBe(400);
+  });
+
   it("returns a month's day-by-day result and win rates, the current month by default", async () => {
     const h = await apiHarness();
     const { cookie } = await h.login();

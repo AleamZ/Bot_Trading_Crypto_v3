@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { monthOf, monthRange, monthStats, periodStats } from "../src/app/stats.js";
+import { allStats, monthOf, monthRange, monthStats, periodStats } from "../src/app/stats.js";
 import { tradeOutcome, type Trade } from "../src/engine/types.js";
 import { sampleTrade } from "./fixtures.js";
 
@@ -93,5 +93,38 @@ describe("monthStats", () => {
     expect(stats.days[30]).toMatchObject({ day: "2026-10-31", count: 0 });
     expect(stats.totals).toMatchObject({ count: 2, wins: 1, losses: 1 });
     expect(stats.allTime).toMatchObject({ count: 3, wins: 1, losses: 2 });
+  });
+});
+
+describe("allStats", () => {
+  it("builds the equity curve, months and breakdowns from every closed trade", () => {
+    const trades = [
+      closed(OCT + 2 * HOUR, -1, -5, { symbol: "ETHUSDT", direction: "SHORT", methods: ["trendPullback", "donchianBreakout"] }),
+      closed(OCT - 5 * HOUR, 1.8, 9),
+      closed(OCT + 3 * HOUR, -0.08, -0.4, atEntry),
+      closed(OCT + 4 * HOUR, 0.6, 3, { exitReason: "MANUAL", methods: ["donchianBreakout", "smcSweep"] }),
+    ];
+    const s = allStats(trades);
+    expect(s.firstClosedAt).toBe(OCT - 5 * HOUR);
+    expect(s.trades.map((t) => [t.r, t.exit, t.outcome])).toEqual([
+      [1.8, "TP", "WIN"],
+      [-1, "SL", "LOSS"],
+      [-0.08, "SL ở giá vào", "FLAT"],
+      [0.6, "Đóng tay", "WIN"],
+    ]);
+    expect(s.months.map((m) => [m.key, m.count, m.r])).toEqual([
+      ["2026-09", 1, 1.8],
+      ["2026-10", 3, expect.closeTo(-0.48)],
+    ]);
+    expect(s.months[1]!.fees).toBeCloseTo(0.6);
+    expect(s.bySymbol).toMatchObject([{ key: "BTCUSDT", count: 3, wins: 2, flats: 1 }, { key: "ETHUSDT", count: 1, losses: 1, winRate: 0 }]);
+    expect(s.byDirection.map((g) => g.key)).toEqual(["LONG", "SHORT"]);
+    expect(s.byMethods.map((g) => [g.key, g.count])).toEqual([
+      ["A+B+C", 2],
+      ["A+B", 1],
+      ["B+C", 1],
+    ]);
+    expect(s.totals).toMatchObject({ count: 4, wins: 2, losses: 1, flats: 1 });
+    expect(allStats([])).toMatchObject({ firstClosedAt: null, trades: [], months: [], totals: { count: 0 } });
   });
 });

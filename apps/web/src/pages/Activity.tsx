@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, errorMessage } from "../api";
+import { ALL_DATES, DateFilter, inRange, rangeBounds, type DateRange } from "../DateFilter";
 import type { Live } from "../hooks";
 import { Feed } from "../parts";
 import type { LogEntry, LogLevel } from "../types";
@@ -17,12 +18,13 @@ export function Activity({ live }: { live: Live }) {
   const [error, setError] = useState<string | null>(null);
   const [more, setMore] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [dates, setDates] = useState<DateRange>(ALL_DATES);
   const levels = FILTERS.find((f) => f.id === filter)!.levels;
 
   async function load(before?: number) {
     setBusy(true);
     try {
-      const page = await api.events({ limit: 100, level: levels.join(","), ...(before ? { before } : {}) });
+      const page = await api.events({ limit: 100, level: levels.join(","), ...rangeBounds(dates), ...(before ? { before } : {}) });
       setEntries((current) => (before ? [...current, ...page.items] : page.items));
       setMore(page.items.length === 100);
       setError(null);
@@ -36,11 +38,11 @@ export function Activity({ live }: { live: Live }) {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter]);
+  }, [filter, dates.from, dates.to]);
 
   // New entries from the live stream go on top.
   useEffect(() => {
-    const fresh = live.logs.filter((e) => (levels.length === 0 || levels.includes(e.level)) && !entries.some((x) => x.id === e.id) && e.id > (entries[0]?.id ?? 0));
+    const fresh = live.logs.filter((e) => (levels.length === 0 || levels.includes(e.level)) && inRange(dates, e.time) && !entries.some((x) => x.id === e.id) && e.id > (entries[0]?.id ?? 0));
     if (fresh.length) setEntries((current) => [...fresh, ...current]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [live.lastLogId]);
@@ -48,6 +50,7 @@ export function Activity({ live }: { live: Live }) {
   return (
     <>
       <Tabs label="Lọc nhật ký" value={filter} onChange={setFilter} items={FILTERS.map((f) => ({ id: f.id, label: f.label }))} />
+      <DateFilter value={dates} onChange={setDates} />
       {error && <Notice tone="heart">{error}</Notice>}
       <Panel title="Nhật ký hoạt động" sub="giữ 60 ngày · giờ Việt Nam" flush>
         <Feed entries={entries} empty={busy ? "Đang tải…" : "Chưa có gì."} />

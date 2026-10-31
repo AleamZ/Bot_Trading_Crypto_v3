@@ -172,3 +172,100 @@ export function monthStats(input: { month: string; monthTrades: readonly Trade[]
     allTime: periodStats(input.allTrades),
   };
 }
+
+/** Closed trades grouped by one key, with their win rate and result. */
+export interface GroupStats {
+  key: string;
+  count: number;
+  wins: number;
+  losses: number;
+  flats: number;
+  winRate: number | null;
+  r: number;
+  pnl: number;
+}
+
+/** One closed trade as a point of the equity curve. */
+export interface TradePoint {
+  id: string;
+  symbol: string;
+  direction: Trade["direction"];
+  closedAt: number;
+  /** Letters of the agreeing methods, "A+B". */
+  methods: string;
+  exit: string;
+  outcome: ReturnType<typeof tradeOutcome>;
+  r: number;
+  pnl: number;
+}
+
+export interface AllStats {
+  firstClosedAt: number | null;
+  totals: PeriodStats;
+  /** Oldest close first. */
+  trades: TradePoint[];
+  months: (GroupStats & { fees: number })[];
+  bySymbol: GroupStats[];
+  byDirection: GroupStats[];
+  byExit: GroupStats[];
+  byMethods: GroupStats[];
+}
+
+const LETTER: Record<string, string> = { trendPullback: "A", donchianBreakout: "B", smcSweep: "C" };
+
+/** How the trade ended, with stops split by where they had been moved. */
+function exitLabel(trade: Trade): string {
+  if (trade.exitReason === "SL") {
+    const stage = trade.slMoves?.at(-1)?.stage ?? 0;
+    return stage === 1 ? "SL ở giá vào" : stage === 2 ? "SL khoá lãi" : "SL";
+  }
+  const labels: Record<string, string> = { TP: "TP", MANUAL: "Đóng tay", EMERGENCY: "Khẩn cấp" };
+  return labels[trade.exitReason ?? ""] ?? "Khác";
+}
+
+function group(points: readonly TradePoint[], keyOf: (p: TradePoint) => string): GroupStats[] {
+  const map = new Map<string, GroupStats>();
+  for (const p of points) {
+    const key = keyOf(p);
+    const g = map.get(key) ?? { key, count: 0, wins: 0, losses: 0, flats: 0, winRate: null, r: 0, pnl: 0 };
+    g.count++;
+    if (p.outcome === "WIN") g.wins++;
+    else if (p.outcome === "LOSS") g.losses++;
+    else g.flats++;
+    g.r += p.r;
+    g.pnl += p.pnl;
+    g.winRate = g.wins / g.count;
+    map.set(key, g);
+  }
+  return [...map.values()].sort((a, b) => b.count - a.count || a.key.localeCompare(b.key));
+}
+
+/** Every closed trade since the start: the equity curve, months, and breakdowns. */
+export function allStats(trades: readonly Trade[]): AllStats {
+  const ordered = trades.filter((t) => t.closedAt !== null).sort((a, b) => a.closedAt! - b.closedAt!);
+  const points: TradePoint[] = ordered.map((t) => ({
+    id: t.id,
+    symbol: t.symbol,
+    direction: t.direction,
+    closedAt: t.closedAt!,
+    methods: t.methods.map((m) => LETTER[m] ?? m).join("+"),
+    exit: exitLabel(t),
+    outcome: tradeOutcome(t),
+    r: t.pnlR ?? 0,
+    pnl: Number(t.netPnl ?? 0),
+  }));
+  const fees = new Map<string, number>();
+  for (const t of ordered) fees.set(monthOf(t.closedAt!), (fees.get(monthOf(t.closedAt!)) ?? 0) + Number(t.fees ?? 0));
+  return {
+    firstClosedAt: points[0]?.closedAt ?? null,
+    totals: periodStats(ordered),
+    trades: points,
+    months: group(points, (p) => monthOf(p.closedAt))
+      .sort((a, b) => a.key.localeCompare(b.key))
+      .map((g) => ({ ...g, fees: fees.get(g.key) ?? 0 })),
+    bySymbol: group(points, (p) => p.symbol),
+    byDirection: group(points, (p) => p.direction),
+    byExit: group(points, (p) => p.exit),
+    byMethods: group(points, (p) => p.methods),
+  };
+}
