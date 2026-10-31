@@ -8,6 +8,7 @@
  *   npm run backtest -- --slippage 0.0002 --csv trades.csv
  *   npm run backtest -- --set risk.maxSlAtr=5 --set risk.slPolicy=MEDIAN   try other settings
  *   npm run backtest -- --compare risk.moveSl=false   run again on the same candles with one change
+ *   npm run backtest -- --sweep risk.rr=1,1.5,2 --sweep risk.moveSl=true,false   every combination, same candles
  *
  * Read-only: only public market data endpoints are called.
  */
@@ -168,6 +169,43 @@ if (compared) {
   console.log(row("hiện tại", result.total));
   console.log(row("thay đổi", other.total));
   console.log(`"thay đổi" = cùng nến, thêm ${changes}`);
+}
+// --sweep section.key=v1,v2 (repeatable): every combination of the values, on the same candles.
+const sweeps = args.flatMap((a, i) => (a === "--sweep" && args[i + 1] ? [args[i + 1]!] : [])).map((s) => {
+  const [path, values = ""] = s.split("=");
+  if (/^general\.(entryTf|trendTf|watchlist)$/.test(path!)) throw new Error(`--sweep ${path}: cần tải nến khác, dùng --set cho từng lần chạy`);
+  return values.split(",").map((v) => `${path}=${v}`);
+});
+if (sweeps.length) {
+  const combos = sweeps.reduce<string[][]>((acc, list) => acc.flatMap((combo) => list.map((v) => [...combo, v])), [[]]);
+  // --min-win 0.97: also the share of trades that won at least that much.
+  const minWin = Number(option("min-win") ?? Number.NaN);
+  const minLabel = Number.isFinite(minWin) ? `≥${minWin}R` : "";
+  console.log(`\nQuét ${combos.length} tổ hợp trên cùng nến (Thắng* = bỏ lệnh hoà vốn, tức chạm SL đã dời về giá vào${minLabel ? `; ${minLabel} = lệnh thắng ít nhất ${minWin}R` : ""})`);
+  console.log(
+    `${"Tổ hợp".padEnd(48)} ${"Lệnh".padStart(5)} ${"Thắng".padStart(6)} ${"Thắng*".padStart(6)}${minLabel ? ` ${minLabel.padStart(7)}` : ""} ${"Tổng R".padStart(8)} ${"TB R".padStart(7)} ${"PF".padStart(5)} ${"DD R".padStart(6)}`,
+  );
+  for (const combo of combos) {
+    const variant = combo.reduce((s, assignment) => withSetting(s, assignment, "sweep"), settings);
+    const run = runBacktest(data, { settings: variant, from, slippage });
+    const done = run.trades.filter((t) => t.exitReason !== "OPEN");
+    const breakEven = done.filter((t) => t.exitReason === "SL" && t.stopStage === 1).length;
+    const s = run.total;
+    const decided = s.trades - breakEven;
+    console.log(
+      [
+        combo.map((c) => c.replace(/^[a-zA-Z]+\./, "")).join(" ").padEnd(48),
+        String(s.trades).padStart(5),
+        pct(s.winRate).padStart(6),
+        (decided ? pct(s.wins / decided) : "—").padStart(6),
+        ...(minLabel ? [(s.trades ? pct(done.filter((t) => t.r >= minWin).length / s.trades) : "—").padStart(7)] : []),
+        num(s.totalR).padStart(8),
+        num(s.avgR, 3).padStart(7),
+        (s.profitFactor === null ? "—" : s.profitFactor.toFixed(2)).padStart(5),
+        s.maxDrawdownR.toFixed(1).padStart(6),
+      ].join(" "),
+    );
+  }
 }
 const open = result.trades.filter((t) => t.exitReason === "OPEN").length;
 if (open) console.log(`${open} lệnh còn mở ở cuối giai đoạn (không tính vào kết quả)`);
