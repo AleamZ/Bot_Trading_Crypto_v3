@@ -119,3 +119,23 @@ Nến Binance thật, 6 symbol `BTCUSDT,SOLUSDT,BNBUSDT,XRPUSDT,LINKUSDT,NEARUSD
 - Rút ngắn hiệu lực tín hiệu hay siết SL theo ATR chỉ làm ít lệnh hơn; mỗi lệnh lỗ nhiều hơn.
 - Bỏ A+B giảm lỗ khoảng 2/3 nhưng vẫn âm. A+C vẫn lỗ; chỉ B+C và A+B+C quanh hoà hoặc dương, mẫu còn nhỏ.
 - Tắt A (chỉ vào khi B+C) đưa kết quả về quanh hoà; thêm hiệu lực 4 nến là phương án đầu tiên dương (+4.8R qua 90 lệnh), nhưng +0.05R mỗi lệnh vẫn nằm trong sai số của mẫu này.
+
+## Tìm winrate 70% với lệnh thắng ≥ 0.97R (2026-10-31)
+
+Quét bằng `--sweep … --min-win 0.97` trên nến Binance thật, 6 symbol như trên, `autoEntryThreshold=2`, `signalTtlBars=4`, `maxSlAtr=6` (trừ khi ghi khác). "≥0.97R" là phần trăm lệnh thắng ít nhất 0.97R sau phí; "Thắng" tính mọi lệnh có lãi, kể cả lệnh khoá lãi nhỏ.
+
+Tốt nhất mỗi khung:
+
+| Khung | Cài đặt | Ngày | Lệnh | Thắng | ≥0.97R | Tổng R | PF | Sụt giảm |
+|---|---|---|---|---|---|---|---|---|
+| 5m | chỉ B+C, RR 1.5, không dời SL | 180 | 89 | 45% | 44% | 0.0 | 1.00 | 16.1R |
+| 15m | chỉ B+C, RR 1.5, không dời SL, `maxSlAtr=3` | 180 | 15 | 60% | 60% | +5.7 | 1.95 | 2.0R |
+| 15m | chỉ B+C, RR 1.3, không dời SL | 180 | 32 | 53% | 44% | +3.6 | 1.24 | 5.6R |
+| 15m | đủ 3 phương pháp, RR 1.2, không dời SL | 180 | 204 | 50% | 38% | +4.1 | 1.04 | 23.9R |
+| 1h (xu hướng 4h) | đủ 3 phương pháp, RR 1.2, không dời SL | 365 | 62 | 58% | 53% | +13.9 | 1.56 | 8.0R |
+| 1h (xu hướng 4h) | đủ 3 phương pháp, RR 1.1, không dời SL | 365 | 62 | 60% | 45% | +12.5 | 1.52 | 7.0R |
+
+- Không tổ hợp nào đạt 70% lệnh thắng ≥ 0.97R. Cao nhất 60%, nhưng chỉ 15 lệnh trong 180 ngày.
+- RR 1 cho winrate cao hơn nhưng sau phí không lệnh nào thắng đủ 0.97R; cần RR khoảng 1.1–1.2 trở lên.
+- Dời SL làm "Thắng" (tính cả hoà vốn bị loại) và PF thấp hơn ở RR gần 1, vì nhiều lệnh bị đóng ở giá vào hoặc khoá lãi nhỏ.
+- Khung lớn hơn tốt hơn rõ: 5m lỗ hoặc hoà, 15m dương nhẹ, 1h dương nhất. Phí và nhiễu chiếm phần nhỏ hơn của 1R khi SL rộng hơn.
