@@ -101,7 +101,9 @@ const riskSchema = z
       .meta({ title: "Nới SL tối đa (EXACT_1R)", unit: "%", description: "Quá mức này thì giữ SL cấu trúc" }),
     minSlPct: num(0.01, 20).default(0.2).meta({ title: "Khoảng SL tối thiểu", unit: "%" }),
     maxSlPct: num(0.05, 50).default(3).meta({ title: "Khoảng SL tối đa", unit: "%" }),
-    maxSlAtr: num(0.5, 20).default(3).meta({ title: "Khoảng SL tối đa theo ATR", unit: "× ATR" }),
+    maxSlAtr: num(0.5, 100)
+      .default(3)
+      .meta({ title: "Khoảng SL tối đa theo ATR", unit: "× ATR", description: "Phương pháp D đặt SL ngoài hộp nên thường cần mức cao hơn nhiều, ví dụ 20–40 trên khung 5m" }),
     triggerPrice: z
       .enum(["MARK_PRICE", "CONTRACT_PRICE"])
       .default("MARK_PRICE")
