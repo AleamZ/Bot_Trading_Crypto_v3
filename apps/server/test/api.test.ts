@@ -344,6 +344,34 @@ describe("API AI", () => {
     expect((await h.app.inject({ url: "/api/trades?from=abc", headers: { cookie } })).statusCode).toBe(400);
   });
 
+  it("clears the P&L figures from now on, keeps open trades and AI reviews, and can bring them back", async () => {
+    const h = await apiHarness();
+    const { cookie } = await h.login();
+    const get = async (url: string) => (await h.app.inject({ url, headers: { cookie } })).json();
+    const old = h.exchange.clock - 3_600_000;
+    await h.runtime.trades.insert(sampleTrade({ id: "old", status: "CLOSED", createdAt: old, openedAt: old, closedAt: old + 60_000, exitReason: "TP", pnlR: 1.8, netPnl: "9" }));
+    await h.runtime.trades.insert(sampleTrade({ id: "open", status: "OPEN", createdAt: old, openedAt: old }));
+    h.runtime.reviewStore.save({ tradeId: "old", symbol: "BTCUSDT", status: "DONE", outcome: "WIN", createdAt: old, updatedAt: old, model: "m", facts: null, review: null, error: null });
+
+    const reset = await h.app.inject({ method: "POST", url: "/api/stats/reset", headers: { cookie } });
+    expect(reset.json().since).toBe(h.exchange.clock);
+    expect((await get("/api/trades")).trades.map((t: { id: string }) => t.id)).toEqual(["open"]);
+    expect(await get("/api/stats")).toMatchObject({ since: h.exchange.clock, totals: { count: 0 }, allTime: { count: 0 }, firstMonth: null });
+    expect(await get("/api/stats/all")).toMatchObject({ totals: { count: 0 }, trades: [] });
+    expect((await get("/api/reviews")).items.map((r: { tradeId: string }) => r.tradeId)).toEqual(["old"]);
+    expect((await get("/api/status")).statsSince).toBe(h.exchange.clock);
+    expect(h.runtime.log.list({ limit: 1 })[0]).toMatchObject({ type: "STATS_RESET", title: "Đã xoá số liệu lãi/lỗ" });
+
+    // A trade closing after the clear counts.
+    h.exchange.clock += 60_000;
+    await h.runtime.trades.insert(sampleTrade({ id: "new", status: "CLOSED", createdAt: h.exchange.clock, openedAt: h.exchange.clock, closedAt: h.exchange.clock + 1, exitReason: "SL", pnlR: -1, netPnl: "-5" }));
+    expect((await get("/api/stats/all")).trades.map((t: { id: string }) => t.id)).toEqual(["new"]);
+
+    await h.app.inject({ method: "POST", url: "/api/stats/restore", headers: { cookie } });
+    expect((await get("/api/stats/all")).trades.map((t: { id: string }) => t.id)).toEqual(["old", "new"]);
+    expect((await get("/api/trades")).total).toBe(3);
+  });
+
   it("returns a month's day-by-day result and win rates, the current month by default", async () => {
     const h = await apiHarness();
     const { cookie } = await h.login();

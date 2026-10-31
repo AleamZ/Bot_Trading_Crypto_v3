@@ -32,6 +32,8 @@ import { formatPositions, formatStatus, formatToday, type StatusSummary } from "
 import { TelegramService } from "../telegram/service.js";
 import { BotControl, guardStateFor, SettingsService, timeframeMs, todayStats } from "./control.js";
 import { allStats, monthOf, monthRange, monthStats, type AllStats, type MonthStats } from "./stats.js";
+
+const STATS_SINCE_KEY = "stats.since";
 import { EventHub, toAnalysisView } from "./events.js";
 import { candleLimits, lastClosedCandleTime, Scanner } from "./scanner.js";
 
@@ -335,23 +337,45 @@ export class BotRuntime {
     return todayStats(this.trades, this.now());
   }
 
-  /** Every closed trade since the start: equity curve, months, breakdowns. */
-  allStats(): AllStats {
-    return allStats(this.trades.closedBetween(0, Number.MAX_SAFE_INTEGER));
+  /** When the P&L figures were last cleared, or null: stats and the trade list start there. */
+  statsSince(): number | null {
+    return this.kv.get<number | null>(STATS_SINCE_KEY, null);
+  }
+
+  /** Clears the P&L figures from now on. Trades and AI reviews stay in the database. */
+  resetStats(by: string): number {
+    const since = this.now();
+    this.kv.set(STATS_SINCE_KEY, since);
+    this.hub.emit({ type: "STATS_RESET", by, since });
+    return since;
+  }
+
+  /** Counts every trade again. */
+  restoreStats(by: string): void {
+    this.kv.delete(STATS_SINCE_KEY);
+    this.hub.emit({ type: "STATS_RESET", by, since: null });
+  }
+
+  /** Every closed trade since the start (or the last clear): equity curve, months, breakdowns. */
+  allStats(): AllStats & { since: number | null } {
+    const since = this.statsSince();
+    return { ...allStats(this.trades.closedBetween(since ?? 0, Number.MAX_SAFE_INTEGER)), since };
   }
 
   /** Day-by-day result of a month ("YYYY-MM", default the current one) and the win rates. */
-  monthStats(month?: string): MonthStats {
+  monthStats(month?: string): MonthStats & { since: number | null } {
     const now = this.now();
+    const since = this.statsSince();
     const target = month ?? monthOf(now);
     const { from, to } = monthRange(target);
-    return monthStats({
+    const stats = monthStats({
       month: target,
-      monthTrades: this.trades.closedBetween(from, to),
-      allTrades: this.trades.closedBetween(0, Number.MAX_SAFE_INTEGER),
+      monthTrades: this.trades.closedBetween(Math.max(from, since ?? 0), to),
+      allTrades: this.trades.closedBetween(since ?? 0, Number.MAX_SAFE_INTEGER),
       now,
-      firstClosedAt: this.trades.firstClosedAt(),
+      firstClosedAt: this.trades.firstClosedAt(since ?? 0),
     });
+    return { ...stats, since };
   }
 
   statusSummary(): StatusSummary {
@@ -390,6 +414,7 @@ export class BotRuntime {
       riskCheck: this.riskCheck(),
       ai: this.aiStatus(),
       limits: this.limits(),
+      statsSince: this.statsSince(),
     };
   }
 

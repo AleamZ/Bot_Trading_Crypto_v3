@@ -158,6 +158,8 @@ export function eventChip(entry: LogEntry): { tone: Tone; label: string } {
       return data?.ok ? { tone: "quest", label: "Binance" } : { tone: "heart", label: "Binance" };
     case "SETTINGS_CHANGED":
       return { tone: "sky", label: "Cài đặt" };
+    case "STATS_RESET":
+      return { tone: "coin", label: "Thống kê" };
     case "FOREIGN_POSITION":
       return { tone: "stone", label: "Ngoài bot" };
     case "ERROR":

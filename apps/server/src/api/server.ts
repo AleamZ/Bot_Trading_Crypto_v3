@@ -292,7 +292,15 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
   // --- trades and positions
   app.get("/api/trades", async (request) => {
     const q = parse(tradesQuery, request.query);
-    return runtime.trades.list({ statuses: q.status as TradeStatus[], ...(q.symbol ? { symbol: q.symbol } : {}), ...ranged(q), limit: q.limit, offset: q.offset });
+    const since = runtime.statsSince();
+    return runtime.trades.list({
+      statuses: q.status as TradeStatus[],
+      ...(q.symbol ? { symbol: q.symbol } : {}),
+      ...ranged(q),
+      ...(since !== null ? { since } : {}),
+      limit: q.limit,
+      offset: q.offset,
+    });
   });
 
   app.get<{ Params: { id: string } }>("/api/trades/:id", async (request) => {
@@ -310,6 +318,14 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
   app.get("/api/stats", async (request) => runtime.monthStats(parse(statsQuery, request.query).month));
 
   app.get("/api/stats/all", async () => runtime.allStats());
+
+  // Clearing P&L hides older finished trades from stats and the trade list; nothing is deleted.
+  app.post("/api/stats/reset", async (request) => ({ since: runtime.resetStats(actor(request)) }));
+
+  app.post("/api/stats/restore", async (request) => {
+    runtime.restoreStats(actor(request));
+    return { since: null };
+  });
 
   // --- activity log
   app.get("/api/events", async (request) => {

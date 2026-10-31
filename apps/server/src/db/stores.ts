@@ -51,10 +51,18 @@ export class SqliteTradeStore implements TradeStore {
   }
 
   /** Newest first; `from`/`to` (ms, to exclusive) filter on when the trade was created. */
-  list(options: { statuses?: readonly TradeStatus[]; symbol?: string; from?: number; to?: number; limit?: number; offset?: number } = {}): { trades: Trade[]; total: number } {
+  list(options: { statuses?: readonly TradeStatus[]; symbol?: string; from?: number; to?: number; since?: number; limit?: number; offset?: number } = {}): {
+    trades: Trade[];
+    total: number;
+  } {
     const where: string[] = [];
     const params: (string | number)[] = [];
     timeRange(where, params, "created_at", options);
+    // P&L cleared at `since`: older finished trades are hidden, open ones always show.
+    if (options.since !== undefined) {
+      where.push("(status IN ('OPENING', 'OPEN') OR created_at >= ? OR closed_at >= ?)");
+      params.push(options.since, options.since);
+    }
     if (options.statuses?.length) {
       where.push(`status IN (${options.statuses.map(() => "?").join(", ")})`);
       params.push(...options.statuses);
@@ -101,9 +109,9 @@ export class SqliteTradeStore implements TradeStore {
     return rows.map((r) => JSON.parse(r.data) as Trade);
   }
 
-  /** When the first trade was closed, or null. */
-  firstClosedAt(): number | null {
-    const row = this.db.prepare("SELECT MIN(closed_at) AS t FROM trades WHERE status = 'CLOSED'").get() as { t: number | null };
+  /** When the first trade was closed (at or after `since`), or null. */
+  firstClosedAt(since = 0): number | null {
+    const row = this.db.prepare("SELECT MIN(closed_at) AS t FROM trades WHERE status = 'CLOSED' AND closed_at >= ?").get(since) as { t: number | null };
     return row.t === null ? null : Number(row.t);
   }
 

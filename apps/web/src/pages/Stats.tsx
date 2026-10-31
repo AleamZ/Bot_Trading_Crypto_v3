@@ -1,10 +1,10 @@
 import { CaretLeftIcon, CaretRightIcon } from "@phosphor-icons/react";
 import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
-import { api } from "../api";
+import { api, errorMessage } from "../api";
 import { dateTime, rMultiple, signed, usd } from "../format";
 import { useLoad, type Live, type Route } from "../hooks";
 import type { AllStats, DayStats, GroupStats, MeasureStats, MonthStats, PeriodStats, TradePoint } from "../types";
-import { Button, DirectionChip, Notice, Panel, Stat, Tabs } from "../ui";
+import { Button, ConfirmButton, DirectionChip, Notice, Panel, Stat, Tabs, useToast } from "../ui";
 
 type Unit = "usd" | "r";
 const UNIT_KEY = "bot3.statsUnit";
@@ -70,8 +70,45 @@ export function StatsPage({ live, month, go }: { live: Live; month: string | nul
           />
         </div>
       </div>
+      <ClearBar since={live.status?.statsSince ?? null} />
       {all ? <AllView live={live} unit={unit} /> : <MonthView live={live} month={month} unit={unit} go={go} />}
     </>
+  );
+}
+
+/** Clears the P&L figures (stats and the trade list start again now) or brings them back. */
+function ClearBar({ since }: { since: number | null }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  async function run(action: () => Promise<unknown>, done: string) {
+    setBusy(true);
+    try {
+      await action();
+      toast(done, "quest");
+    } catch (e) {
+      toast(errorMessage(e), "heart");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="row between clear-bar">
+      <span className="soft">
+        {since
+          ? `Đang tính từ ${dateTime(since)}: lệnh xong trước đó không còn trong thống kê và trang Lệnh. Bài AI phân tích vẫn giữ.`
+          : "Xoá số liệu lãi/lỗ để thống kê và trang Lệnh bắt đầu lại từ lúc này. Bài AI phân tích được giữ nguyên, lệnh đang mở vẫn được theo dõi."}
+      </span>
+      <div className="row">
+        {since && (
+          <Button tone="plain" small disabled={busy} onClick={() => run(api.restoreStats, "Đã khôi phục số liệu cũ")}>
+            Khôi phục số liệu cũ
+          </Button>
+        )}
+        <ConfirmButton tone="heart" small disabled={busy} confirmLabel="Bấm lần nữa để xoá" onConfirm={() => run(api.resetStats, "Đã xoá số liệu lãi/lỗ")}>
+          Xoá số liệu lãi/lỗ
+        </ConfirmButton>
+      </div>
+    </div>
   );
 }
 

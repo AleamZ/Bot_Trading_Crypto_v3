@@ -175,6 +175,7 @@ export function formatEvent(event: AppEvent, ctx: FormatContext): string | null 
       ].join("\n");
     }
     case "REVIEW_FAILED":
+    case "STATS_RESET":
     case "SIGNAL_ENTER":
     case "FOREIGN_POSITION":
     case "STREAM_STATUS":

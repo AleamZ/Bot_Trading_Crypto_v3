@@ -66,6 +66,8 @@ export const api = {
   positions: () => request<PositionsResponse>("GET", "/api/positions"),
   stats: (month?: string) => request<MonthStats>("GET", `/api/stats${query({ month })}`),
   statsAll: () => request<AllStats>("GET", "/api/stats/all"),
+  resetStats: () => request<{ since: number }>("POST", "/api/stats/reset"),
+  restoreStats: () => request<{ since: null }>("POST", "/api/stats/restore"),
   events: (params: { before?: number; limit?: number; level?: string; symbol?: string; from?: number; to?: number } = {}) =>
     request<{ items: LogEntry[] }>("GET", `/api/events${query(params)}`),
   telegram: () => request<TelegramInfo>("GET", "/api/telegram"),

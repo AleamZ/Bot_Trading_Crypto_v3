@@ -48,6 +48,11 @@ export function Trades({ live, go }: { live: Live; go: (route: Route, param?: st
           setPage(0);
         }}
       />
+      {live.status?.statsSince && (
+        <div className="soft" style={{ fontSize: 12 }}>
+          Đang ẩn các lệnh đã xong trước {fullDateTime(live.status.statsSince)} (đã xoá số liệu lãi/lỗ ở trang Thống kê).
+        </div>
+      )}
       {closed.length > 0 && (
         <div className="stats">
           <Stat label="Lệnh đã đóng (trang này)" value={closed.length} />

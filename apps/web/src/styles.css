@@ -1556,3 +1556,12 @@ code,
   bottom: 1px;
   min-width: 2px;
 }
+
+.clear-bar {
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+
+.clear-bar > .soft {
+  flex: 1 1 260px;
+}

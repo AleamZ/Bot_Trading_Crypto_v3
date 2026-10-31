@@ -150,6 +150,8 @@ export interface Status {
   warnings: string[];
   riskCheck: RiskCheck | null;
   ai: AiStatus;
+  /** When the P&L figures were last cleared, or null. */
+  statsSince: number | null;
   limits: {
     entryTf: string;
     trendTf: string;
