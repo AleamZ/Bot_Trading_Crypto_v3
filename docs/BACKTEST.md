@@ -293,3 +293,16 @@ Thử để bot tự đổi kiểu đánh theo kết quả gần đây của ch�
 | Dừng khi 30 ngày gần nhất lỗ | −13.3R | +31.9R | +18.6R |
 
 Kết quả nhảy lung tung theo độ dài cửa sổ: không quy tắc nào tốt hơn ổn định so với luôn đánh. Kết quả của chính bot không báo trước được giai đoạn xấu. Đổi kiểu theo lịch (nửa đầu năm / nửa cuối năm) càng không có cơ sở: ranh giới hai nửa ở đây chỉ là cách chia khung backtest.
+
+## Dời SL trên preset hiện tại (2026-11-02)
+
+Preset 15m sau khi đổi sang theo BTC WITH (TTL 1, SL tối đa 4 ATR, RR 1.2, LIMIT), hai nửa năm, `--sweep risk.moveSl=false,true --sweep risk.breakEvenAtTpPct=0,25,50`. Khoá lãi giữ mặc định: tới 75% đường tới TP thì dời SL lên 50%.
+
+| Dời SL | Trước | Gần | Cả năm | Lệnh thắng ≥ 0.97R (gần) |
+|---|---|---|---|---|
+| **Tắt** | **−1.7R** | **+37.9R** | **+36.1R** | 51% |
+| Chỉ khoá lãi ở 75% | −1.2R | +27.9R | +26.7R | 33% |
+| Về giá vào ở 50% (+0.6R), khoá lãi ở 75% | −8.6R | +17.7R | +9.1R | 25% |
+| Về giá vào ở 25% (+0.3R), khoá lãi ở 75% | −9.4R | +10.0R | +0.6R | 19% |
+
+Với RR 1.2, TP chỉ cách giá vào 1.2R. Giá thường hồi về quanh giá vào rồi mới tới TP, nên dời SL về giá vào biến nhiều lệnh lẽ ra thắng thành lệnh hoà (còn mất phí). Lệnh thắng trọn giảm từ 51% xuống 19–25%. Giữ `moveSl=false`.
