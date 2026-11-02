@@ -30,7 +30,8 @@ LONG (SHORT là ảnh gương):
 4. Nến tăng, thân ≥ 50% biên độ, close nằm trong 25% trên cùng của nến.
 5. close − đỉnh kênh ≤ 1 × ATR (không đuổi giá).
 6. **SL** = close − 1.5 × ATR.
-7. **Huỷ tín hiệu:** có nến đóng cửa dưới đường giữa kênh tại thời điểm phá.
+7. **Huỷ tín hiệu:** có nến đóng cửa dưới đường giữa kênh tại thời điểm phá. Với `invalidateOn` = CHANNEL (mặc định MID), huỷ ngay khi có nến đóng lại vào trong kênh, tức không trên đỉnh kênh đã phá nữa.
+8. **Chờ xác nhận** (`confirmBars`, mặc định 0): với N > 0, tín hiệu chỉ có ở nến thứ N sau nến phá, khi cả N nến đó vẫn đóng trên đỉnh kênh đã phá. Giá và SL tính ở nến xác nhận cuối; điều kiện 1–5 xét ở nến phá.
 
 ## C. SMC quét thanh khoản (`smcSweep`)
 

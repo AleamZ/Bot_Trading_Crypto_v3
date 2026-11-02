@@ -145,6 +145,36 @@ describe("B. Donchian breakout", () => {
     const later = prepareDonchianBreakout({ entry: back, trend: [] }, params, shared(back));
     expect(later.isInvalidated(s, 26)).toBe(true);
   });
+
+  it("with invalidateOn CHANNEL, a close back inside the channel ends the signal, one beyond it does not", () => {
+    const strict = { ...params, invalidateOn: "CHANNEL" as const };
+    const inside = candles([...base, breakout, [112.2, 112.3, 111.2, 111.4]]);
+    const s = prepareDonchianBreakout({ entry: inside, trend: [] }, strict, shared(inside)).evaluate(25)!;
+    expect(prepareDonchianBreakout({ entry: inside, trend: [] }, strict, shared(inside)).isInvalidated(s, 26)).toBe(true);
+    // The default only gives up below the middle (about 107.5).
+    expect(prepareDonchianBreakout({ entry: inside, trend: [] }, params, shared(inside)).isInvalidated(s, 26)).toBe(false);
+    const held = candles([...base, breakout, [112.2, 112.6, 111.8, 112.4]]);
+    expect(prepareDonchianBreakout({ entry: held, trend: [] }, strict, shared(held)).isInvalidated(s, 26)).toBe(false);
+  });
+
+  it("with confirmBars 1, fires on the next candle only if it still closes above the channel", () => {
+    const confirm = { ...params, confirmBars: 1 };
+    const held = candles([...base, breakout, [112.2, 112.6, 111.8, 112.4]]);
+    const strategy = prepareDonchianBreakout({ entry: held, trend: [] }, confirm, shared(held));
+    expect(strategy.evaluate(25)).toBeNull();
+    const s = strategy.evaluate(26);
+    expect(s).toMatchObject({ direction: "LONG", index: 26, price: 112.4 });
+    expect(s!.levels.upper).toBe(111.5);
+    expect(s!.stopLoss).toBeCloseTo(112.4 - 1.5 * shared(held).atr[26]!, 10);
+    const sides = strategy.explain(26).sides;
+    expect(sides[0]).toMatchObject({ ready: true });
+    expect(sides[0].checks.at(-1)).toMatchObject({ label: "1 nến sau vẫn đóng trên đỉnh kênh", pass: true, detail: "1/1" });
+
+    const failed = candles([...base, breakout, [112.2, 112.3, 111.2, 111.4]]);
+    const noSignal = prepareDonchianBreakout({ entry: failed, trend: [] }, confirm, shared(failed));
+    expect(noSignal.evaluate(26)).toBeNull();
+    expect(noSignal.explain(26).sides[0].checks.at(-1)).toMatchObject({ pass: false, detail: "0/1" });
+  });
 });
 
 describe("C. SMC sweep + structure shift", () => {

@@ -3,6 +3,7 @@
  *
  *   npm run backtest                                   last 90 days, default settings, DEMO candles
  *   npm run backtest -- --days 180 --symbols BTCUSDT,ETHUSDT
+ *   npm run backtest -- --days 180 --end 2026-05-06       the 180 days before that date
  *   npm run backtest -- --db                           use the settings saved by the bot (DB_PATH)
  *   npm run backtest -- --source binance               real Binance futures candles instead of DEMO
  *   npm run backtest -- --slippage 0.0002 --csv trades.csv
@@ -99,7 +100,11 @@ const exchange = await api.getExchangeSymbols();
 const { entryTf, trendTf } = settings.general;
 const entryMs = TIMEFRAME_MINUTES[entryTf] * 60_000;
 const trendMs = TIMEFRAME_MINUTES[trendTf] * 60_000;
-const end = Math.floor(Date.now() / entryMs) * entryMs - 1;
+// --end 2026-05-06: stop at 00:00 UTC that day instead of now, e.g. to check a choice on earlier data.
+const endArg = option("end");
+const endAt = endArg ? Date.parse(`${endArg}T00:00:00Z`) : Date.now();
+if (!Number.isFinite(endAt)) throw new Error(`--end ${endArg}: cần dạng YYYY-MM-DD`);
+const end = Math.floor(endAt / entryMs) * entryMs - 1;
 const from = end + 1 - days * 86_400_000;
 const limits = candleLimits(settings);
 

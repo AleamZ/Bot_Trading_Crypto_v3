@@ -200,6 +200,20 @@ const donchianBreakoutSchema = z
       .meta({ title: "Vùng đóng cửa", description: "Close phải nằm trong phần này của nến, phía đỉnh (LONG) hoặc đáy (SHORT)" }),
     maxChaseAtr: num(0, 10).default(1).meta({ title: "Cách kênh tối đa", unit: "× ATR" }),
     slAtrMultiplier: num(0.2, 10).default(1.5).meta({ title: "SL", unit: "× ATR" }),
+    confirmBars: int(0, 3)
+      .default(0)
+      .meta({
+        title: "Chờ nến xác nhận",
+        unit: "nến",
+        description: "0: tín hiệu ngay ở nến phá kênh. 1–3: chỉ báo tín hiệu khi bấy nhiêu nến sau vẫn đóng ngoài kênh; giá vào và SL tính ở nến xác nhận cuối",
+      }),
+    invalidateOn: z
+      .enum(["MID", "CHANNEL"])
+      .default("MID")
+      .meta({
+        title: "Tín hiệu hết hiệu lực khi",
+        description: "MID: giá đóng qua giữa kênh. CHANNEL: giá đóng lại vào trong kênh, tức phá vỡ thất bại",
+      }),
   })
   .meta({ title: "B. Phá kênh Donchian" });
 

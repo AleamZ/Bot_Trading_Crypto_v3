@@ -192,3 +192,42 @@ Preset 15m ở trên (20 symbol, A+B+C vào ở 2/3, RR 1.2, LIMIT), 180 ngày t
 - NOT_AGAINST vào ít hơn 51 lệnh (lệnh altcoin ngược xu hướng BTC, kèm vài lệnh khác thay đổi theo vì vị thế và giới hạn) và tổng R tăng 5.5R, sụt giảm giảm 3.4R. Với chừng ấy lệnh, chênh lệch vẫn nằm trong mức ngẫu nhiên: đúng hướng, chưa phải bằng chứng chắc chắn.
 - WITH (chỉ vào cùng chiều BTC) bỏ thêm 172 lệnh lúc BTC chưa rõ xu hướng: PF và sụt giảm tốt nhất, nhưng tổng R thấp hơn NOT_AGAINST vì ít lệnh hơn.
 - Dòng OFF thấp hơn +21R ở mục trước vì khung 180 ngày đã dời tới 02/11.
+
+## Bốn đề xuất của AI, kiểm tra trên hai giai đoạn (2026-11-02)
+
+Preset 15m (20 symbol, A+B+C vào ở 2/3, RR 1.2, LIMIT, theo BTC NOT_AGAINST), nến Binance thật. Bốn đề xuất từ bản tổng hợp AI phân tích:
+
+- `methods.donchianBreakout.invalidateOn=CHANNEL`: bỏ tín hiệu B khi giá đóng lại vào trong kênh. Mặc định MID là bỏ khi đóng qua giữa kênh.
+- `methods.donchianBreakout.confirmBars=1`: chờ 1 nến xác nhận vẫn đóng ngoài kênh.
+- `general.signalTtlBars=1,2`: tín hiệu chỉ còn hiệu lực 1–2 nến. Với TTL 1, các phương pháp phải kích hoạt **cùng một nến**.
+- `risk.maxSlAtr=3,4`: trần SL 3–4 ATR.
+
+**Giai đoạn chọn (180 ngày tới 02/11/2026), 36 tổ hợp.** Trích các dòng chính:
+
+| TTL | Trần SL | Chờ xác nhận | Lệnh | Thắng | Tổng R | PF | Sụt giảm |
+|---|---|---|---|---|---|---|---|
+| 4 | 6 ATR | 0 (preset hiện tại) | 563 | 50% | +24.3 | 1.09 | 35.8R |
+| 4 | 4 ATR | 0 | 525 | 52% | +45.5 | 1.18 | 25.7R |
+| 1 | 6 ATR | 0 | 356 | 53% | +37.8 | 1.23 | 16.9R |
+| 1 | 4 ATR | 0 | 343 | 54% | +40.4 | 1.25 | 14.9R |
+| 1 | 3 ATR | 1 | 71 | 63% | +20.8 | 1.80 | 4.7R |
+| 2 | 6 ATR | 0 | 456 | 49% | +12.1 | 1.05 | 28.4R |
+
+- `invalidateOn=CHANNEL` gần như không đổi gì: lúc tốt hơn, lúc kém hơn MID một chút.
+- Trần 3 ATR bỏ quá nhiều lệnh. TTL 2 kém hơn cả TTL 1 lẫn TTL 4.
+
+**Kiểm tra trên 180 ngày trước đó (tới 06/05/2026), dữ liệu không dùng để chọn:**
+
+| TTL | Trần SL | Chờ xác nhận | Lệnh | Thắng | Tổng R | PF | Sụt giảm | Cộng cả 360 ngày |
+|---|---|---|---|---|---|---|---|---|
+| 4 | 6 ATR | 0 (preset hiện tại) | 508 | 44% | −45.5 | 0.84 | 53.6R | **−21.2R** |
+| 4 | 4 ATR | 0 | 475 | 44% | −36.2 | 0.86 | 44.4R | +9.3R |
+| 4 | 6 ATR | 1 | 365 | 45% | −23.4 | 0.88 | 36.9R | +12.9R |
+| 1 | 6 ATR | 0 | 320 | 45% | −23.2 | 0.87 | 28.1R | +14.6R |
+| 1 | 4 ATR | 0 | 311 | 44% | −24.9 | 0.86 | 29.9R | **+15.6R** |
+| 1 | 4 ATR | 1 | 94 | 43% | −10.8 | 0.80 | 16.9R | +11.1R |
+
+- **Mọi tổ hợp đều lỗ ở giai đoạn này** (thắng 42–45%, dưới mức hoà vốn khoảng 46% của RR 1.2 có phí). Lãi ở 180 ngày gần nhất không lặp lại; chiến lược chưa có lợi thế ổn định.
+- Preset hiện tại cộng cả năm là **−21R**.
+- TTL 1 là thay đổi duy nhất tốt hơn ở **cả hai** giai đoạn: chỉ tính các phương pháp cùng kích hoạt một nến, khớp với bảng "Thứ tự" ở trên, nơi A=B và A=C lãi còn A→B lỗ. Chờ 1 nến xác nhận bớt lỗ ở giai đoạn kiểm tra, nhưng ở giai đoạn chọn thì lúc hơn lúc kém.
+- Ngay cả tổ hợp tốt nhất cả năm (+15.6R trên khoảng 650 lệnh) vẫn nằm trong mức ngẫu nhiên.

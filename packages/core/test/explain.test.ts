@@ -49,6 +49,21 @@ describe("explain matches evaluate", () => {
     });
   }
 
+  it("B with confirmation and CHANNEL invalidation: ready exactly when it fires", () => {
+    const merged = mergeSettings(loose(), { methods: { donchianBreakout: { confirmBars: 1, invalidateOn: "CHANNEL" } } });
+    if (!merged.ok) throw new Error("settings");
+    const entry = randomWalk(1200, 41);
+    const strategy = createAnalyzer({ entry, trend: randomWalk(320, 141, 60) }, merged.settings).strategies.donchianBreakout!;
+    let fired = 0;
+    for (let i = 0; i < entry.length; i++) {
+      const signal = strategy.evaluate(i);
+      const ready = strategy.explain(i).sides.filter((s) => s.ready).map((s) => s.direction);
+      expect(ready, `at ${i}`).toEqual(signal ? [signal.direction] : []);
+      if (signal) fired++;
+    }
+    expect(fired).toBeGreaterThan(0);
+  });
+
   it("reports missing data as unknown, not as failed", () => {
     const entry = randomWalk(30, 5);
     const analyzer = createAnalyzer({ entry, trend: [] }, loose());

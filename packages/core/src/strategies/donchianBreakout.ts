@@ -9,6 +9,9 @@ import { fmt, isFiniteAll, side, type Check, type MarketData, type PreparedStrat
  * The trigger candle closes beyond the extreme of the previous `channelLength` candles, on volume of
  * at least `volumeMultiplier` times the previous average, with ADX above `adxMin`, a solid body
  * that closes near its extreme, and without having run more than `maxChaseAtr` ATR past the channel.
+ * With `confirmBars` N > 0 the signal comes N candles later, when every one of them still closed
+ * beyond the broken edge. It stops counting once price closes past the channel middle, or with
+ * `invalidateOn` CHANNEL as soon as it closes back inside the channel.
  */
 export function prepareDonchianBreakout(market: MarketData, p: DonchianBreakoutParams, shared: SharedSeries): PreparedStrategy {
   const { entry } = market;
@@ -17,7 +20,8 @@ export function prepareDonchianBreakout(market: MarketData, p: DonchianBreakoutP
   const volumeAverage = sma(entry.map((c) => c.volume), p.volumeSmaLength);
   const adxSeries = adx(entry, p.adxPeriod).adx;
 
-  function evaluate(i: number): MethodSignal | null {
+  /** The breakout itself on candle i, before any confirmation. */
+  function breakoutAt(i: number): MethodSignal | null {
     if (i < 1) return null;
     const c = entry[i]!;
     const up = upper[i]!;
@@ -64,15 +68,44 @@ export function prepareDonchianBreakout(market: MarketData, p: DonchianBreakoutP
     return null;
   }
 
+  /** Candles after the breakout that closed beyond its broken edge (LONG above the upper, SHORT below the lower). */
+  function heldBeyond(breakout: MethodSignal, k: number): boolean {
+    const c = entry[k];
+    if (!c) return false;
+    return breakout.direction === "LONG" ? c.close > breakout.levels.upper! : c.close < breakout.levels.lower!;
+  }
+
+  function evaluate(i: number): MethodSignal | null {
+    if (p.confirmBars === 0) return breakoutAt(i);
+    const breakout = breakoutAt(i - p.confirmBars);
+    if (!breakout) return null;
+    for (let k = i - p.confirmBars + 1; k <= i; k++) if (!heldBeyond(breakout, k)) return null;
+    const c = entry[i]!;
+    const atr = shared.atr[i]!;
+    if (!Number.isFinite(atr)) return null;
+    const long = breakout.direction === "LONG";
+    return {
+      ...breakout,
+      index: i,
+      time: c.closeTime,
+      price: c.close,
+      stopLoss: long ? c.close - p.slAtrMultiplier * atr : c.close + p.slAtrMultiplier * atr,
+      reason: `${breakout.reason}, ${p.confirmBars} nến sau vẫn đóng ngoài kênh`,
+    };
+  }
+
   function isInvalidated(signal: MethodSignal, j: number): boolean {
+    if (p.invalidateOn === "CHANNEL") return !heldBeyond(signal, j);
     const mid = signal.levels.mid;
     if (mid === undefined) return false;
     return signal.direction === "LONG" ? entry[j]!.close < mid : entry[j]!.close > mid;
   }
 
   /** The same conditions as evaluate(), each one reported instead of returning at the first miss. */
-  function explainSide(direction: Direction, i: number): SideExplanation {
+  function explainSide(direction: Direction, at: number): SideExplanation {
     const long = direction === "LONG";
+    // With confirmation, the breakout conditions are those of the candle confirmBars back.
+    const i = at - p.confirmBars;
     const c = entry[i];
     const up = upper[i] ?? Number.NaN;
     const low = lower[i] ?? Number.NaN;
@@ -111,6 +144,16 @@ export function prepareDonchianBreakout(market: MarketData, p: DonchianBreakoutP
         detail: ok ? `${((long ? c!.close - up : low - c!.close) / atr).toFixed(2)} ATR` : null,
       },
     ];
+    if (p.confirmBars > 0) {
+      const after = entry.slice(i + 1, at + 1);
+      const held = after.filter((k) => (long ? k.close > up : k.close < low)).length;
+      checks.forEach((check) => (check.label += " (nến phá kênh)"));
+      checks.push({
+        label: `${p.confirmBars} nến sau vẫn đóng ${long ? "trên đỉnh" : "dưới đáy"} kênh`,
+        pass: when(() => Number.isFinite(shared.atr[at] ?? Number.NaN) && held === p.confirmBars),
+        detail: ok ? `${held}/${p.confirmBars}` : null,
+      });
+    }
     return side(direction, checks);
   }
 
