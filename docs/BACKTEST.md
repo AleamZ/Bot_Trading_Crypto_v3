@@ -231,3 +231,33 @@ Preset 15m (20 symbol, A+B+C vào ở 2/3, RR 1.2, LIMIT, theo BTC NOT_AGAINST),
 - Preset hiện tại cộng cả năm là **−21R**.
 - TTL 1 là thay đổi duy nhất tốt hơn ở **cả hai** giai đoạn: chỉ tính các phương pháp cùng kích hoạt một nến, khớp với bảng "Thứ tự" ở trên, nơi A=B và A=C lãi còn A→B lỗ. Chờ 1 nến xác nhận bớt lỗ ở giai đoạn kiểm tra, nhưng ở giai đoạn chọn thì lúc hơn lúc kém.
 - Ngay cả tổ hợp tốt nhất cả năm (+15.6R trên khoảng 650 lệnh) vẫn nằm trong mức ngẫu nhiên.
+
+## Vì sao nửa năm trước lỗ, nửa năm sau lãi (2026-11-02)
+
+Chạy liền 360 ngày preset 15m (bản mới TTL 1 / SL 4 ATR, và bản cũ TTL 4 / SL 6 ATR). Mỗi lệnh được gắn trạng thái thị trường lúc vào:
+
+- độ "đi thẳng" (efficiency ratio, ER = |giá đổi ròng| / tổng quãng đường) của coin trên 96 nến 15m và của BTC trên 24 nến 1h;
+- ATR %, ADX;
+- xu hướng BTC 1h;
+- giờ vào lệnh;
+- MFE, tức giá từng đi thuận bao xa.
+
+Không phải nửa năm trước toàn giảm còn nửa năm sau toàn tăng: cả hai đều có tháng sập mạnh (BTC 11/2025 −15.6%, 02/2026 −19%, 06/2026 −20%) và tháng tăng mạnh (04/2026 +12.7%, 08/2026 +25%). Khác biệt nằm ở **tỉ lệ thắng** (44–45% so với 50–54%), tức các cú phá vỡ có chạy tiếp hay không.
+
+**Đặc điểm lặp lại ở cả hai nửa năm** (bản mới, R tổng; "trước" là 11/2025–05/2026, "gần" là 05–11/2026):
+
+| Lúc vào lệnh | Trước | Gần |
+|---|---|---|
+| Tất cả | 313 lệnh, −22.7R | 343 lệnh, +40.4R |
+| Coin đi lòng vòng (ER 24h < 0.12) | −13.0R | −7.6R |
+| BTC 1h chưa rõ xu hướng | 85 lệnh, thắng 35%, −23.2R | +6.4R |
+| Coin đi có hướng (ER ≥ 0.15) **và** BTC 1h có xu hướng | 106 lệnh, +7.1R | 101 lệnh, +32.6R |
+| Tổ hợp B+C | thắng 29%, −8.5R | +4.0R |
+
+Bản cũ cho cùng kết luận: ER < 0.12 lỗ −28R và −24.6R; lọc ER ≥ 0.15 và BTC rõ thì +1.6R và +32.8R.
+
+- Chiến lược là bắt xu hướng (phá kênh, hồi về EMA). Nó chỉ có lợi thế khi giá đang đi một chiều; lúc thị trường đi ngang lòng vòng thì liên tục dính phá vỡ giả.
+- Lệnh thua phần lớn sai từ đầu: 126 trên 335 lệnh thua chưa từng đi thuận được 0.2R, nên vấn đề là chất lượng điểm vào chứ không phải SL.
+- Bộ lọc trên vẫn lỗ ở 12/2025, 03/2026 và 04/2026. Tháng 4 lỗ chủ yếu do SHORT (−11.8R) khi BTC tăng 12.7% cả tháng, nên xu hướng BTC 1h là quá ngắn để thấy xu hướng tháng.
+- Giờ 06–11h (giờ VN) tốt hơn ở cả hai nửa, 18–23h kém hơn; bằng chứng yếu hơn.
+- Các con số này là **lọc lại danh sách lệnh sau khi chạy**, chưa tính việc bỏ một lệnh thì lệnh khác có chỗ vào. Cần làm thành cài đặt thật và backtest lại cả hai nửa năm.
