@@ -32,6 +32,8 @@
     "followBtc": "WITH"
   },
   "risk": {
+    "riskUsd": 5,
+    "capitalUsd": 100,
     "rr": 1.2,
     "maxSlAtr": 4,
     "moveSl": false,

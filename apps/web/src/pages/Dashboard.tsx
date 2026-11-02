@@ -21,7 +21,16 @@ export function Dashboard({ live, go }: { live: Live; go: (route: Route, param?:
     <>
       <Alerts status={status} go={go} />
       <div className="stats">
-        <Stat label="Số dư khả dụng" value={hasKeys ? money(positions.data?.availableBalance) : "—"} hint={hasKeys ? (positions.error ?? undefined) : "Chưa có khoá API"} />
+        {status.capital ? (
+          <Stat
+            label={`Vốn giả lập ${status.capital.capital}$`}
+            value={money(status.capital.equity)}
+            tone={status.capital.equity > status.capital.capital ? "up" : status.capital.equity < status.capital.capital ? "down" : undefined}
+            hint={`khả dụng ${money(status.capital.available)} · số dư thật ${hasKeys ? money(positions.data?.availableBalance) : "—"}`}
+          />
+        ) : (
+          <Stat label="Số dư khả dụng" value={hasKeys ? money(positions.data?.availableBalance) : "—"} hint={hasKeys ? (positions.error ?? undefined) : "Chưa có khoá API"} />
+        )}
         <Stat label="R hôm nay" value={rMultiple(status.today.closed.r)} tone={status.today.closed.r > 0 ? "up" : status.today.closed.r < 0 ? "down" : undefined} hint={usd(status.today.closed.pnl)} />
         <Stat label="Lệnh hôm nay" value={`${status.today.opened} / ${status.limits.maxTradesPerDay}`} hint={`Đóng ${status.today.closed.count}, thắng ${status.today.closed.wins}`} />
         <Stat label="Vị thế mở" value={`${status.openTrades} / ${status.limits.maxOpenPositions}`} />

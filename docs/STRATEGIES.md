@@ -134,6 +134,11 @@ Gọi L và S là số phương pháp đang có tín hiệu LONG và SHORT:
    - Số dư giới hạn 1R: với ký quỹ isolated, lỗ khi bị thanh lý xấp xỉ bằng ký quỹ, nên 1R tối đa ≈ ký quỹ được dùng × khoảng SL / (1.5 × khoảng SL + tỉ lệ ký quỹ duy trì), tức luôn nhỏ hơn ký quỹ được dùng / 1.5.
    - Ví dụ: số dư 10$, dùng tối đa 50% làm ký quỹ, SL 1.25%: 1R tối đa ≈ 2.97$.
    - Bot lấy số dư mỗi phút và cảnh báo trên bảng điều khiển và trang Cài đặt khi 1R vượt mức này, với một phần hay toàn bộ khoảng SL từ `minSlPct` tới `maxSlPct` (`riskAffordability`).
+7. **Vốn giả lập** (`risk.capitalUsd`, mặc định 0 là tắt): để thử trên DEMO với đúng số tiền định bỏ vào.
+   - Bot coi số dư khả dụng là số nhỏ hơn giữa số dư thật và vốn giả lập, trong đó vốn giả lập = `capitalUsd` + lãi/lỗ ròng các lệnh đã đóng − ký quỹ các lệnh bot đang mở.
+   - Lãi/lỗ tính từ lúc đặt hoặc đổi `capitalUsd`, hoặc từ lần Xoá số liệu lãi/lỗ nếu sau đó. Lãi/lỗ chưa chốt chưa được tính.
+   - Số dư này dùng cho chọn đòn bẩy, kiểm tra ký quỹ và cảnh báo 1R. Vốn cạn thì bot không vào được lệnh vì thiếu ký quỹ.
+   - Bảng điều khiển hiện "Vốn giả lập", kèm phần còn khả dụng và số dư thật.
 7. **Dời SL khi giá chạy về phía TP** (`moveSl`, mặc định bật; `nextStop` trong `risk/trail.ts`):
    - Tiến độ = quãng giá đã đi từ giá vào về phía TP, tính bằng % (0% ở giá vào, 100% ở TP). Bot nhớ mức xa nhất đã đạt.
    - Đạt `breakEvenAtTpPct` (50%): SL dời về **giá vào**. Chạm SL này thì lỗ khoảng bằng phí (khoảng −0.1R), không phải 0.

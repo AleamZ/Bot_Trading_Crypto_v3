@@ -189,6 +189,8 @@ export interface Status {
   ai: AiStatus;
   /** When the P&L figures were last cleared, or null. */
   statsSince: number | null;
+  /** Simulated account (risk.capitalUsd), or null when the bot uses the real balance. */
+  capital: CapitalStatus | null;
   limits: {
     entryTf: string;
     trendTf: string;
@@ -228,6 +230,16 @@ export interface Position {
   unRealizedProfit: string;
   liquidationPrice: string;
   tradeId: string | null;
+}
+
+export interface CapitalStatus {
+  capital: number;
+  /** Capital plus the net result of trades closed since `since`. */
+  equity: number;
+  /** Margin of the bot's open positions. */
+  inUse: number;
+  available: number;
+  since: number;
 }
 
 export interface PositionsResponse {

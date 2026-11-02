@@ -101,6 +101,14 @@ const generalSchema = z
 const riskSchema = z
   .object({
     riskUsd: num(0.1, 10_000).default(5).meta({ title: "1R", unit: "$", description: "Số tiền mất khi chạm SL" }),
+    capitalUsd: num(0, 10_000_000)
+      .default(0)
+      .meta({
+        title: "Vốn giả lập",
+        unit: "$",
+        description:
+          "Bot tính ký quỹ và đòn bẩy như thể tài khoản chỉ có chừng này tiền, cộng lãi/lỗ đã chốt từ lúc đặt (hoặc từ lần Xoá số liệu lãi/lỗ), trừ ký quỹ các lệnh đang mở; số dư thật thấp hơn thì dùng số dư thật. Để thử trên DEMO với đúng số vốn định bỏ vào. 0: dùng số dư thật",
+      }),
     rr: num(0.5, 10).default(2).meta({ title: "R:R mục tiêu", description: "TP = giá vào ± RR × khoảng SL" }),
     includeFees: z.boolean().default(true).meta({ title: "Tính phí vào 1R" }),
     feeRatePct: num(0, 1).default(0.05).meta({ title: "Phí taker mỗi chiều", unit: "%" }),

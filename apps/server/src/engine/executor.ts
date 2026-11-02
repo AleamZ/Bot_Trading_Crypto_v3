@@ -45,6 +45,8 @@ export interface ExecutorDeps {
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
   newId?: () => string;
+  /** The balance to size with, from the exchange's available balance (simulated capital). Default: as is. */
+  balanceFor?: (available: number) => number;
 }
 
 /**
@@ -98,6 +100,7 @@ export class Executor {
       }
       info = symbolInfo;
       [mark, brackets, balance] = await Promise.all([api.getMarkPrice(symbol), api.getLeverageBrackets(symbol), api.getAvailableBalance()]);
+      if (this.deps.balanceFor) balance = this.deps.balanceFor(balance);
     } catch (error) {
       return fail("PRECHECK", "EXCHANGE_ERROR", errorText(error));
     }

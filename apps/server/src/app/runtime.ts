@@ -32,6 +32,7 @@ import { silentLogger, type Logger } from "../lib/logger.js";
 import type { TelegramClient } from "../telegram/client.js";
 import { formatPositions, formatStatus, formatToday, type StatusSummary } from "../telegram/format.js";
 import { TelegramService } from "../telegram/service.js";
+import { SimulatedCapital } from "./capital.js";
 import { BotControl, guardStateFor, SettingsService, timeframeMs, todayStats } from "./control.js";
 import { allStats, monthOf, monthRange, monthStats, type AllStats, type MonthStats } from "./stats.js";
 import { EventHub, toAnalysisView } from "./events.js";
@@ -86,6 +87,7 @@ export class BotRuntime {
   readonly hub: EventHub;
   readonly settings: SettingsService;
   readonly control: BotControl;
+  readonly capital: SimulatedCapital;
   readonly locks = new KeyedLock();
   readonly executor: Executor;
   readonly watchdog: Watchdog;
@@ -124,8 +126,9 @@ export class BotRuntime {
     const settings = () => this.settings.get();
     this.control = new BotControl(this.kv, { tradingEnabled: this.env.TRADING_ENABLED, hasBinanceKeys: this.env.hasBinanceKeys }, settings, this.hub);
 
+    this.capital = new SimulatedCapital(this.kv, this.trades, settings, () => this.control.statsSince, this.now);
     const engine = { api: exchange, store: this.trades, events: this.hub, locks: this.locks, logger: this.logger, now: this.now };
-    this.executor = new Executor(engine);
+    this.executor = new Executor({ ...engine, balanceFor: (available) => this.capital.available(available) });
     this.watchdog = new Watchdog({ ...engine, settings });
     this.scanner = new Scanner({
       market: exchange,
@@ -321,7 +324,8 @@ export class BotRuntime {
   /** Whether 1R fits the available balance over the allowed stop range (null until the balance is known). */
   riskCheck() {
     if (!this.balance) return null;
-    return { balance: this.balance.value, at: this.balance.at, ...riskAffordability(this.settings.get().risk, this.balance.value) };
+    const balance = this.capital.available(this.balance.value);
+    return { balance, at: this.balance.at, ...riskAffordability(this.settings.get().risk, balance) };
   }
 
   /** User-stream events arrive in bursts (order update + account update): reconcile once. */
@@ -412,6 +416,7 @@ export class BotRuntime {
       ai: this.aiStatus(),
       limits: this.limits(),
       statsSince: this.statsSince(),
+      capital: this.capital.status(),
     };
   }
 
@@ -469,6 +474,7 @@ export class BotRuntime {
         algoOrders: algos,
         openOrders: orders,
         availableBalance,
+        capital: this.capital.status(),
       };
     } catch (error) {
       throw new BotError(424, "EXCHANGE_ERROR", errorText(error));
@@ -574,7 +580,8 @@ export class BotRuntime {
     let detail: string | null = null;
     if (sizing?.ok && this.env.hasBinanceKeys) {
       try {
-        const [balance, brackets] = await Promise.all([exchange.getAvailableBalance(), exchange.getLeverageBrackets(symbol)]);
+        const [real, brackets] = await Promise.all([exchange.getAvailableBalance(), exchange.getLeverageBrackets(symbol)]);
+        const balance = this.capital.available(real);
         const choice = chooseLeverage({
           direction: c.direction,
           entryPrice,
