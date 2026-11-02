@@ -277,3 +277,19 @@ Preset 15m hiện tại (TTL 1, SL tối đa 4 ATR, 20 symbol, LIMIT), hai nửa
 
 - `followBtc=WITH` (chỉ vào cùng chiều khi BTC 1h có xu hướng rõ) là thay đổi ổn định nhất: nửa năm xấu từ −24.9R lên gần hoà vốn, nửa năm tốt gần như giữ nguyên.
 - Bộ lọc ER khi chạy thật kém hơn mức lọc lại danh sách lệnh, và không đi một chiều theo ngưỡng (0.15 kém hơn cả 0.12 lẫn 0.18). ER ≥ 0.18 kèm WITH là dòng duy nhất lãi ở cả hai nửa và sụt giảm thấp nhất, nhưng chỉ khoảng 13 lệnh mỗi tháng và nằm ở mép lưới thử, nên bằng chứng yếu.
+
+## Tạm dừng khi bot đang thua (2026-11-02)
+
+Thử để bot tự đổi kiểu đánh theo kết quả gần đây của chính nó: dừng vào lệnh khi tổng R của N lệnh gần nhất (hoặc K ngày gần nhất) âm, vẫn theo dõi lệnh trên giấy để biết lúc nào chạy lại. Đây là lọc lại danh sách lệnh 360 ngày của preset TTL 1 / SL 4 ATR (NOT_AGAINST).
+
+| Quy tắc | Trước | Gần | Cả năm |
+|---|---|---|---|
+| Luôn đánh | −22.7R | +40.4R | +17.7R |
+| Dừng khi 10 lệnh gần nhất lỗ | −6.8R | +20.0R | +13.3R |
+| Dừng khi 20 lệnh gần nhất lỗ | −41.6R | +11.9R | −29.7R |
+| Dừng khi 50 lệnh gần nhất lỗ | −16.9R | +22.2R | +5.3R |
+| Dừng khi 7 ngày gần nhất lỗ | −5.2R | +23.1R | +17.9R |
+| Dừng khi 14 ngày gần nhất lỗ | −42.2R | +17.4R | −24.8R |
+| Dừng khi 30 ngày gần nhất lỗ | −13.3R | +31.9R | +18.6R |
+
+Kết quả nhảy lung tung theo độ dài cửa sổ: không quy tắc nào tốt hơn ổn định so với luôn đánh. Kết quả của chính bot không báo trước được giai đoạn xấu. Đổi kiểu theo lịch (nửa đầu năm / nửa cuối năm) càng không có cơ sở: ranh giới hai nửa ở đây chỉ là cách chia khung backtest.
