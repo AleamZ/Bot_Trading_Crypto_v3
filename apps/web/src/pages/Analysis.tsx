@@ -4,7 +4,7 @@ import { api } from "../api";
 import { ChartView, DEFAULT_LAYERS, type Layers } from "../ChartView";
 import { clock, dateTime, duration, price, rMultiple, usd } from "../format";
 import { useLoad, useNow, type Live, type Route } from "../hooks";
-import { comboOf, entryRuleText, METHODS, type ChartResponse, type Check, type EntryPreview, type MethodId, type SideExplanation } from "../types";
+import { comboOf, entryRuleText, leaderText, METHODS, type ChartResponse, type Check, type EntryPreview, type MethodId, type SideExplanation } from "../types";
 import { Button, Chip, DirectionChip, LevelChip, Meter, Notice, Panel, Tabs } from "../ui";
 
 const LAYER_LABELS: [keyof Layers, string][] = [
@@ -171,13 +171,24 @@ function Verdict({ data }: { data: ChartResponse }) {
             </span>
           </div>
           <Meter label="Đồng thuận" value={best} max={total} tone={c.direction === "SHORT" ? "heart" : "quest"} display={`${best}/${total}`} />
+          {c.leader && (
+            <div className="row">
+              <Chip tone={c.leader.blocked ? "heart" : "empty"}>Theo BTC</Chip>
+              <span className="soft">
+                {leaderText(c.leader.trend)} ở khung xu hướng
+                {c.direction ? (c.leader.blocked ? `: ${c.direction} ngược BTC, không tự vào lệnh` : `: ${c.direction} không ngược BTC`) : ""}
+              </span>
+            </div>
+          )}
           <div>
             {c.level === "ENTER"
               ? scanned
                 ? `${combo} cùng chiều: bot thử vào lệnh (nếu các giới hạn cho phép).`
                 : `${combo} cùng chiều: bot sẽ thử vào lệnh khi quét nến này (nếu các giới hạn cho phép).`
               : c.level === "READY"
-                ? `${readyText} Vào lệnh cần ${rule}, không có phương pháp ngược chiều.`
+                ? c.leader?.blocked
+                  ? `${readyText} Không vào lệnh vì ngược xu hướng BTC (${leaderText(c.leader.trend)}).`
+                  : `${readyText} Vào lệnh cần ${rule}, không có phương pháp ngược chiều.`
                 : best > 0
                   ? `Chưa đủ: ${combo || "chưa phương pháp nào"} cùng chiều. Báo SẴN SÀNG cần ${data.thresholds.alert} phương pháp, vào lệnh cần ${rule}.`
                   : "Chưa có tín hiệu."}

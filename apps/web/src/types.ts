@@ -23,6 +23,15 @@ export function entryRuleText(rule: { autoEntryThreshold: number; entryCombos?: 
   return rule.entryCombos?.length ? rule.entryCombos.join(" hoặc ") : `${rule.autoEntryThreshold} phương pháp cùng chiều`;
 }
 
+/** BTC's trend for an altcoin (follow-BTC rule): LONG, SHORT, null when unclear, NO_DATA when unread. */
+export type LeaderTrend = Direction | null | "NO_DATA";
+
+/** "BTC tăng", "BTC giảm", "BTC chưa rõ xu hướng", "không đọc được nến BTC". */
+export function leaderText(trend: LeaderTrend): string {
+  if (trend === "NO_DATA") return "không đọc được nến BTC";
+  return trend === "LONG" ? "BTC tăng" : trend === "SHORT" ? "BTC giảm" : "BTC chưa rõ xu hướng";
+}
+
 export interface SignalView {
   direction: Direction;
   time: number;
@@ -46,6 +55,8 @@ export interface AnalysisView {
     shortCount: number;
     agreeing: MethodId[];
     opposing: MethodId[];
+    /** BTC's trend and whether it kept this altcoin from entering; null for BTC itself or with the rule off. */
+    leader: { trend: LeaderTrend; blocked: boolean } | null;
   };
   episode: { direction: Direction; level: "READY" | "ENTER"; startedAt: number } | null;
   scannedAt: number;

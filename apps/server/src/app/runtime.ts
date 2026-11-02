@@ -3,6 +3,7 @@ import {
   checkEntryGuards,
   createAnalyzer,
   GUARD_MESSAGES,
+  LEADER_SYMBOL,
   METHOD_IDS,
   planTrade,
   riskAffordability,
@@ -528,7 +529,9 @@ export class BotRuntime {
     try {
       const entry = await this.options.exchange.getClosedCandles(symbol, entryTf, limits.entry);
       const trend = trendTf === entryTf ? entry : await this.options.exchange.getClosedCandles(symbol, trendTf, limits.trend);
-      const market = { entry, trend };
+      const follows = settings.general.followBtc !== "OFF" && symbol !== LEADER_SYMBOL;
+      const leader = follows ? await this.options.exchange.getClosedCandles(LEADER_SYMBOL, trendTf, limits.trend).catch(() => null) : undefined;
+      const market: MarketData = { entry, trend, ...(leader !== undefined ? { leader } : {}) };
       if (this.chartCache.size > 20) this.chartCache.clear();
       this.chartCache.set(symbol, { market, close: entry.at(-1)?.closeTime ?? 0 });
       return market;

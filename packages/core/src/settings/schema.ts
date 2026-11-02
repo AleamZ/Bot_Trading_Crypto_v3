@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { FOLLOW_BTC_MODES } from "../leader.js";
 import { METHOD_COMBOS, METHOD_IDS, METHOD_LETTERS } from "../types.js";
 
 /**
@@ -68,6 +69,14 @@ const generalSchema = z
       .meta({
         title: "Phương pháp bắt buộc khi vào lệnh",
         description: "Chỉ tự vào lệnh khi phương pháp này nằm trong nhóm đồng thuận; thiếu thì chỉ báo SẴN SÀNG. NONE: không bắt buộc",
+      }),
+    followBtc: z
+      .enum(FOLLOW_BTC_MODES)
+      .default("NOT_AGAINST")
+      .meta({
+        title: "Theo chân BTC (altcoin)",
+        description:
+          "Xu hướng BTC lấy ở khung xu hướng, cùng cách tính \"khung lớn\" của phương pháp A (EMA giữa / EMA chậm). NOT_AGAINST: altcoin không được vào lệnh ngược xu hướng BTC, BTC chưa rõ xu hướng thì không chặn. WITH: altcoin chỉ vào lệnh cùng chiều xu hướng BTC. OFF: không xét. Bị chặn thì chỉ báo SẴN SÀNG; không đọc được nến BTC thì cũng không vào",
       }),
     autoTrade: z
       .boolean()

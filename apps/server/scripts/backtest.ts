@@ -17,6 +17,7 @@ import {
   comboOf,
   defaultSettings,
   entryRuleText,
+  LEADER_SYMBOL,
   METHOD_LETTERS,
   mergeSettings,
   runBacktest,
@@ -119,6 +120,11 @@ for (const symbol of settings.general.watchlist) {
   data.push({ symbol, market: { entry, trend }, filters: info.filters });
 }
 
+// BTC's trend candles for the follow-BTC rule, shared by every altcoin. Always loaded, so a sweep
+// over general.followBtc works; the analyzer ignores them while the rule is OFF.
+const btcTrend = data.find((d) => d.symbol === LEADER_SYMBOL)?.market.trend ?? (await api.getCandlesBetween(LEADER_SYMBOL, trendTf, from - limits.trend * trendMs, end));
+for (const d of data) if (d.symbol !== LEADER_SYMBOL) d.market = { ...d.market, leader: btcTrend };
+
 const result = runBacktest(data, { settings, from, slippage });
 
 const pct = (x: number) => `${(x * 100).toFixed(0)}%`;
@@ -155,7 +161,7 @@ if (closed.length) {
   for (const key of [...bySequence.keys()].sort()) console.log(row(key, summarize(bySequence.get(key)!)));
   console.log("Thứ tự: A=B là hai phương pháp kích hoạt cùng một nến, A→B là A trước, B ở nến sau.");
 }
-const rule = entryRuleText(settings.general);
+const rule = `${entryRuleText(settings.general)}${settings.general.followBtc === "OFF" ? "" : `, theo BTC ${settings.general.followBtc}`}`;
 console.log(`\nBáo SẴN SÀNG (${settings.general.alertThreshold} phương pháp): ${result.readyAlerts} lần · đủ điều kiện vào (${rule}): ${result.enterSignals} lần · vào lệnh: ${result.trades.length}`);
 const skipped = Object.entries(result.skipped);
 if (skipped.length) console.log(`Đủ điều kiện mà không vào được: ${skipped.map(([k, v]) => `${k} ${v}`).join(", ")}`);

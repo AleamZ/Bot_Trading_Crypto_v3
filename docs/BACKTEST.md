@@ -178,3 +178,17 @@ Không phương án nào đạt 20R/tháng; tháng tốt nhất ở phương án
 
 - Mô hình cho lệnh chờ suốt một nến 15m nên gần như lệnh nào cũng khớp. Bot thật chỉ chờ `limitWaitSec` (120 giây, có đặt lại khi giá chạy), nên số lệnh khớp thật có thể ít hơn.
 - Dòng phí 0% ở bảng trước (+59R) là trần lý thuyết: SL luôn là lệnh market, phí taker.
+
+## Theo chân BTC (2026-11-02)
+
+Preset 15m ở trên (20 symbol, A+B+C vào ở 2/3, RR 1.2, LIMIT), 180 ngày tới 02/11, nến Binance thật, cùng một bộ nến cho cả ba dòng (`--sweep general.followBtc=OFF,NOT_AGAINST,WITH`). Xu hướng BTC lấy ở khung 1h như mục "Theo chân BTC" trong STRATEGIES.md.
+
+| `followBtc` | Lệnh | Thắng | Tổng R | R/30n | PF | Sụt giảm |
+|---|---|---|---|---|---|---|
+| OFF | 614 | 50% | +18.8 | +3.1 | 1.06 | 39.2R |
+| **NOT_AGAINST** | **563** | **50%** | **+24.3** | **+4.1** | **1.09** | **35.8R** |
+| WITH | 391 | 50% | +19.9 | +3.3 | 1.10 | 31.5R |
+
+- NOT_AGAINST vào ít hơn 51 lệnh (lệnh altcoin ngược xu hướng BTC, kèm vài lệnh khác thay đổi theo vì vị thế và giới hạn) và tổng R tăng 5.5R, sụt giảm giảm 3.4R. Với chừng ấy lệnh, chênh lệch vẫn nằm trong mức ngẫu nhiên: đúng hướng, chưa phải bằng chứng chắc chắn.
+- WITH (chỉ vào cùng chiều BTC) bỏ thêm 172 lệnh lúc BTC chưa rõ xu hướng: PF và sụt giảm tốt nhất, nhưng tổng R thấp hơn NOT_AGAINST vì ít lệnh hơn.
+- Dòng OFF thấp hơn +21R ở mục trước vì khung 180 ngày đã dời tới 02/11.

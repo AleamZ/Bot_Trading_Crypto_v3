@@ -1,5 +1,7 @@
 import { decideConsensus, type ConsensusResult } from "./consensus/index.js";
 import { atr } from "./indicators/oscillators.js";
+import { alignHigherTimeframe } from "./indicators/structure.js";
+import { trendBiasSeries, type LeaderTrend } from "./leader.js";
 import type { Settings } from "./settings/schema.js";
 import { activeSignalAt } from "./strategies/active.js";
 import { prepareBoxTheory } from "./strategies/boxTheory.js";
@@ -53,6 +55,16 @@ export function createAnalyzer(market: MarketData, settings: Settings): Analyzer
     boxTheory: methods.boxTheory.enabled ? prepareBoxTheory(market, methods.boxTheory, shared) : null,
   };
 
+  // Follow BTC: its trend on the trend timeframe, aligned to the entry candles. Not for BTC itself.
+  const follows = settings.general.followBtc !== "OFF" && market.leader !== undefined;
+  const leaderSides = follows && market.leader ? trendBiasSeries(market.leader, methods.trendPullback) : [];
+  const leaderIndex = follows && market.leader ? alignHigherTimeframe(market.entry, market.leader) : [];
+  function leaderAt(index: number): LeaderTrend | undefined {
+    if (!follows) return undefined;
+    const t = leaderIndex[index] ?? -1;
+    return t < 0 ? "NO_DATA" : (leaderSides[t] ?? null);
+  }
+
   function at(index: number): SymbolAnalysis {
     const candle = market.entry[index];
     if (!candle) throw new RangeError(`No entry candle at index ${index}`);
@@ -70,7 +82,7 @@ export function createAnalyzer(market: MarketData, settings: Settings): Analyzer
       price: candle.close,
       atr: shared.atr[index] ?? Number.NaN,
       methods: states,
-      consensus: decideConsensus(active, settings.general),
+      consensus: decideConsensus(active, settings.general, leaderAt(index)),
     };
   }
 

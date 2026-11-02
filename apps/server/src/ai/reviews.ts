@@ -1,4 +1,18 @@
-import { adx, createAnalyzer, entryRuleText, METHOD_IDS, TIMEFRAME_MINUTES, tradePath, type Candle, type MethodId, type Settings } from "@bot-v3/core";
+import {
+  adx,
+  alignHigherTimeframe,
+  createAnalyzer,
+  entryRuleText,
+  LEADER_SYMBOL,
+  leaderTrendText,
+  METHOD_IDS,
+  TIMEFRAME_MINUTES,
+  tradePath,
+  trendBiasSeries,
+  type Candle,
+  type MethodId,
+  type Settings,
+} from "@bot-v3/core";
 import { z } from "zod";
 import { candleLimits } from "../app/scanner.js";
 import type { EventHub } from "../app/events.js";
@@ -67,6 +81,7 @@ Dữ kiện JSON do code tính sẵn: lệnh, điều kiện từng phương ph�
 Cách đọc dữ kiện (đây là cách bot chạy, không phải lỗi dữ liệu):
 - trade.stopLoss là SL lúc vào lệnh, R và path tính theo SL này. stopMoves là các lần bot dời SL (về giá vào khi giá đi được breakEvenAtTpPct% đường tới TP, khoá lãi khi đi được lockAtTpPct%); finalStopLoss là SL cuối, nằm phía có lãi sau khi dời là bình thường.
 - Tín hiệu của một phương pháp còn được tính vào đồng thuận trong signalTtlBars nến sau nến kích hoạt. signalsUsed là các tín hiệu bot đã dùng, kèm nến kích hoạt và candlesBeforeEntry. checks và consensus trong atEntry được tính lại trên nến ngay trước lúc vào, nên một phương pháp có thể không đạt đủ checks ở nến này vì tín hiệu của nó đến từ nến trước. Hãy đánh giá việc tín hiệu đã cũ thay vì coi là mâu thuẫn.
+- btcTrend là xu hướng BTC ở khung xu hướng (cùng cách tính "khung lớn"). rules.followBtc: NOT_AGAINST là altcoin không được vào ngược xu hướng BTC, WITH là chỉ vào cùng chiều BTC, OFF là không xét. Lệnh vào trước khi có luật này có thể ngược BTC; khi đó atEntry.consensus có thể chỉ là READY.
 - SL/TP kích hoạt theo trade.triggerPrice (MARK_PRICE là giá mark) còn nến là giá giao dịch, nên lệnh có thể chạm TP/SL khi nến chưa chạm, và giá khớp có thể lệch mức đặt.
 - slMode EXACT_1R: sau khi khớp, SL được tính lại theo giá khớp thật để lỗ đúng 1R kể cả phí; structuralStop là SL gộp trước khi tính lại, plannedEntry là giá lúc quyết định vào.
 Yêu cầu:
@@ -197,6 +212,9 @@ export class ReviewService {
     const entry = await this.deps.market.getCandlesBetween(trade.symbol, entryTf, openedAt - limits.entry * tfMs, closedAt + 4 * tfMs);
     const trend = trendTf === entryTf ? entry : await this.deps.market.getCandlesBetween(trade.symbol, trendTf, openedAt - limits.trend * trendMs, closedAt + trendMs);
     if (entry.length < 2) throw new Error(`Không lấy được nến ${entryTf} quanh lệnh`);
+    // BTC's trend around the trade, for altcoins: shown whether or not the follow-BTC rule is on.
+    const isLeader = trade.symbol === LEADER_SYMBOL;
+    const leader = isLeader ? null : await this.deps.market.getCandlesBetween(LEADER_SYMBOL, trendTf, openedAt - limits.trend * trendMs, closedAt + trendMs).catch(() => null);
 
     // The candle that gave the signal closed just before the entry; the exit candle contains the exit.
     let entryIdx = -1;
@@ -205,7 +223,14 @@ export class ReviewService {
     for (let i = 0; i < entry.length; i++) if (entry[i]!.openTime <= closedAt) exitIdx = i;
     if (entryIdx < 0) throw new Error("Không có nến trước lúc vào lệnh");
 
-    const analyzer = createAnalyzer({ entry, trend }, settings);
+    const analyzer = createAnalyzer({ entry, trend, ...(isLeader ? {} : { leader }) }, settings);
+    const leaderSides = leader?.length ? trendBiasSeries(leader, settings.methods.trendPullback) : [];
+    const leaderIndex = leader?.length ? alignHigherTimeframe(entry, leader) : [];
+    const btcTrend = (idx: number) => {
+      if (isLeader) return "đây là BTC";
+      const t = leaderIndex[idx] ?? -1;
+      return leaderTrendText(t < 0 ? "NO_DATA" : (leaderSides[t] ?? null));
+    };
     const atEntry = analyzer.at(entryIdx);
     const atExit = analyzer.at(exitIdx);
     const explanation = analyzer.explain(entryIdx);
@@ -285,6 +310,7 @@ export class ReviewService {
         adx: round(adxSeries[entryIdx] ?? Number.NaN, 1),
         trendTimeframe: trendTf,
         higherTimeframeTrend: trendSide(entryIdx),
+        btcTrend: btcTrend(entryIdx),
         signalsUsed:
           trade.entrySignals?.map((s) => ({
             method: LABEL[s.method],
@@ -300,6 +326,7 @@ export class ReviewService {
       },
       atExit: {
         higherTimeframeTrend: trendSide(exitIdx),
+        btcTrend: btcTrend(exitIdx),
         consensus: { level: atExit.consensus.level, direction: atExit.consensus.direction, long: atExit.consensus.longCount, short: atExit.consensus.shortCount },
         activeSignals: METHOD_IDS.flatMap((id) => (atExit.methods[id].signal ? [`${LABEL[id]}: ${atExit.methods[id].signal!.direction}`] : [])),
       },
@@ -320,6 +347,7 @@ export class ReviewService {
         moveSl: settings.risk.moveSl ? `về giá vào ở ${settings.risk.breakEvenAtTpPct}% đường tới TP, khoá ${settings.risk.lockSlAtTpPct}% ở ${settings.risk.lockAtTpPct}%` : "tắt",
         thresholds: `${settings.general.alertThreshold} phương pháp cùng chiều thì báo`,
         entryRule: entryRuleText(settings.general),
+        followBtc: settings.general.followBtc,
         signalTtlBars: settings.general.signalTtlBars,
         note: "Cài đặt hiện tại; có thể khác lúc vào lệnh nếu đã sửa",
       },

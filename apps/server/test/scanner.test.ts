@@ -38,6 +38,41 @@ function scannerHarness(env: Record<string, string> = {}) {
   };
 }
 
+describe("Scanner: follow BTC", () => {
+  it("hands BTC's trend candles to altcoins once per scan, not to BTC itself, and none with the rule off", async () => {
+    const h = runtimeHarness();
+    h.runtime.settings.update({ general: { watchlist: ["BTCUSDT", "ETHUSDT"], followBtc: "NOT_AGAINST" } });
+    // What each symbol's analysis got, in watchlist order: BTC's candles, or "none" without the field.
+    const seen: unknown[] = [];
+    const scanner = new Scanner({
+      market: h.exchange,
+      settings: () => h.runtime.settings.get(),
+      store: h.runtime.trades,
+      control: h.runtime.control,
+      hub: h.runtime.hub,
+      kv: h.runtime.kv,
+      enter: (request) => h.runtime.executor.enter(request),
+      now: () => h.exchange.clock,
+      sleep: async () => {},
+      analyze: (market, settings) => {
+        seen.push("leader" in market ? market.leader : "none");
+        return analysisOf([], market.entry.at(-1)!.closeTime, settings);
+      },
+    });
+    await scanner.scanNow();
+    expect(seen[0]).toBe("none");
+    expect(Array.isArray(seen[1])).toBe(true);
+    expect(scanner.markets.get("BTCUSDT")).not.toHaveProperty("leader");
+    expect(scanner.markets.get("ETHUSDT")?.leader?.length).toBeGreaterThan(0);
+
+    h.runtime.settings.update({ general: { followBtc: "OFF" } });
+    seen.length = 0;
+    await scanner.scanNow();
+    expect(seen).toEqual(["none", "none"]);
+    expect(scanner.markets.get("ETHUSDT")).not.toHaveProperty("leader");
+  });
+});
+
 describe("Scanner: 2/3 and 3/3", () => {
   it("sends READY once per episode and again after the episode ends", async () => {
     const h = scannerHarness();
@@ -198,8 +233,8 @@ describe("Scanner: restarts and data", () => {
     h.exchange.lagCandles = 1;
     const report = await h.scanner.scanNow();
     expect(report.symbols.every((s) => s.error?.includes("chưa trả nến"))).toBe(true);
-    // 6 tries per symbol (first + 5 retries), no trend fetch.
-    expect(h.exchange.candleCalls).toBe(12);
+    // BTC's trend candles once for the follow-BTC rule, then 6 tries per symbol (first + 5 retries).
+    expect(h.exchange.candleCalls).toBe(13);
     const failed = h.runtime.log.list({ limit: 5 }).filter((e) => e.type === "SCAN_FAILED");
     expect(failed).toHaveLength(1);
     expect(failed[0]!.title).toBe("Không phân tích được BTCUSDT, ETHUSDT");

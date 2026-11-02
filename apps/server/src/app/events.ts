@@ -1,4 +1,16 @@
-import { comboOf, GUARD_MESSAGES, METHOD_LABELS, type ConsensusLevel, type Direction, type Episode, type GuardReason, type MethodId, type SymbolAnalysis } from "@bot-v3/core";
+import {
+  comboOf,
+  GUARD_MESSAGES,
+  leaderTrendText,
+  METHOD_LABELS,
+  type ConsensusLevel,
+  type Direction,
+  type Episode,
+  type GuardReason,
+  type LeaderTrend,
+  type MethodId,
+  type SymbolAnalysis,
+} from "@bot-v3/core";
 import type { EventLog, LogEntry, LogLevelName } from "../db/stores.js";
 import { isLimitNotFilled, isStopRuleRejection, stopStage, type BotEvent, type EventSink, type Trade } from "../engine/types.js";
 import { silentLogger, type Logger } from "../lib/logger.js";
@@ -28,6 +40,8 @@ export interface AnalysisView {
     shortCount: number;
     agreeing: MethodId[];
     opposing: MethodId[];
+    /** BTC's trend and whether it kept this altcoin from entering; null for BTC itself or with the rule off. */
+    leader: { trend: LeaderTrend; blocked: boolean } | null;
   };
   episode: Episode | null;
   scannedAt: number;
@@ -57,6 +71,7 @@ export function toAnalysisView(symbol: string, timeframe: string, analysis: Symb
       shortCount: c.shortCount,
       agreeing: c.agreeing.map((s) => s.method),
       opposing: c.opposing.map((s) => s.method),
+      leader: c.leader ?? null,
     },
     episode,
     scannedAt,
@@ -118,7 +133,7 @@ export function describeEvent(event: AppEvent): { level: LogLevelName; symbol: s
         level: "info",
         symbol: a.symbol,
         title: `SẴN SÀNG ${comboOf(c.agreeing)} ${a.symbol} ${side(c.direction)}`,
-        message: `${methodsOf(c.agreeing)} cùng chiều tại ${a.price}`,
+        message: `${methodsOf(c.agreeing)} cùng chiều tại ${a.price}${c.leader?.blocked ? `; không vào lệnh vì ngược BTC (${leaderTrendText(c.leader.trend)})` : ""}`,
       };
     }
     case "SIGNAL_ENTER": {

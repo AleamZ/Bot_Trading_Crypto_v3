@@ -23,6 +23,14 @@ describe("Telegram messages", () => {
     expect(text).toContain(`nến 15m đóng ${vnTime(1_800_000_000_000)}`);
   });
 
+  it("READY says when BTC's trend kept an altcoin out", () => {
+    const blocked = view();
+    blocked.consensus.leader = { trend: "SHORT", blocked: true };
+    const text = formatEvent({ type: "SIGNAL_READY", analysis: blocked }, ctx)!;
+    expect(text).toContain("Không vào lệnh: ngược xu hướng BTC (BTC giảm).");
+    expect(text).not.toContain("Chưa vào lệnh: cần");
+  });
+
   it("an entry shows volume, SL and TP with what each is worth after fees", () => {
     const text = formatEvent({ type: "ENTRY_FILLED", trade: sampleTrade() }, ctx)!;
     expect(text).toContain("🟢 <b>ĐÃ VÀO LỆNH A+B+C · BTCUSDT LONG</b>");

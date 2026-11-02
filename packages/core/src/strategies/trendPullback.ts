@@ -1,6 +1,7 @@
 import { ema } from "../indicators/moving.js";
 import { rsi } from "../indicators/oscillators.js";
 import { alignHigherTimeframe } from "../indicators/structure.js";
+import { trendBiasSeries } from "../leader.js";
 import type { TrendPullbackParams } from "../settings/schema.js";
 import type { Direction, MethodSignal } from "../types.js";
 import { fmt, isFiniteAll, side, type Check, type MarketData, type PreparedStrategy, type SharedSeries, type SideExplanation, type StrategyExplanation } from "./types.js";
@@ -22,19 +23,10 @@ export function prepareTrendPullback(market: MarketData, p: TrendPullbackParams,
   const trendMid = ema(trendCloses, p.emaMid);
   const trendSlow = ema(trendCloses, p.emaSlow);
   const trendIndex = alignHigherTimeframe(entry, trend);
+  const trendSides = trendBiasSeries(trend, p);
 
   function trendBias(i: number): Direction | null {
-    const t = trendIndex[i]!;
-    const before = t - p.slopeLookback;
-    if (before < 0) return null;
-    const close = trend[t]!.close;
-    const mid = trendMid[t]!;
-    const slow = trendSlow[t]!;
-    const midBefore = trendMid[before]!;
-    if (!isFiniteAll(mid, slow, midBefore)) return null;
-    if (close > slow && mid > slow && mid > midBefore) return "LONG";
-    if (close < slow && mid < slow && mid < midBefore) return "SHORT";
-    return null;
+    return trendSides[trendIndex[i]!] ?? null;
   }
 
   function evaluate(i: number): MethodSignal | null {

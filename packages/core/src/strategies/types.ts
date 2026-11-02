@@ -5,6 +5,11 @@ export interface MarketData {
   entry: readonly Candle[];
   /** Closed candles of the trend timeframe, oldest first. */
   trend: readonly Candle[];
+  /**
+   * BTC's closed candles of the trend timeframe, for the follow-BTC rule (general.followBtc).
+   * Left out when the rule does not apply (BTC itself); null when they could not be loaded.
+   */
+  leader?: readonly Candle[] | null;
 }
 
 /** Series several methods share, computed once per candle array. */

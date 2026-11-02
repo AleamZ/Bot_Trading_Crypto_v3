@@ -2,6 +2,7 @@ import {
   advanceEpisode,
   checkEntryGuards,
   createAnalyzer,
+  LEADER_SYMBOL,
   markEntered,
   type Candle,
   type Episode,
@@ -169,12 +170,13 @@ export class Scanner {
     const expectedClose = lastClosedCandleTime(startedAt, timeframeMs(settings));
     const episodes = this.deps.kv.get<Record<string, EpisodeRecord>>(EPISODES_KEY, {});
     const symbols: SymbolScan[] = [];
+    const leader = await this.leaderCandles(settings);
 
     for (const symbol of settings.general.watchlist) {
       const scan: SymbolScan = { symbol, level: null, direction: null, emitted: null, entry: null, error: null };
       symbols.push(scan);
       try {
-        await this.scanSymbol(symbol, settings, expectedClose, episodes, scan);
+        await this.scanSymbol(symbol, settings, expectedClose, episodes, scan, leader);
       } catch (error) {
         scan.error = errorText(error);
         this.logger.warn("Scan failed", { symbol, error: scan.error });
@@ -202,13 +204,15 @@ export class Scanner {
     expectedClose: number,
     episodes: Record<string, EpisodeRecord>,
     scan: SymbolScan,
+    leader: readonly Candle[] | null | undefined,
   ): Promise<void> {
     const { entryTf, trendTf } = settings.general;
     const limits = candleLimits(settings);
     const entry = await this.freshCandles(symbol, entryTf, limits.entry, expectedClose);
     const trend = trendTf === entryTf ? entry : await this.deps.market.getClosedCandles(symbol, trendTf, limits.trend);
-    this.markets.set(symbol, { entry, trend });
-    const analysis = this.analyze({ entry, trend }, settings);
+    const market: MarketData = { entry, trend, ...(leader !== undefined && symbol !== LEADER_SYMBOL ? { leader } : {}) };
+    this.markets.set(symbol, market);
+    const analysis = this.analyze(market, settings);
     scan.level = analysis.consensus.level;
     scan.direction = analysis.consensus.direction;
 
@@ -262,6 +266,20 @@ export class Scanner {
       ...(quietReason ? { quietReason } : {}),
     });
     return outcome.ok ? { entry: "FILLED" } : { entry: "FAILED", reason: outcome.reason };
+  }
+
+  /**
+   * BTC's candles of the trend timeframe for the follow-BTC rule, once per pass: undefined with the
+   * rule off, null when Binance did not answer (altcoins then do not enter).
+   */
+  private async leaderCandles(settings: Settings): Promise<readonly Candle[] | null | undefined> {
+    if (settings.general.followBtc === "OFF") return undefined;
+    try {
+      return await this.deps.market.getClosedCandles(LEADER_SYMBOL, settings.general.trendTf, candleLimits(settings).trend);
+    } catch (error) {
+      this.logger.warn("BTC candles failed", { error: errorText(error) });
+      return null;
+    }
   }
 
   /** Entry candles that include the candle that just closed (Binance can lag by a moment). */

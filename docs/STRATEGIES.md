@@ -76,9 +76,18 @@ Gọi L và S là số phương pháp đang có tín hiệu LONG và SHORT:
 | Điều kiện | Kết quả |
 |---|---|
 | L = S | NONE (không chiều) |
-| phía kia = 0, có phương pháp `entryRequires` nếu đã chọn, và: phía đông hơn khớp một tổ hợp trong `entryCombos`, hoặc (khi không chọn tổ hợp nào) có ≥ `autoEntryThreshold` (3) phương pháp | **ENTER**: tự vào lệnh. `entryCombos` (Cài đặt → Chung → "Tổ hợp được tự vào lệnh") là danh sách như `B+C`, `D`, `A+B+C`; có thêm phương pháp khác cùng chiều vẫn tính. `entryRequires` (mặc định NONE) bắt buộc một phương pháp; thiếu thì chỉ READY |
+| phía kia = 0, có phương pháp `entryRequires` nếu đã chọn, không ngược xu hướng BTC (altcoin, xem dưới), và: phía đông hơn khớp một tổ hợp trong `entryCombos`, hoặc (khi không chọn tổ hợp nào) có ≥ `autoEntryThreshold` (3) phương pháp | **ENTER**: tự vào lệnh. `entryCombos` (Cài đặt → Chung → "Tổ hợp được tự vào lệnh") là danh sách như `B+C`, `D`, `A+B+C`; có thêm phương pháp khác cùng chiều vẫn tính. `entryRequires` (mặc định NONE) bắt buộc một phương pháp; thiếu thì chỉ READY |
 | phía đông hơn ≥ `alertThreshold` (2) | **READY**: báo Telegram. Nếu có phương pháp ngược chiều thì chỉ báo khi `alertWhenOpposed` bật |
 | còn lại | NONE |
+
+**Theo chân BTC (`general.followBtc`, "theo chân người khổng lồ"):** altcoin đi theo BTC, nên một altcoin đủ điều kiện vào lệnh (2/3, 3/3 hay khớp tổ hợp) mà ngược xu hướng BTC thì chỉ được READY, không tự vào lệnh. BTCUSDT không bị xét.
+
+- Xu hướng BTC lấy ở khung xu hướng (`trendTf`, mặc định 1h), cùng cách tính "khung lớn" của phương pháp A: giá và EMA giữa (50) trên EMA chậm (200), EMA giữa dốc lên trong `slopeLookback` nến là **BTC tăng**; ngược lại là **BTC giảm**; còn lại là **chưa rõ xu hướng**. Mỗi lượt quét tải nến BTC một lần cho mọi altcoin.
+- `NOT_AGAINST` (mặc định): BTC tăng thì altcoin không được SHORT, BTC giảm thì không được LONG; BTC chưa rõ xu hướng thì không chặn.
+- `WITH`: altcoin chỉ vào cùng chiều BTC; BTC chưa rõ xu hướng thì không vào.
+- `OFF`: không xét.
+- Không đọc được nến BTC thì altcoin không vào lệnh, an toàn hơn là đoán.
+- Bảng tín hiệu ghi "ngược BTC" cạnh READY bị chặn, trang Phân tích ghi xu hướng BTC, tin Telegram SẴN SÀNG ghi "Không vào lệnh: ngược xu hướng BTC". Backtest dùng cùng luật (script luôn tải nến BTC, nên `--sweep general.followBtc=OFF,NOT_AGAINST,WITH` chạy trên cùng dữ liệu).
 
 **Chống spam (`advanceEpisode`):**
 

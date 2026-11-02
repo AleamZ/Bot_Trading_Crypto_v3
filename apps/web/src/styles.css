@@ -818,6 +818,11 @@ textarea.input {
   font-size: 12px;
 }
 
+.board .against {
+  color: var(--heart);
+  font-size: 11px;
+}
+
 .board tbody tr {
   cursor: pointer;
 }

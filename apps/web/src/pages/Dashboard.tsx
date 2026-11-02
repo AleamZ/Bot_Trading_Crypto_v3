@@ -4,7 +4,7 @@ import { api, errorMessage } from "../api";
 import { clock, dateTime, duration, money, price, progress, rMultiple, signed, usd } from "../format";
 import { useLoad, useNow, type Live, type Route } from "../hooks";
 import { Feed } from "../parts";
-import { entryRuleText, METHODS, type AnalysisView, type Position, type Status, type Trade } from "../types";
+import { entryRuleText, leaderText, METHODS, type AnalysisView, type Position, type Status, type Trade } from "../types";
 import { Button, Chip, ConfirmButton, DirectionChip, LevelChip, Mascot, Meter, Notice, Panel, Stat, Tabs, type Mood } from "../ui";
 import { useToast } from "../ui";
 
@@ -123,11 +123,12 @@ function SignalPanel({ status, rows, go }: { status: Status; rows: AnalysisView[
   }, [filter]);
   const active = rows.filter((a) => agreeCount(a) > 0);
   const off = rows[0] ? METHODS.filter((m) => !rows[0]!.methods[m.id]?.enabled).map((m) => m.letter) : [];
+  const btc = rows.find((a) => a.consensus.leader)?.consensus.leader;
   const scan = status.lastScan ? `nến ${status.limits.entryTf} đóng ${clock(status.lastScan.expectedClose + 1)} · quét ${clock(status.lastScan.finishedAt)}` : "chưa quét";
   return (
     <Panel
       title="Tín hiệu"
-      sub={off.length ? `${scan} · ${off.join(", ")} tắt` : scan}
+      sub={[scan, off.length ? `${off.join(", ")} tắt` : "", btc ? leaderText(btc.trend) : ""].filter(Boolean).join(" · ")}
       actions={
         rows.length > 0 && (
           <Tabs
@@ -206,7 +207,15 @@ function SignalBoard({ rows, go }: { rows: AnalysisView[]; go: (route: Route, pa
                       </span>
                     </span>
                   </td>
-                  <td>{c.level === "NONE" ? <span className="soft">chờ</span> : <LevelChip level={c.level} />}</td>
+                  <td>
+                    {c.level === "NONE" ? <span className="soft">chờ</span> : <LevelChip level={c.level} />}
+                    {c.level !== "NONE" && c.leader?.blocked && (
+                      <span className="soft against" title={`Ngược xu hướng BTC (${leaderText(c.leader.trend)}): chỉ báo, không vào lệnh`}>
+                        {" "}
+                        ngược BTC
+                      </span>
+                    )}
+                  </td>
                 </tr>
                 {expanded && (
                   <tr>

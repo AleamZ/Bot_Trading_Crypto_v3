@@ -28,7 +28,8 @@
     "alertThreshold": 2,
     "autoEntryThreshold": 2,
     "entryCombos": [],
-    "entryRequires": "NONE"
+    "entryRequires": "NONE",
+    "followBtc": "NOT_AGAINST"
   },
   "risk": {
     "rr": 1.2,

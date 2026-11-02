@@ -1,3 +1,4 @@
+import { againstLeader, type FollowBtcMode, type LeaderTrend } from "../leader.js";
 import { comboOf, type Direction, type MethodId, type MethodSignal } from "../types.js";
 
 export type ConsensusLevel = "NONE" | "READY" | "ENTER";
@@ -16,6 +17,8 @@ export interface ConsensusOptions {
    * method of one of them (more is fine) instead of reaching `autoEntryThreshold`.
    */
   entryCombos?: readonly string[];
+  /** Follow BTC: an altcoin against BTC's trend gets READY at most (see againstLeader). */
+  followBtc?: FollowBtcMode;
 }
 
 /** What it takes to enter: "B+C hoặc D", or "3 phương pháp cùng chiều" without combos. */
@@ -37,20 +40,25 @@ export interface ConsensusResult {
   opposing: MethodSignal[];
   longCount: number;
   shortCount: number;
+  /** BTC's trend and whether it kept this altcoin from entering; absent for BTC itself or with the rule off. */
+  leader?: { trend: LeaderTrend; blocked: boolean };
 }
 
 /**
  * Combines the active signals of the enabled methods.
- * - ENTER: none points the other way, the `entryRequires` method (if any) agrees, and either the
- *   agreeing methods cover one of `entryCombos` or, without combos, at least `autoEntryThreshold` agree.
+ * - ENTER: none points the other way, the `entryRequires` method (if any) agrees, either the
+ *   agreeing methods cover one of `entryCombos` or, without combos, at least `autoEntryThreshold`
+ *   agree, and the direction is not against BTC's trend (`leader`, altcoins only).
  * - READY: at least `alertThreshold` agree (with an opposing method only if `alertWhenOpposed`).
  */
-export function decideConsensus(signals: readonly MethodSignal[], options: ConsensusOptions): ConsensusResult {
+export function decideConsensus(signals: readonly MethodSignal[], options: ConsensusOptions, leader?: LeaderTrend): ConsensusResult {
   const long = signals.filter((s) => s.direction === "LONG");
   const short = signals.filter((s) => s.direction === "SHORT");
+  const mode = options.followBtc ?? "OFF";
+  const follows = leader !== undefined && mode !== "OFF";
   const base = { longCount: long.length, shortCount: short.length };
   if (long.length === short.length) {
-    return { ...base, level: "NONE", direction: null, agreeing: [], opposing: [...signals] };
+    return { ...base, level: "NONE", direction: null, agreeing: [], opposing: [...signals], ...(follows ? { leader: { trend: leader, blocked: false } } : {}) };
   }
   const direction: Direction = long.length > short.length ? "LONG" : "SHORT";
   const agreeing = direction === "LONG" ? long : short;
@@ -60,9 +68,10 @@ export function decideConsensus(signals: readonly MethodSignal[], options: Conse
   const hasRequired = required === null || agreeing.some((s) => s.method === required);
   const combos = options.entryCombos ?? [];
   const enough = combos.length > 0 ? matchesCombo(agreeing.map((s) => s.method), combos) : agreeing.length >= options.autoEntryThreshold;
-  if (enough && opposing.length === 0 && hasRequired) level = "ENTER";
+  const follow = follows ? { trend: leader, blocked: againstLeader(direction, leader, mode) } : null;
+  if (enough && opposing.length === 0 && hasRequired && !follow?.blocked) level = "ENTER";
   else if (agreeing.length >= options.alertThreshold && (opposing.length === 0 || options.alertWhenOpposed)) level = "READY";
-  return { ...base, level, direction, agreeing, opposing };
+  return { ...base, level, direction, agreeing, opposing, ...(follow ? { leader: follow } : {}) };
 }
 
 /** The alert episode a symbol is in, stored by the caller between candles. */
