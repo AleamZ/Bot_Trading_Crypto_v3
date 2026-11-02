@@ -29,7 +29,7 @@
     "autoEntryThreshold": 2,
     "entryCombos": [],
     "entryRequires": "NONE",
-    "followBtc": "NOT_AGAINST"
+    "followBtc": "WITH"
   },
   "risk": {
     "rr": 1.2,
