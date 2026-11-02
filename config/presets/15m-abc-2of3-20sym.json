@@ -24,7 +24,7 @@
     ],
     "entryTf": "15m",
     "trendTf": "1h",
-    "signalTtlBars": 4,
+    "signalTtlBars": 1,
     "alertThreshold": 2,
     "autoEntryThreshold": 2,
     "entryCombos": [],
@@ -33,7 +33,7 @@
   },
   "risk": {
     "rr": 1.2,
-    "maxSlAtr": 6,
+    "maxSlAtr": 4,
     "moveSl": false,
     "maxOpenPositions": 5,
     "entryOrder": "LIMIT",

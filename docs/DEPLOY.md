@@ -219,7 +219,7 @@ pm2 start bot-v3 && pm2 save
 
 - `npm run settings` (không có `apply`) in cài đặt đang lưu. Preset sai thì báo lỗi từng mục và không lưu gì. Bot đang chạy thì lệnh từ chối và nhắc dừng bot trước.
 - Dừng bot không đóng vị thế: SL/TP vẫn trên Binance, watchdog tiếp tục quản lý khi bot chạy lại.
-- `15m-abc-2of3-20sym.json`: khung 15m (xu hướng 1h), A+B+C vào lệnh khi 2/3 cùng chiều, hiệu lực tín hiệu 4 nến, RR 1.2, SL tối đa 6 ATR, không dời SL, tối đa 5 vị thế, 20 symbol, D tắt. Kết quả backtest ở [BACKTEST.md](BACKTEST.md), mục "Phương pháp D, cả 4 phương pháp, 20 symbol, phí". Preset vào lệnh bằng LIMIT post-only (phí maker): backtest 180 ngày khoảng +21R (+3.5R mỗi 30 ngày, sụt giảm tối đa 39R); vào bằng MARKET chỉ khoảng +6R.
+- `15m-abc-2of3-20sym.json`: khung 15m (xu hướng 1h), A+B+C vào lệnh khi 2/3 cùng chiều **trên cùng một nến** (hiệu lực tín hiệu 1 nến), altcoin không vào ngược xu hướng BTC, RR 1.2, SL tối đa 4 ATR, không dời SL, tối đa 5 vị thế, 20 symbol, D tắt, vào lệnh bằng LIMIT post-only (phí maker). Backtest ở [BACKTEST.md](BACKTEST.md), mục "Bốn đề xuất của AI, kiểm tra trên hai giai đoạn": 180 ngày tới 02/11/2026 khoảng +40R (sụt giảm 15R), 180 ngày trước đó khoảng −25R, cả năm khoảng +16R, vẫn trong mức ngẫu nhiên. Bản trước (hiệu lực 4 nến, SL tối đa 6 ATR) cả năm khoảng −21R.
 
 ## Hằng ngày
 
