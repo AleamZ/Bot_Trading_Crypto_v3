@@ -261,3 +261,19 @@ Bản cũ cho cùng kết luận: ER < 0.12 lỗ −28R và −24.6R; lọc ER �
 - Bộ lọc trên vẫn lỗ ở 12/2025, 03/2026 và 04/2026. Tháng 4 lỗ chủ yếu do SHORT (−11.8R) khi BTC tăng 12.7% cả tháng, nên xu hướng BTC 1h là quá ngắn để thấy xu hướng tháng.
 - Giờ 06–11h (giờ VN) tốt hơn ở cả hai nửa, 18–23h kém hơn; bằng chứng yếu hơn.
 - Các con số này là **lọc lại danh sách lệnh sau khi chạy**, chưa tính việc bỏ một lệnh thì lệnh khác có chỗ vào. Cần làm thành cài đặt thật và backtest lại cả hai nửa năm.
+
+## Bộ lọc đi có hướng và theo BTC WITH, chạy như cài đặt thật (2026-11-02)
+
+Preset 15m hiện tại (TTL 1, SL tối đa 4 ATR, 20 symbol, LIMIT), hai nửa năm như trên, `--sweep general.minEfficiency=0,0.12,0.15,0.18 --sweep general.followBtc=NOT_AGAINST,WITH`. Khác mục trước, bot bỏ lệnh ngay lúc chạy nên lệnh khác có thể vào thay.
+
+| Cấu hình | Trước (tới 06/05) | Gần (tới 02/11) | Cả năm | Lệnh / năm | Sụt giảm lớn nhất |
+|---|---|---|---|---|---|
+| NOT_AGAINST, ER tắt (preset hiện tại) | −24.9R | +40.4R | +15.6R | 654 | 29.9R |
+| **WITH, ER tắt** | **−1.7R** | **+37.9R** | **+36.1R** | 468 | 18.8R |
+| WITH, ER ≥ 0.12 | −4.2R | +30.2R | +26.0R | 295 | 14.8R |
+| WITH, ER ≥ 0.15 | −7.5R | +22.9R | +15.4R | 226 | 16.3R |
+| WITH, ER ≥ 0.18 | +5.7R | +22.4R | +28.0R | 157 | 12.1R |
+| NOT_AGAINST, ER ≥ 0.15 | −17.9R | +23.5R | +5.6R | 304 | 20.1R |
+
+- `followBtc=WITH` (chỉ vào cùng chiều khi BTC 1h có xu hướng rõ) là thay đổi ổn định nhất: nửa năm xấu từ −24.9R lên gần hoà vốn, nửa năm tốt gần như giữ nguyên.
+- Bộ lọc ER khi chạy thật kém hơn mức lọc lại danh sách lệnh, và không đi một chiều theo ngưỡng (0.15 kém hơn cả 0.12 lẫn 0.18). ER ≥ 0.18 kèm WITH là dòng duy nhất lãi ở cả hai nửa và sụt giảm thấp nhất, nhưng chỉ khoảng 13 lệnh mỗi tháng và nằm ở mép lưới thử, nên bằng chứng yếu.

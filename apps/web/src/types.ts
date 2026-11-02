@@ -32,6 +32,17 @@ export function leaderText(trend: LeaderTrend): string {
   return trend === "LONG" ? "BTC tăng" : trend === "SHORT" ? "BTC giảm" : "BTC chưa rõ xu hướng";
 }
 
+/** Efficiency ratio as text: "0.08", "?" when unknown. */
+export const erText = (value: number) => (Number.isFinite(value) ? value.toFixed(2) : "?");
+
+/** Why an agreement does not enter even though enough methods agree (same wording as the server). */
+export function entryBlockers(c: AnalysisView["consensus"]): string[] {
+  const out: string[] = [];
+  if (c.leader?.blocked) out.push(`ngược xu hướng BTC (${leaderText(c.leader.trend)})`);
+  if (c.efficiency?.blocked) out.push(`coin đang đi lòng vòng (ER ${erText(c.efficiency.value)} < ${c.efficiency.min})`);
+  return out;
+}
+
 export interface SignalView {
   direction: Direction;
   time: number;
@@ -57,6 +68,8 @@ export interface AnalysisView {
     opposing: MethodId[];
     /** BTC's trend and whether it kept this altcoin from entering; null for BTC itself or with the rule off. */
     leader: { trend: LeaderTrend; blocked: boolean } | null;
+    /** The symbol's efficiency ratio and whether it was too choppy to enter; null with the filter off. */
+    efficiency: { value: number; min: number; blocked: boolean } | null;
   };
   episode: { direction: Direction; level: "READY" | "ENTER"; startedAt: number } | null;
   scannedAt: number;

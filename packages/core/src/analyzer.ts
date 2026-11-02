@@ -1,4 +1,5 @@
-import { decideConsensus, type ConsensusResult } from "./consensus/index.js";
+import { decideConsensus, type ConsensusContext, type ConsensusResult } from "./consensus/index.js";
+import { efficiencyRatio } from "./indicators/moving.js";
 import { atr } from "./indicators/oscillators.js";
 import { alignHigherTimeframe } from "./indicators/structure.js";
 import { trendBiasSeries, type LeaderTrend } from "./leader.js";
@@ -59,10 +60,19 @@ export function createAnalyzer(market: MarketData, settings: Settings): Analyzer
   const follows = settings.general.followBtc !== "OFF" && market.leader !== undefined;
   const leaderSides = follows && market.leader ? trendBiasSeries(market.leader, methods.trendPullback) : [];
   const leaderIndex = follows && market.leader ? alignHigherTimeframe(market.entry, market.leader) : [];
-  function leaderAt(index: number): LeaderTrend | undefined {
-    if (!follows) return undefined;
+  // Choppiness filter: the symbol's own efficiency ratio on the entry timeframe.
+  const efficiency = settings.general.minEfficiency > 0 ? efficiencyRatio(market.entry.map((c) => c.close), settings.general.efficiencyBars) : null;
+
+  function leaderAt(index: number): LeaderTrend {
     const t = leaderIndex[index] ?? -1;
     return t < 0 ? "NO_DATA" : (leaderSides[t] ?? null);
+  }
+
+  function context(index: number): ConsensusContext {
+    return {
+      ...(follows ? { leader: leaderAt(index) } : {}),
+      ...(efficiency ? { efficiency: efficiency[index] ?? Number.NaN } : {}),
+    };
   }
 
   function at(index: number): SymbolAnalysis {
@@ -82,7 +92,7 @@ export function createAnalyzer(market: MarketData, settings: Settings): Analyzer
       price: candle.close,
       atr: shared.atr[index] ?? Number.NaN,
       methods: states,
-      consensus: decideConsensus(active, settings.general, leaderAt(index)),
+      consensus: decideConsensus(active, settings.general, context(index)),
     };
   }
 

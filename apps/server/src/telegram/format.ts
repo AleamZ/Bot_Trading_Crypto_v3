@@ -1,4 +1,4 @@
-import { comboOf, entryRuleText, feeRateOf, GUARD_MESSAGES, leaderTrendText, METHOD_IDS, METHOD_LABELS, METHOD_LETTERS, netResultAt, type MethodId, type Settings } from "@bot-v3/core";
+import { comboOf, entryBlockers, entryRuleText, feeRateOf, GUARD_MESSAGES, METHOD_IDS, METHOD_LABELS, METHOD_LETTERS, netResultAt, type MethodId, type Settings } from "@bot-v3/core";
 import type { AnalysisView, AppEvent } from "../app/events.js";
 import { isLimitNotFilled, isStopRuleRejection, stopStage, type Trade } from "../engine/types.js";
 
@@ -76,8 +76,8 @@ export function formatEvent(event: AppEvent, ctx: FormatContext): string | null 
         `🟡 <b>SẴN SÀNG ${combo(a)} · ${head(a)}</b>`,
         `Giá ${a.price} · nến ${a.timeframe} đóng ${vnTime(a.time + 1)}`,
         ...methodLines(a),
-        a.consensus.leader?.blocked
-          ? `Không vào lệnh: ngược xu hướng BTC (${leaderTrendText(a.consensus.leader.trend)}).`
+        entryBlockers(a.consensus).length
+          ? `Không vào lệnh: ${entryBlockers(a.consensus).join(", ")}.`
           : `Chưa vào lệnh: cần ${entryRuleText(ctx.settings.general)}.`,
       ].join("\n");
     }

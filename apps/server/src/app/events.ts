@@ -1,7 +1,7 @@
 import {
   comboOf,
   GUARD_MESSAGES,
-  leaderTrendText,
+  entryBlockers,
   METHOD_LABELS,
   type ConsensusLevel,
   type Direction,
@@ -42,6 +42,8 @@ export interface AnalysisView {
     opposing: MethodId[];
     /** BTC's trend and whether it kept this altcoin from entering; null for BTC itself or with the rule off. */
     leader: { trend: LeaderTrend; blocked: boolean } | null;
+    /** The symbol's efficiency ratio and whether it was too choppy to enter; null with the filter off. */
+    efficiency: { value: number; min: number; blocked: boolean } | null;
   };
   episode: Episode | null;
   scannedAt: number;
@@ -72,6 +74,7 @@ export function toAnalysisView(symbol: string, timeframe: string, analysis: Symb
       agreeing: c.agreeing.map((s) => s.method),
       opposing: c.opposing.map((s) => s.method),
       leader: c.leader ?? null,
+      efficiency: c.efficiency ?? null,
     },
     episode,
     scannedAt,
@@ -133,7 +136,7 @@ export function describeEvent(event: AppEvent): { level: LogLevelName; symbol: s
         level: "info",
         symbol: a.symbol,
         title: `SẴN SÀNG ${comboOf(c.agreeing)} ${a.symbol} ${side(c.direction)}`,
-        message: `${methodsOf(c.agreeing)} cùng chiều tại ${a.price}${c.leader?.blocked ? `; không vào lệnh vì ngược BTC (${leaderTrendText(c.leader.trend)})` : ""}`,
+        message: `${methodsOf(c.agreeing)} cùng chiều tại ${a.price}${entryBlockers(c).length ? `; không vào lệnh vì ${entryBlockers(c).join(", ")}` : ""}`,
       };
     }
     case "SIGNAL_ENTER": {

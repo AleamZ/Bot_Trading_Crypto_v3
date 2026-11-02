@@ -77,7 +77,7 @@ Gọi L và S là số phương pháp đang có tín hiệu LONG và SHORT:
 | Điều kiện | Kết quả |
 |---|---|
 | L = S | NONE (không chiều) |
-| phía kia = 0, có phương pháp `entryRequires` nếu đã chọn, không ngược xu hướng BTC (altcoin, xem dưới), và: phía đông hơn khớp một tổ hợp trong `entryCombos`, hoặc (khi không chọn tổ hợp nào) có ≥ `autoEntryThreshold` (3) phương pháp | **ENTER**: tự vào lệnh. `entryCombos` (Cài đặt → Chung → "Tổ hợp được tự vào lệnh") là danh sách như `B+C`, `D`, `A+B+C`; có thêm phương pháp khác cùng chiều vẫn tính. `entryRequires` (mặc định NONE) bắt buộc một phương pháp; thiếu thì chỉ READY |
+| phía kia = 0, có phương pháp `entryRequires` nếu đã chọn, không ngược xu hướng BTC (altcoin, xem dưới), coin không đi lòng vòng (`minEfficiency`, xem dưới), và: phía đông hơn khớp một tổ hợp trong `entryCombos`, hoặc (khi không chọn tổ hợp nào) có ≥ `autoEntryThreshold` (3) phương pháp | **ENTER**: tự vào lệnh. `entryCombos` (Cài đặt → Chung → "Tổ hợp được tự vào lệnh") là danh sách như `B+C`, `D`, `A+B+C`; có thêm phương pháp khác cùng chiều vẫn tính. `entryRequires` (mặc định NONE) bắt buộc một phương pháp; thiếu thì chỉ READY |
 | phía đông hơn ≥ `alertThreshold` (2) | **READY**: báo Telegram. Nếu có phương pháp ngược chiều thì chỉ báo khi `alertWhenOpposed` bật |
 | còn lại | NONE |
 
@@ -89,6 +89,8 @@ Gọi L và S là số phương pháp đang có tín hiệu LONG và SHORT:
 - `OFF`: không xét.
 - Không đọc được nến BTC thì altcoin không vào lệnh, an toàn hơn là đoán.
 - Bảng tín hiệu ghi "ngược BTC" cạnh READY bị chặn, trang Phân tích ghi xu hướng BTC, tin Telegram SẴN SÀNG ghi "Không vào lệnh: ngược xu hướng BTC". Backtest dùng cùng luật (script luôn tải nến BTC, nên `--sweep general.followBtc=OFF,NOT_AGAINST,WITH` chạy trên cùng dữ liệu).
+
+**Coin phải đi có hướng (`general.minEfficiency`, mặc định 0 là tắt):** chiến lược bắt xu hướng nên thua khi giá đi lòng vòng (xem BACKTEST.md, mục "Vì sao nửa năm trước lỗ"). Bot tính efficiency ratio (ER) trên giá đóng cửa của chính coin đó, trong `efficiencyBars` nến khung vào lệnh (mặc định 96, tức 24 giờ ở khung 15m): ER = |giá đổi ròng| / tổng quãng đường giá đi qua từng nến. ER = 1 là đi một mạch; gần 0 là lên xuống lòng vòng. ER thấp hơn `minEfficiency` thì chỉ READY, không vào lệnh. Bảng tín hiệu ghi "lòng vòng", trang Phân tích có dòng "Đi có hướng", Telegram ghi lý do, bài AI phân tích có `coinEfficiency`.
 
 **Chống spam (`advanceEpisode`):**
 

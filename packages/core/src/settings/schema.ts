@@ -78,6 +78,16 @@ const generalSchema = z
         description:
           "Xu hướng BTC lấy ở khung xu hướng, cùng cách tính \"khung lớn\" của phương pháp A (EMA giữa / EMA chậm). NOT_AGAINST: altcoin không được vào lệnh ngược xu hướng BTC, BTC chưa rõ xu hướng thì không chặn. WITH: altcoin chỉ vào lệnh cùng chiều xu hướng BTC. OFF: không xét. Bị chặn thì chỉ báo SẴN SÀNG; không đọc được nến BTC thì cũng không vào",
       }),
+    minEfficiency: num(0, 1)
+      .default(0)
+      .meta({
+        title: "Coin phải đi có hướng (ER tối thiểu)",
+        description:
+          "Efficiency ratio của giá đóng cửa coin trên số nến bên dưới: |giá đổi ròng| / tổng quãng đường giá đi, 1 là đi một mạch, gần 0 là lòng vòng. Dưới mức này thì chỉ báo SẴN SÀNG, không vào lệnh. 0: tắt",
+      }),
+    efficiencyBars: int(5, 500)
+      .default(96)
+      .meta({ title: "Số nến tính ER", unit: "nến", description: "96 nến 15m là 24 giờ" }),
     autoTrade: z
       .boolean()
       .default(true)

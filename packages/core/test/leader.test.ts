@@ -39,17 +39,17 @@ describe("decideConsensus with BTC's trend", () => {
   const two = [signal("trendPullback", "LONG", 95), signal("donchianBreakout", "LONG", 96)];
 
   it("turns an altcoin entry against BTC into a READY alert, and says why", () => {
-    expect(decideConsensus(two, options, "SHORT")).toMatchObject({ level: "READY", direction: "LONG", leader: { trend: "SHORT", blocked: true } });
-    expect(decideConsensus(two, options, "LONG")).toMatchObject({ level: "ENTER", leader: { trend: "LONG", blocked: false } });
-    expect(decideConsensus(two, options, null)).toMatchObject({ level: "ENTER", leader: { trend: null, blocked: false } });
-    expect(decideConsensus(two, { ...options, followBtc: "WITH" }, null)).toMatchObject({ level: "READY", leader: { blocked: true } });
-    expect(decideConsensus(two, options, "NO_DATA")).toMatchObject({ level: "READY", leader: { blocked: true } });
+    expect(decideConsensus(two, options, { leader: "SHORT" })).toMatchObject({ level: "READY", direction: "LONG", leader: { trend: "SHORT", blocked: true } });
+    expect(decideConsensus(two, options, { leader: "LONG" })).toMatchObject({ level: "ENTER", leader: { trend: "LONG", blocked: false } });
+    expect(decideConsensus(two, options, { leader: null })).toMatchObject({ level: "ENTER", leader: { trend: null, blocked: false } });
+    expect(decideConsensus(two, { ...options, followBtc: "WITH" }, { leader: null })).toMatchObject({ level: "READY", leader: { blocked: true } });
+    expect(decideConsensus(two, options, { leader: "NO_DATA" })).toMatchObject({ level: "READY", leader: { blocked: true } });
   });
 
   it("leaves BTC itself and the rule turned off alone", () => {
     expect(decideConsensus(two, options)).not.toHaveProperty("leader");
     expect(decideConsensus(two, options).level).toBe("ENTER");
-    const off = decideConsensus(two, { ...options, followBtc: "OFF" }, "SHORT");
+    const off = decideConsensus(two, { ...options, followBtc: "OFF" }, { leader: "SHORT" });
     expect(off.level).toBe("ENTER");
     expect(off).not.toHaveProperty("leader");
   });

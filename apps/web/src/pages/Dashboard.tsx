@@ -4,7 +4,7 @@ import { api, errorMessage } from "../api";
 import { clock, dateTime, duration, money, price, progress, rMultiple, signed, usd } from "../format";
 import { useLoad, useNow, type Live, type Route } from "../hooks";
 import { Feed } from "../parts";
-import { entryRuleText, leaderText, METHODS, type AnalysisView, type Position, type Status, type Trade } from "../types";
+import { entryBlockers, entryRuleText, leaderText, METHODS, type AnalysisView, type Position, type Status, type Trade } from "../types";
 import { Button, Chip, ConfirmButton, DirectionChip, LevelChip, Mascot, Meter, Notice, Panel, Stat, Tabs, type Mood } from "../ui";
 import { useToast } from "../ui";
 
@@ -209,10 +209,10 @@ function SignalBoard({ rows, go }: { rows: AnalysisView[]; go: (route: Route, pa
                   </td>
                   <td>
                     {c.level === "NONE" ? <span className="soft">chờ</span> : <LevelChip level={c.level} />}
-                    {c.level !== "NONE" && c.leader?.blocked && (
-                      <span className="soft against" title={`Ngược xu hướng BTC (${leaderText(c.leader.trend)}): chỉ báo, không vào lệnh`}>
+                    {c.level !== "NONE" && entryBlockers(c).length > 0 && (
+                      <span className="soft against" title={`Không vào lệnh: ${entryBlockers(c).join(", ")}. Chỉ báo SẴN SÀNG`}>
                         {" "}
-                        ngược BTC
+                        {[c.leader?.blocked ? "ngược BTC" : "", c.efficiency?.blocked ? "lòng vòng" : ""].filter(Boolean).join(", ")}
                       </span>
                     )}
                   </td>

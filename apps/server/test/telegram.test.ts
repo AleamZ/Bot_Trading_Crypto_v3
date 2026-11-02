@@ -31,6 +31,14 @@ describe("Telegram messages", () => {
     expect(text).not.toContain("Chưa vào lệnh: cần");
   });
 
+  it("READY says when the coin was too choppy, together with BTC", () => {
+    const blocked = view();
+    blocked.consensus.efficiency = { value: 0.083, min: 0.15, blocked: true };
+    expect(formatEvent({ type: "SIGNAL_READY", analysis: blocked }, ctx)).toContain("Không vào lệnh: coin đang đi lòng vòng (ER 0.08 < 0.15).");
+    blocked.consensus.leader = { trend: "SHORT", blocked: true };
+    expect(formatEvent({ type: "SIGNAL_READY", analysis: blocked }, ctx)).toContain("Không vào lệnh: ngược xu hướng BTC (BTC giảm), coin đang đi lòng vòng (ER 0.08 < 0.15).");
+  });
+
   it("an entry shows volume, SL and TP with what each is worth after fees", () => {
     const text = formatEvent({ type: "ENTRY_FILLED", trade: sampleTrade() }, ctx)!;
     expect(text).toContain("🟢 <b>ĐÃ VÀO LỆNH A+B+C · BTCUSDT LONG</b>");

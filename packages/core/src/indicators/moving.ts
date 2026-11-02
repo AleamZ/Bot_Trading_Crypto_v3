@@ -73,3 +73,19 @@ export function lowestBefore(values: readonly number[], length: number): number[
   }
   return out;
 }
+
+/**
+ * Kaufman efficiency ratio over `period` values: |net change| / sum of |changes|. 1 is a straight
+ * line, near 0 is back-and-forth chop; 0 when nothing moved.
+ */
+export function efficiencyRatio(values: readonly number[], period: number): number[] {
+  const out = new Array<number>(values.length).fill(Number.NaN);
+  if (period < 1) return out;
+  let path = 0;
+  for (let i = 1; i < values.length; i++) {
+    path += Math.abs(values[i]! - values[i - 1]!);
+    if (i > period) path -= Math.abs(values[i - period]! - values[i - period - 1]!);
+    if (i >= period) out[i] = path > 0 ? Math.abs(values[i]! - values[i - period]!) / path : 0;
+  }
+  return out;
+}

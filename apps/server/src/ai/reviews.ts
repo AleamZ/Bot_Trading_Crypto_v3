@@ -2,6 +2,7 @@ import {
   adx,
   alignHigherTimeframe,
   createAnalyzer,
+  efficiencyRatio,
   entryRuleText,
   LEADER_SYMBOL,
   leaderTrendText,
@@ -82,6 +83,7 @@ Cách đọc dữ kiện (đây là cách bot chạy, không phải lỗi dữ l
 - trade.stopLoss là SL lúc vào lệnh, R và path tính theo SL này. stopMoves là các lần bot dời SL (về giá vào khi giá đi được breakEvenAtTpPct% đường tới TP, khoá lãi khi đi được lockAtTpPct%); finalStopLoss là SL cuối, nằm phía có lãi sau khi dời là bình thường.
 - Tín hiệu của một phương pháp còn được tính vào đồng thuận trong signalTtlBars nến sau nến kích hoạt. signalsUsed là các tín hiệu bot đã dùng, kèm nến kích hoạt và candlesBeforeEntry. checks và consensus trong atEntry được tính lại trên nến ngay trước lúc vào, nên một phương pháp có thể không đạt đủ checks ở nến này vì tín hiệu của nó đến từ nến trước. Hãy đánh giá việc tín hiệu đã cũ thay vì coi là mâu thuẫn.
 - btcTrend là xu hướng BTC ở khung xu hướng (cùng cách tính "khung lớn"). rules.followBtc: NOT_AGAINST là altcoin không được vào ngược xu hướng BTC, WITH là chỉ vào cùng chiều BTC, OFF là không xét. Lệnh vào trước khi có luật này có thể ngược BTC; khi đó atEntry.consensus có thể chỉ là READY.
+- coinEfficiency là efficiency ratio của giá coin trên rules.efficiencyBars nến trước lúc vào: |giá đổi ròng| / tổng quãng đường, gần 1 là đi một mạch, dưới khoảng 0.12 là lòng vòng (backtest: lệnh vào lúc lòng vòng thường thua). rules.minEfficiency > 0 thì bot không vào khi ER thấp hơn mức đó.
 - SL/TP kích hoạt theo trade.triggerPrice (MARK_PRICE là giá mark) còn nến là giá giao dịch, nên lệnh có thể chạm TP/SL khi nến chưa chạm, và giá khớp có thể lệch mức đặt.
 - slMode EXACT_1R: sau khi khớp, SL được tính lại theo giá khớp thật để lỗ đúng 1R kể cả phí; structuralStop là SL gộp trước khi tính lại, plannedEntry là giá lúc quyết định vào.
 Yêu cầu:
@@ -224,6 +226,7 @@ export class ReviewService {
     if (entryIdx < 0) throw new Error("Không có nến trước lúc vào lệnh");
 
     const analyzer = createAnalyzer({ entry, trend, ...(isLeader ? {} : { leader }) }, settings);
+    const coinEr = efficiencyRatio(entry.map((c) => c.close), settings.general.efficiencyBars);
     const leaderSides = leader?.length ? trendBiasSeries(leader, settings.methods.trendPullback) : [];
     const leaderIndex = leader?.length ? alignHigherTimeframe(entry, leader) : [];
     const btcTrend = (idx: number) => {
@@ -311,6 +314,7 @@ export class ReviewService {
         trendTimeframe: trendTf,
         higherTimeframeTrend: trendSide(entryIdx),
         btcTrend: btcTrend(entryIdx),
+        coinEfficiency: round(coinEr[entryIdx] ?? Number.NaN, 3),
         signalsUsed:
           trade.entrySignals?.map((s) => ({
             method: LABEL[s.method],
@@ -348,6 +352,8 @@ export class ReviewService {
         thresholds: `${settings.general.alertThreshold} phương pháp cùng chiều thì báo`,
         entryRule: entryRuleText(settings.general),
         followBtc: settings.general.followBtc,
+        minEfficiency: settings.general.minEfficiency,
+        efficiencyBars: settings.general.efficiencyBars,
         signalTtlBars: settings.general.signalTtlBars,
         note: "Cài đặt hiện tại; có thể khác lúc vào lệnh nếu đã sửa",
       },
